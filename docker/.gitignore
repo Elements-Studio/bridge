@@ -1,0 +1,11 @@
+# Ignore deployment artifacts
+broadcast/
+cache/
+out/
+
+# Environment files
+.env
+!.env.example
+
+# Logs
+*.log

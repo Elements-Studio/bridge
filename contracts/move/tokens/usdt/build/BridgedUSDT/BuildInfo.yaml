@@ -1,0 +1,74 @@
+---
+compiled_package_info:
+  package_name: BridgedUSDT
+  address_alias_instantiation:
+    bridged_usdt: "0000000000000000000000000000000000000000000000000000000000000000"
+    std: "0000000000000000000000000000000000000000000000000000000000000001"
+    sui: "0000000000000000000000000000000000000000000000000000000000000002"
+  source_digest: F830E6496568F3D9DD3B38891DCB5D34648CBC9C340FD97F194245D49BFF9697
+  build_flags:
+    dev_mode: false
+    test_mode: false
+    generate_docs: false
+    save_disassembly: false
+    install_dir: ~
+    force_recompilation: false
+    lock_file: "./Move.lock"
+    fetch_deps_only: false
+    skip_fetch_latest_git_deps: false
+    default_flavor: sui
+    default_edition: ~
+    deps_as_root: false
+    silence_warnings: false
+    warnings_are_errors: false
+    json_errors: false
+    additional_named_addresses: {}
+    lint_flag:
+      no_lint: false
+      lint: false
+    modes: []
+    implicit_dependencies:
+      Bridge:
+        Internal:
+          kind:
+            Git:
+              git_url: "https://github.com/MystenLabs/sui.git"
+              git_rev: 494fa6ede17f366f1cd850f01ccb9f42dc75c470
+              subdir: crates/starcoin-framework/packages/bridge
+          subst: ~
+          digest: ~
+          dep_override: true
+      MoveStdlib:
+        Internal:
+          kind:
+            Git:
+              git_url: "https://github.com/MystenLabs/sui.git"
+              git_rev: 494fa6ede17f366f1cd850f01ccb9f42dc75c470
+              subdir: crates/starcoin-framework/packages/move-stdlib
+          subst: ~
+          digest: ~
+          dep_override: true
+      Sui:
+        Internal:
+          kind:
+            Git:
+              git_url: "https://github.com/MystenLabs/sui.git"
+              git_rev: 494fa6ede17f366f1cd850f01ccb9f42dc75c470
+              subdir: crates/starcoin-framework/packages/starcoin-framework
+          subst: ~
+          digest: ~
+          dep_override: true
+      SuiSystem:
+        Internal:
+          kind:
+            Git:
+              git_url: "https://github.com/MystenLabs/sui.git"
+              git_rev: 494fa6ede17f366f1cd850f01ccb9f42dc75c470
+              subdir: crates/starcoin-framework/packages/starcoin-system
+          subst: ~
+          digest: ~
+          dep_override: true
+    force_lock_file: false
+dependencies:
+  - MoveStdlib
+  - Sui

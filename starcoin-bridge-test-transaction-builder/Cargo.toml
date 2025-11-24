@@ -1,0 +1,12 @@
+[package]
+name = "starcoin-bridge-test-transaction-builder"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+# Use Starcoin types
+starcoin-types = { path = "../../types", package = "starcoin-vm1-types" }
+starcoin-vm-types = { path = "../../vm/types", package = "starcoin-vm1-vm-types" }
+
+anyhow = "1.0"

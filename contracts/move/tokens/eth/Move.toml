@@ -1,0 +1,11 @@
+[package]
+name = "BridgedETH"
+version = "0.0.1"
+edition = "legacy"
+
+[dependencies]
+MoveStdlib = { local = "../../../../crates/starcoin-bridge-framework/packages/move-stdlib" }
+Sui = { local = "../../../../crates/starcoin-bridge-framework/packages/starcoin-bridge-framework" }
+
+[addresses]
+bridged_eth = "0x0"

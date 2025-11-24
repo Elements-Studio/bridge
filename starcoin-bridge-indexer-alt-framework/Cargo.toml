@@ -1,0 +1,57 @@
+[package]
+name = "starcoin-bridge-indexer-alt-framework"
+version.workspace = true
+authors = ["Mysten Labs <build@mystenlabs.com>"]
+license = "Apache-2.0"
+publish = false
+edition = "2021"
+
+[dependencies]
+anyhow.workspace = true
+async-trait.workspace = true
+axum.workspace = true
+backoff.workspace = true
+bb8 = "0.8.5"
+chrono.workspace = true
+clap = { workspace = true, features = ["env"] }
+diesel = { workspace = true, features = ["chrono"] }
+diesel-async = { workspace = true, features = ["bb8", "postgres", "async-connection-wrapper"] }
+diesel_migrations.workspace = true
+futures.workspace = true
+pin-project-lite.workspace = true
+prometheus.workspace = true
+reqwest.workspace = true
+scoped-futures.workspace = true
+serde.workspace = true
+tempfile.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tokio-stream.workspace = true
+tokio-util.workspace = true
+# tonic.workspace = true
+tracing.workspace = true
+tracing-subscriber = { workspace = true, optional = true }
+url.workspace = true
+
+starcoin-bridge-field-count.workspace = true
+starcoin-bridge-indexer-alt-framework-store-traits.workspace = true
+starcoin-bridge-indexer-alt-metrics.workspace = true
+starcoin-bridge-rpc-api.workspace = true
+starcoin-bridge-storage.workspace = true
+starcoin-bridge-types.workspace = true
+
+starcoin-bridge-pg-db = { workspace = true, optional = true }
+
+[dev-dependencies]
+rand.workspace = true
+telemetry-subscribers.workspace = true
+wiremock.workspace = true
+starcoin-bridge-pg-db.workspace = true
+dashmap.workspace = true
+
+starcoin-bridge-synthetic-ingestion.workspace = true
+
+[features]
+default = ["cluster"]
+cluster = ["dep:tracing-subscriber", "postgres"]
+postgres = ["dep:starcoin-bridge-pg-db"]

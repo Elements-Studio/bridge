@@ -1,0 +1,35 @@
+[package]
+name = "starcoin-bridge-tls"
+version = "0.0.0"
+license = "Apache-2.0"
+authors = ["Brandon Williams <brandon@mystenlabs.com>"]
+description = "tools for rustls-based certificate generation and verification"
+edition = "2021"
+publish = false
+
+[dependencies]
+anyhow.workspace = true
+arc-swap = { version = "1.5.1", features = ["serde"] }
+ed25519 = { version = "2", features = ["pkcs8", "alloc", "zeroize"] }
+pkcs8 = { version = "0.10.0", features = ["std"] }
+rcgen = "0.13"
+rustls.workspace = true
+rustls-pki-types.workspace = true
+webpki = "0.22"
+x509-parser = { version = "0.17.0", features = ["verify"] }
+
+fastcrypto.workspace = true
+
+# reqwest support - need rustls-tls feature for Identity and Certificate types
+reqwest = { workspace = true, features = ["rustls-tls"] }
+
+# Axum support - commented out due to compatibility issues with rustls 0.21
+# axum.workspace = true
+# axum-server.workspace = true
+# tokio-rustls.workspace = true
+# tower-layer = "0.3.2"
+tokio.workspace = true
+
+[dev-dependencies]
+rand = "0.8.5"
+

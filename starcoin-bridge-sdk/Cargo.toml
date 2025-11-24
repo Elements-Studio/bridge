@@ -1,0 +1,27 @@
+[package]
+name = "starcoin-bridge-sdk"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+# Wrap Starcoin RPC client
+starcoin-rpc-client = { path = "../../rpc/client" }
+starcoin-rpc-api = { path = "../../rpc/api" }
+starcoin-crypto = { workspace = true }
+starcoin-types = { path = "../../types", package = "starcoin-vm1-types" }
+starcoin-vm-types = { workspace = true }
+starcoin-bridge-json-rpc-types = { path = "../starcoin-bridge-json-rpc-types" }
+starcoin-bridge-json-rpc-api = { path = "../starcoin-bridge-json-rpc-api" }
+starcoin-bridge-types = { path = "../starcoin-bridge-types" }
+
+anyhow = "1.0"
+async-trait = "0.1"
+eyre = "0.6"
+hex = "0.4"
+log = { workspace = true }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "1.0"
+futures = "0.3"
+url = { workspace = true }
