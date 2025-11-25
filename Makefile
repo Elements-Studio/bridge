@@ -9,7 +9,8 @@ NC     := \033[0m # No Color
 # Starcoin Configuration
 STARCOIN_PATH ?= starcoin
 MPM_PATH ?= mpm
-STARCOIN_DEV_DIR ?= /Users/manager/dev
+STARCOIN_DEV_PARENT_DIR ?= /Users/manager
+STARCOIN_DEV_DIR ?= $(STARCOIN_DEV_PARENT_DIR)/dev
 STARCOIN_RPC ?= $(STARCOIN_DEV_DIR)/starcoin.ipc
 STARCOIN_ACCOUNT_DIR ?= $(STARCOIN_DEV_DIR)/account_vaults
 MOVE_CONTRACT_DIR ?= ../stc-bridge-move
@@ -229,7 +230,7 @@ start-starcoin-dev-node-clean: ## Start Starcoin dev node from scratch (removes 
 	@echo "$(GREEN)✓ Cleaned dev data$(NC)"
 	@echo "$(YELLOW)Starting Starcoin console...$(NC)"
 	@echo "$(YELLOW)Using: $(STARCOIN_PATH)$(NC)"
-	@$(STARCOIN_PATH) -n dev console
+	@$(STARCOIN_PATH) -n dev -d $(STARCOIN_DEV_PARENT_DIR) console
 
 start-starcoin-dev-node: ## Start Starcoin dev node with existing data (keeps ~/.starcoin/dev)
 	@echo "$(YELLOW)╔════════════════════════════════════════╗$(NC)"
@@ -243,7 +244,7 @@ start-starcoin-dev-node: ## Start Starcoin dev node with existing data (keeps ~/
 	fi
 	@echo "$(YELLOW)Starting Starcoin console...$(NC)"
 	@echo "$(YELLOW)Using: $(STARCOIN_PATH)$(NC)"
-	@$(STARCOIN_PATH) -n dev console
+	@$(STARCOIN_PATH) -n dev -d $(STARCOIN_DEV_PARENT_DIR) console
 
 stop-starcoin-dev-node: ## Stop Starcoin dev node processes
 	@echo "$(YELLOW)Stopping Starcoin dev node...$(NC)"
@@ -278,19 +279,37 @@ deploy-starcoin-contracts: build-starcoin-contracts ## Deploy Move contracts to 
 	fi
 	@echo "$(GREEN)✓ Starcoin node is running$(NC)"
 	@echo ""
-	@echo "$(YELLOW)Getting test coins for deployment...$(NC)"
-	@echo "$(BLUE)Executing: RUST_LOG=info $(STARCOIN_PATH) -c $(STARCOIN_RPC) --local-account-dir $(STARCOIN_ACCOUNT_DIR) dev get-coin -v 1000000000$(NC)"
-	@RUST_LOG=info $(STARCOIN_PATH) -c $(STARCOIN_RPC) --local-account-dir $(STARCOIN_ACCOUNT_DIR) dev get-coin -v 1000000000 && \
+	@echo "$(YELLOW)Getting default account address...$(NC)"
+	@DEFAULT_ACCOUNT=$$($(STARCOIN_PATH) -c $(STARCOIN_RPC) account list 2>/dev/null | grep -B 1 '"is_default": true' | grep '"address"' | head -1 | sed 's/.*"\(0x[a-fA-F0-9]*\)".*/\1/'); \
+	if [ -z "$$DEFAULT_ACCOUNT" ]; then \
+		echo "$(RED)✗ No default account found$(NC)"; \
+		echo "$(YELLOW)Trying to get first account...$(NC)"; \
+		DEFAULT_ACCOUNT=$$($(STARCOIN_PATH) -c $(STARCOIN_RPC) account list 2>/dev/null | grep '"address"' | head -1 | sed 's/.*"\(0x[a-fA-F0-9]*\)".*/\1/'); \
+		if [ -z "$$DEFAULT_ACCOUNT" ]; then \
+			echo "$(RED)✗ No accounts found$(NC)"; \
+			exit 1; \
+		fi; \
+	fi; \
+	echo "$(GREEN)✓ Default account: $$DEFAULT_ACCOUNT$(NC)"; \
+	echo ""; \
+	echo "$(YELLOW)Getting test coins for deployment...$(NC)"; \
+	echo "$(BLUE)Executing: RUST_LOG=info $(STARCOIN_PATH) -c $(STARCOIN_RPC) dev get-coin -v 1000000000$(NC)"; \
+	RUST_LOG=info $(STARCOIN_PATH) -c $(STARCOIN_RPC) dev get-coin -v 1000000000 && \
 	echo "$(GREEN)✓ Got 1000 STC for gas$(NC)" || \
-	echo "$(YELLOW)⚠ Failed to get coins (might already have enough)$(NC)"
-	@echo ""
-	@echo "$(YELLOW)Deployment Configuration:$(NC)"
-	@echo "  RPC URL: $(STARCOIN_RPC)"
-	@echo "  Account Dir: $(STARCOIN_ACCOUNT_DIR)"
-	@echo "  Bridge Address: $(BRIDGE_ADDRESS)"
-	@echo "  Using: $(STARCOIN_PATH)"
-	@echo ""
-	@BLOB_FILE=$$(ls $(MOVE_CONTRACT_DIR)/release/*.blob | head -1); \
+	echo "$(YELLOW)⚠ Failed to get coins (might already have enough)$(NC)"; \
+	echo ""; \
+	echo "$(YELLOW)Unlocking account...$(NC)"; \
+	echo "" | RUST_LOG=info $(STARCOIN_PATH) -c $(STARCOIN_RPC) account unlock $$DEFAULT_ACCOUNT -d 300 && \
+	echo "$(GREEN)✓ Account unlocked$(NC)" || \
+	echo "$(YELLOW)⚠ Failed to unlock (might already be unlocked)$(NC)"; \
+	echo ""; \
+	echo "$(YELLOW)Deployment Configuration:$(NC)"; \
+	echo "  RPC URL: $(STARCOIN_RPC)"; \
+	echo "  Account: $$DEFAULT_ACCOUNT"; \
+	echo "  Bridge Address: $(BRIDGE_ADDRESS)"; \
+	echo "  Using: $(STARCOIN_PATH)"; \
+	echo ""; \
+	BLOB_FILE=$$(ls $(MOVE_CONTRACT_DIR)/release/*.blob | head -1); \
 	if [ -z "$$BLOB_FILE" ]; then \
 		echo "$(RED)✗ No blob file found$(NC)"; \
 		exit 1; \
@@ -298,8 +317,8 @@ deploy-starcoin-contracts: build-starcoin-contracts ## Deploy Move contracts to 
 	echo "$(YELLOW)Deploying: $$BLOB_FILE$(NC)"; \
 	echo "$(YELLOW)This may take 10-30 seconds...$(NC)"; \
 	echo ""; \
-	echo "$(BLUE)Executing: RUST_LOG=info $(STARCOIN_PATH) -c $(STARCOIN_RPC) --local-account-dir $(STARCOIN_ACCOUNT_DIR) dev deploy $$BLOB_FILE -b$(NC)"; \
-	RUST_LOG=info $(STARCOIN_PATH) -c $(STARCOIN_RPC) --local-account-dir $(STARCOIN_ACCOUNT_DIR) dev deploy $$BLOB_FILE -b && \
+	echo "$(BLUE)Executing: RUST_LOG=info $(STARCOIN_PATH) -c $(STARCOIN_RPC) dev deploy $$BLOB_FILE -s $$DEFAULT_ACCOUNT -b$(NC)"; \
+	RUST_LOG=info $(STARCOIN_PATH) -c $(STARCOIN_RPC) dev deploy $$BLOB_FILE -s $$DEFAULT_ACCOUNT -b && \
 	echo "" && \
 	echo "$(GREEN)✓ Bridge contract deployed successfully$(NC)" && \
 	echo "" && \
