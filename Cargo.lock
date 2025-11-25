@@ -10389,6 +10389,7 @@ dependencies = [
  "futures 0.3.31",
  "hex",
  "log 0.4.28",
+ "move-core-types 0.0.4 (git+https://github.com/starcoinorg/move?rev=babf994a38cda17b84186c7992f92fb3554347f0)",
  "serde",
  "serde_json",
  "starcoin-bridge-json-rpc-api",

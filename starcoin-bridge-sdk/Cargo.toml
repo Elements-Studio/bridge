@@ -14,6 +14,7 @@ starcoin-bridge-json-rpc-types = { path = "../starcoin-bridge-json-rpc-types" }
 starcoin-bridge-json-rpc-api = { path = "../starcoin-bridge-json-rpc-api" }
 starcoin-bridge-types = { path = "../starcoin-bridge-types" }
 starcoin-bridge-vm-types = { path = "../starcoin-bridge-vm-types" }
+move-core-types = { workspace = true }
 
 anyhow = "1.0"
 async-trait = "0.1"
