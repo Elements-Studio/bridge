@@ -98,7 +98,10 @@ impl BridgeRequestHandlerTrait for BridgeRequestMockHandler {
         tx_digest_base58: String,
         event_idx: u16,
     ) -> Result<Json<SignedBridgeAction>, BridgeError> {
-        let tx_digest = TransactionDigest::from_str(&tx_digest_base58)
+        // Decode hex string to TransactionDigest ([u8; 32])
+        let tx_digest = hex::decode(tx_digest_base58.trim_start_matches("0x"))
+            .map_err(|_e| BridgeError::InvalidTxHash)?
+            .try_into()
             .map_err(|_e| BridgeError::InvalidTxHash)?;
         let (result, delay) = {
             let preset = self.starcoin_bridge_token_events.lock().unwrap();

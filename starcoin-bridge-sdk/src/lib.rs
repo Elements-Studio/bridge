@@ -141,8 +141,13 @@ impl ReadApi {
         gas_price: Option<u64>,
         epoch: Option<u64>,
     ) -> Result<starcoin_bridge_json_rpc_types::DevInspectResults> {
-        // TODO: Implement transaction inspection using Starcoin's dry run API
-        // Starcoin doesn't have a direct bridge_dev_inspect_transaction_block method
+        // Starcoin uses contract.dry_run for transaction simulation
+        // Since we don't have the full transaction structure yet, return minimal results
+        // In a full implementation, we would:
+        // 1. Build a proper Starcoin transaction from tx_kind
+        // 2. Call contract.dry_run with the transaction
+        // 3. Parse the results into DevInspectResults
+        log::debug!("dev_inspect_transaction_block called - returning minimal results (full implementation requires transaction building)");
         Ok(starcoin_bridge_json_rpc_types::DevInspectResults {
             results: None,
             effects: None,
@@ -244,8 +249,16 @@ impl EventApi {
         limit: Option<usize>,
         descending: bool,
     ) -> Result<starcoin_bridge_json_rpc_types::EventPage> {
-        // TODO: Implement event query using Starcoin's event API
-        // Starcoin doesn't have a direct bridge_query_events method
+        // Starcoin event query would use chain.get_events or similar RPC methods
+        // To fully implement this, we need to:
+        // 1. Map EventFilter to Starcoin event query parameters
+        // 2. Query events from Starcoin node via RPC
+        // 3. Convert Starcoin events to bridge event format
+        // 4. Handle pagination with cursor
+        log::debug!("query_events called with query: {:?}, cursor: {:?}", query, cursor);
+        
+        // For now, return empty results
+        // Full implementation requires mapping between Sui-style event filters and Starcoin events
         Ok(starcoin_bridge_json_rpc_types::EventPage {
             data: vec![],
             next_cursor: None,
@@ -255,8 +268,25 @@ impl EventApi {
 
     // Get events by transaction digest
     pub async fn get_events(&self, digest: &[u8; 32]) -> Result<Vec<starcoin_bridge_types::event::Event>> {
-        // TODO: Query actual events from Starcoin by transaction hash
-        // For now, return empty list as this requires transaction event query implementation
+        // Query transaction events from Starcoin using call_raw_api
+        // This avoids HashValue type conflicts between different crates
+        let tx_hash_hex = format!("0x{}", hex::encode(digest));
+        
+        // Use raw API call to get transaction info
+        let params = serde_json::json!([tx_hash_hex]);
+        let result = self.client.call_raw_api("chain.get_transaction_info", starcoin_rpc_client::Params::Array(vec![
+            serde_json::Value::String(tx_hash_hex)
+        ]))?;
+        
+        // Check if transaction was found
+        if result.is_null() {
+            log::debug!("Transaction {} not found", hex::encode(digest));
+            return Ok(vec![]);
+        }
+        
+        // TODO: Parse transaction info and extract events
+        // For now, return empty list as event conversion needs implementation
+        log::debug!("Found transaction {}, but event conversion not yet implemented", hex::encode(digest));
         Ok(vec![])
     }
 }
@@ -279,10 +309,20 @@ impl QuorumDriverApi {
         options: starcoin_bridge_json_rpc_types::StarcoinTransactionBlockResponseOptions,
         request_type: starcoin_bridge_types::quorum_driver_types::ExecuteTransactionRequestType,
     ) -> Result<starcoin_bridge_json_rpc_types::StarcoinTransactionBlockResponse> {
-        // Transaction doesn't implement Serialize, so we'll pass it as debug string
-        // TODO: properly serialize transaction to bytes if needed
-        // TODO: Implement transaction execution using Starcoin's submit_transaction
-        // Starcoin doesn't have a direct bridge_execute_transaction_block method
+        // To execute on Starcoin, we need to:
+        // 1. Convert the Transaction to Starcoin's SignedUserTransaction format
+        // 2. Submit via txpool.submit_transaction RPC
+        // 3. Wait for transaction to be included in a block
+        // 4. Return the transaction result with digest, effects, and events
+        
+        log::warn!("execute_transaction_block called - full implementation requires transaction format conversion");
+        
+        // Full implementation would:
+        // let starcoin_tx = convert_to_starcoin_transaction(tx)?;
+        // let tx_hash = self.client.submit_transaction(starcoin_tx)?;
+        // let tx_info = self.client.chain_get_transaction_info(tx_hash)?.ok_or(...)?;
+        // return convert_to_response(tx_info, options)
+        
         Ok(starcoin_bridge_json_rpc_types::StarcoinTransactionBlockResponse {
             digest: None,
             effects: None,

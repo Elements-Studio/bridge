@@ -10,4 +10,4 @@ serde = { version = "1.0", features = ["derive"] }
 async-trait = "0.1"
 anyhow = "1.0"
 tokio = { workspace = true }
-starcoin-bridge-types = { path = "../../starcoin-bridge-types" }
+starcoin-bridge-types = { workspace = true }

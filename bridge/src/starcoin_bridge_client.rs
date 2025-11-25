@@ -455,8 +455,19 @@ impl StarcoinClientInner for StarcoinSdkClient {
         &self,
         tx_digest: TransactionDigest,
     ) -> Result<Vec<StarcoinEvent>, Self::Error> {
-        // TODO: Implement actual event query from Starcoin
-        // For now, return empty list as the SDK's get_events returns Vec<u8> stub
+        // Query events from Starcoin using the SDK
+        // Note: Currently get_events returns Vec<Event> where Event is Vec<u8> (stub)
+        // We need to convert these to proper StarcoinEvent objects
+        let _events = self.event_api().get_events(&tx_digest).await
+            .map_err(|e| {
+                starcoin_bridge_sdk::error::Error::from(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    format!("Failed to get events: {}", e)
+                ))
+            })?;
+        
+        // TODO: Parse the raw event bytes into StarcoinEvent objects
+        // This requires understanding the event structure from Starcoin transactions
         Ok(vec![])
     }
 

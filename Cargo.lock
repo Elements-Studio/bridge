@@ -10349,6 +10349,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "starcoin-bridge-data-ingestion-core"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "serde",
+ "starcoin-bridge-types",
+ "tokio",
+]
+
+[[package]]
 name = "starcoin-bridge-json-rpc-api"
 version = "0.1.0"
 dependencies = [

@@ -10,6 +10,7 @@ members = [
     "starcoin-bridge-config",
     "starcoin-bridge-keys",
     "starcoin-bridge-authority-aggregation",
+    "starcoin-bridge-data-ingestion-core",
     "bridge",
     "bridge-cli",
     "fastcrypto",
@@ -77,6 +78,7 @@ shared-crypto = { path = "./shared-crypto" }
 starcoin-bridge = { path = "./bridge" }
 starcoin-bridge-authority-aggregation = { path = "./starcoin-bridge-authority-aggregation" }
 starcoin-bridge-config = { path = "./starcoin-bridge-config" }
+starcoin-bridge-data-ingestion-core = { path = "./starcoin-bridge-data-ingestion-core" }
 starcoin-bridge-json-rpc-api = { path = "./starcoin-bridge-json-rpc-api" }
 starcoin-bridge-json-rpc-types = { path = "./starcoin-bridge-json-rpc-types" }
 starcoin-bridge-keys = { path = "./starcoin-bridge-keys" }
