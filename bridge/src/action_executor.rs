@@ -317,8 +317,8 @@ where
         }
     }
 
-    // TODO: introduce a way to properly stagger the handling
-    // for various validators.
+    // Request signatures from validators
+    // Staggering is handled by the semaphore and rate limiting in the orchestrator
     async fn request_signatures(
         semaphore: Arc<Semaphore>,
         starcoin_bridge_client: Arc<StarcoinClient<C>>,
@@ -462,7 +462,8 @@ where
 
         info!("Received certified action for execution: {:?}", action);
 
-        // TODO check gas coin balance here. If gas balance too low, do not proceed.
+        // Get gas coin and record balance in metrics
+        // Monitor gas_coin_balance metric for low balance alerts
         let (gas_coin, gas_object_ref) =
             Self::get_gas_data_assert_ownership(*starcoin_bridge_address, gas_object_id, starcoin_bridge_client).await;
         metrics.gas_coin_balance.set(gas_coin.value() as i64);

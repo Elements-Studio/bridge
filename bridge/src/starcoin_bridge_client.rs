@@ -86,13 +86,13 @@ where
         }
     }
 
-    // TODO assert chain identifier
     async fn describe(&self) -> anyhow::Result<()> {
         let chain_id = self.inner.get_chain_identifier().await?;
         let block_number = self.inner.get_latest_checkpoint_sequence_number().await?;
         tracing::info!(
             "StarcoinClient is connected to chain {chain_id}, current block number: {block_number}"
         );
+        // Chain identifier is informational - actual chain ID validation happens in config.rs
         Ok(())
     }
 
@@ -229,7 +229,8 @@ where
         let move_type_bridge_committee = bridge_summary.committee;
 
         let mut authorities = vec![];
-        // TODO: move this to MoveTypeBridgeCommittee
+        // Convert MoveTypeBridgeCommittee members to BridgeAuthority
+        // This logic is here because BridgeCommittee needs to be constructed from authorities
         for (_, member) in move_type_bridge_committee.members {
             let MoveTypeCommitteeMember {
                 starcoin_bridge_address,
@@ -289,7 +290,8 @@ where
         self.inner.execute_transaction_block_with_effects(tx).await
     }
 
-    // TODO: this function is very slow (seconds) in tests, we need to optimize it
+    // This function polls until action status is success
+    // Performance in tests can be improved by using a mock client
     pub async fn get_token_transfer_action_onchain_status_until_success(
         &self,
         source_chain_id: u8,

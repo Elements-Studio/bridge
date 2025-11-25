@@ -199,9 +199,7 @@ impl BridgeNodeConfig {
         let starcoin_bridge_client =
             Arc::new(StarcoinClient::<StarcoinSdkClient>::new(&self.starcoin.starcoin_bridge_rpc_url, metrics.clone()).await?);
         
-        // TODO: Fix bridge committee validation
-        // Currently disabled because RPC methods for querying actual committee from Starcoin are not implemented
-        /*
+        // Validate that bridge authority key is part of the committee
         let bridge_committee = starcoin_bridge_client
             .get_bridge_committee()
             .await
@@ -211,8 +209,7 @@ impl BridgeNodeConfig {
                 "Bridge authority key is not part of bridge committee"
             ));
         }
-        */
-        tracing::warn!("Bridge committee validation skipped - TODO: implement proper Starcoin RPC methods");
+        tracing::info!("Bridge committee validation passed");
 
         let (eth_client, eth_contracts) = self.prepare_for_eth(metrics.clone()).await?;
         let bridge_summary = starcoin_bridge_client
