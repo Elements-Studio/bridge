@@ -16,7 +16,7 @@ impl CoinReadApi {
     }
 
     // Get total supply for a coin type
-    pub async fn get_total_supply(&self, _coin_type: String) -> Result<starcoin_bridge_json_rpc_types::Supply> {
+    pub async fn get_total_supply(&self, _coin_type: &str) -> Result<starcoin_bridge_json_rpc_types::Supply> {
         // TODO: Call Starcoin bridge RPC to get token total supply
         // For now return a placeholder
         Ok(starcoin_bridge_json_rpc_types::Supply { value: 0 })

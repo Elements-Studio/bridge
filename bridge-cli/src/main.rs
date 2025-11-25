@@ -8,12 +8,12 @@ use fastcrypto::encoding::{Encoding, Hex};
 use fastcrypto::traits::ToFromBytes;
 use shared_crypto::intent::Intent;
 use shared_crypto::intent::IntentMessage;
-use starcoin_vm_types::bridge::base_types::StarcoinAddress;
-use starcoin_vm_types::bridge::bridge::{
+use starcoin_bridge_vm_types::bridge::base_types::StarcoinAddress;
+use starcoin_bridge_vm_types::bridge::bridge::{
     BridgeChainId, MoveTypeCommitteeMember, MoveTypeCommitteeMemberRegistration,
 };
-use starcoin_vm_types::bridge::committee::TOTAL_VOTING_POWER;
-use starcoin_vm_types::bridge::crypto::AuthorityPublicKeyBytes;
+use starcoin_bridge_vm_types::bridge::committee::TOTAL_VOTING_POWER;
+use starcoin_bridge_vm_types::bridge::crypto::AuthorityPublicKeyBytes;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::str::from_utf8;
@@ -289,7 +289,7 @@ async fn main() -> anyhow::Result<()> {
                 .await
                 .map_err(|e| anyhow::anyhow!("Failed to get bridge summary: {:?}", e))?;
             let move_type_bridge_committee = bridge_summary.committee;
-            let starcoin_bridge_client = StarcoinClientBuilder::default().url(starcoin_bridge_rpc_url).build().await?;
+            let starcoin_bridge_client = StarcoinClientBuilder::default().url(starcoin_bridge_rpc_url).build()?;
             let stakes = starcoin_bridge_client
                 .governance_api()
                 .get_committee_info(None)
@@ -378,7 +378,7 @@ async fn main() -> anyhow::Result<()> {
                 .await
                 .map_err(|e| anyhow::anyhow!("Failed to get bridge summary: {:?}", e))?;
             let move_type_bridge_committee = bridge_summary.committee;
-            let starcoin_bridge_client = StarcoinClientBuilder::default().url(starcoin_bridge_rpc_url).build().await?;
+            let starcoin_bridge_client = StarcoinClientBuilder::default().url(starcoin_bridge_rpc_url).build()?;
             let names = starcoin_bridge_client
                 .governance_api()
                 .get_latest_starcoin_bridge_system_state()

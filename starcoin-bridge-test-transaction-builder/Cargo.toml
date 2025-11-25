@@ -6,7 +6,7 @@ publish = false
 
 [dependencies]
 # Use Starcoin types
-starcoin-types = { path = "../../types", package = "starcoin-vm1-types" }
-starcoin-vm-types = { path = "../../vm/types", package = "starcoin-vm1-vm-types" }
+starcoin-types = { git = "https://github.com/starcoinorg/starcoin.git", branch = "bob/master-native-bridge" }
+starcoin-vm-types = { git = "https://github.com/starcoinorg/starcoin.git", branch = "bob/master-native-bridge" }
 
 anyhow = "1.0"

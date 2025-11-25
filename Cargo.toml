@@ -1,0 +1,157 @@
+[workspace]
+resolver = "2"
+members = [
+    "starcoin-bridge-vm-types",
+    "starcoin-bridge-types",
+    "starcoin-bridge-sdk",
+    "starcoin-bridge-json-rpc-types",
+    "starcoin-bridge-json-rpc-api",
+    "starcoin-bridge-test-transaction-builder",
+    "starcoin-bridge-config",
+    "starcoin-bridge-keys",
+    "starcoin-bridge-authority-aggregation",
+    "bridge",
+    "bridge-cli",
+    "fastcrypto",
+    "fastcrypto-derive",
+    "shared-crypto",
+    "mysten-common",
+    "mysten-metrics",
+    "telemetry-subscribers",
+    "typed-store",
+    "typed-store-derive",
+    "typed-store-error",
+    "bin-version",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+
+[workspace.dependencies]
+# Commonly used external dependencies
+anyhow = "1.0"
+async-trait = "0.1"
+axum = "0.7"
+bcs = "0.1"
+bs58 = "0.5"
+clap = { version = "4.5", features = ["derive"] }
+enum_dispatch = "0.3"
+eyre = "0.6"
+futures = "0.3"
+hex = "0.4"
+itertools = "0.10"
+lru = "0.12"
+move-core-types = { git = "https://github.com/starcoinorg/move", rev = "babf994a38cda17b84186c7992f92fb3554347f0" }
+num_enum = "0.7"
+once_cell = "1.13"
+prometheus = "0.13"
+rand = "0.8"
+reqwest = "0.11"
+schemars = { git = "https://github.com/starcoinorg/schemars", rev = "a64c6ddf7ca4796e090208b1476de2e53772042f" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde_with = "3.8"
+serde-name = "0.2"
+log = "0.4"
+starcoin-crypto = { git = "https://github.com/starcoinorg/starcoin-crypto", rev = "bc3ca2138cf66d646f14a0f673ae5d853743f50a" }
+static_assertions = "1.1"
+strum_macros = "0.27"
+tap = "1.0"
+tempfile = "3.8"
+thiserror = "1.0"
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1"
+url = "2.3"
+zeroize = "1.8.2"
+
+# Workspace internal dependencies
+arc-swap = "1.7"
+backoff = { version = "0.4", features = ["tokio"] }
+bin-version = { path = "./bin-version" }
+fastcrypto = { path = "./fastcrypto" }
+mysten-common = { path = "./mysten-common" }
+mysten-metrics = { path = "./mysten-metrics" }
+shared-crypto = { path = "./shared-crypto" }
+starcoin-bridge = { path = "./bridge" }
+starcoin-bridge-authority-aggregation = { path = "./starcoin-bridge-authority-aggregation" }
+starcoin-bridge-config = { path = "./starcoin-bridge-config" }
+starcoin-bridge-json-rpc-api = { path = "./starcoin-bridge-json-rpc-api" }
+starcoin-bridge-json-rpc-types = { path = "./starcoin-bridge-json-rpc-types" }
+starcoin-bridge-keys = { path = "./starcoin-bridge-keys" }
+starcoin-bridge-sdk = { path = "./starcoin-bridge-sdk" }
+starcoin-bridge-test-transaction-builder = { path = "./starcoin-bridge-test-transaction-builder" }
+starcoin-bridge-types = { path = "./starcoin-bridge-types" }
+starcoin-bridge-vm-types = { path = "./starcoin-bridge-vm-types" }
+starcoin-bridge-macros = { git = "https://github.com/MystenLabs/sui", rev = "mainnet-v1.58.3", package = "sui-macros" }
+starcoin-bridge-sql-macro = { path = "./starcoin-bridge-sql-macro" }
+telemetry-subscribers = { path = "./telemetry-subscribers" }
+test-cluster = { path = "./test-cluster" }
+typed-store = { path = "./typed-store" }
+typed-store-derive = { path = "./typed-store-derive" }
+typed-store-error = { path = "./typed-store-error" }
+typed-store-workspace-hack = { path = "./typed-store-workspace-hack" }
+
+# For proptest
+proptest = "1.0"
+
+# Additional workspace dependencies
+async-recursion = "1.0"
+bincode = "1.3"
+bytes = "1.0"
+chrono = "0.4"
+collectable = "0.0.2"
+const-str = "0.5"
+dashmap = "5.5"
+derive_more = "0.99"
+diesel = "2.1"
+diesel_migrations = "2.1"
+either = "1.9"
+ethers = "2.0"
+fdlimit = "0.2"
+fnv = "1.0.6"
+fs_extra = "1.2.0"
+futures-channel = "0.3"
+futures-core = "0.3.4"
+futures-retry = "0.6"
+futures-timer = "3.0"
+futures-util = "~0.3"
+git-version = "0.3"
+governor = { version = "0.4.2", features = ["dashmap"] }
+hdrhistogram = "7.5"
+heck = "0.5.0"
+hyper = { version = "0.14.12", features = ["full"] }
+indicatif = "0.16.2"
+jsonrpc-core = "18"
+jsonrpc-core-client = "18"
+jsonrpc-derive = "18"
+lazy_static = "1.5.0"
+libc = "^0.2"
+linked-hash-map = "0.5.6"
+log4rs = { version = "1.2.0", features = ["background_rotation", "gzip"] }
+mirai-annotations = "1.10.1"
+parking_lot = "0.12"
+pin-project-lite = "0.2"
+quote = "1.0"
+regex = "1.10"
+rocksdb = "0.21"
+rustls = "0.21"
+rustls-pki-types = "1.0"
+scopeguard = "1.2"
+serial_test = "3.0"
+strum = "0.27"
+syn = "2.0"
+tracing-subscriber = "0.3"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+debug = false
+
+[patch.crates-io]
+merlin = { git = "https://github.com/aptos-labs/merlin" }
+
+# Patch old starcoin-crypto git URL to use newer version with updated zeroize
+[patch."https://github.com/starcoinorg/starcoin-crypto?rev=5417dce574142c3da24adf987194a6931869f588"]
+starcoin-crypto = { git = "https://github.com/starcoinorg/starcoin-crypto", rev = "bc3ca2138cf66d646f14a0f673ae5d853743f50a" }

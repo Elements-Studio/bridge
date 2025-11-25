@@ -5,16 +5,13 @@ edition = "2021"
 publish = false
 
 [dependencies]
-# Stub for Starcoin bridge - now using real types from starcoin_vm_types
+# Now using starcoin-bridge-vm-types (independent of starcoin vm/types)
 serde = { version = "1.0", features = ["derive"] }
 fastcrypto = { path = "../fastcrypto" }
 eyre = "0.6"
 hex = "0.4"
 bcs = "0.1"
 base64ct = { version = "1.5", features = ["alloc"] }
-starcoin_vm_types = { path = "../../vm/types", package = "starcoin-vm1-vm-types" }
-starcoin-crypto = { workspace = true }
-move-core-types = { git = "https://github.com/starcoinorg/move", rev = "babf994a38cda17b84186c7992f92fb3554347f0" }
+starcoin-bridge-vm-types = { path = "../starcoin-bridge-vm-types" }
+move-core-types = { workspace = true }
 rand = "0.8"
-starcoin-bridge-test-transaction-builder = { path = "../starcoin-bridge-test-transaction-builder" }
-starcoin-bridge-json-rpc-types = { path = "../starcoin-bridge-json-rpc-types" }

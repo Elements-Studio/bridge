@@ -418,8 +418,7 @@ impl BridgeNodeConfig {
                 info!("No gas object configured, finding gas object with highest balance");
                 let starcoin_bridge_client = StarcoinClientBuilder::default()
                     .url(&self.starcoin.starcoin_bridge_rpc_url)
-                    .build()
-                    .await?;
+                    .build()?;
                 let coin =
                     // Minimum balance for gas object is 10 STARCOIN
                     pick_highest_balance_coin(&starcoin_bridge_client.coin_read_api(), client_starcoin_bridge_address, 10_000_000_000)

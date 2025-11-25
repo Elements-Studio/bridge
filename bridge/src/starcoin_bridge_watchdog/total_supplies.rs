@@ -43,7 +43,7 @@ impl Observable for TotalSupplies {
             let resp = self
                 .starcoin_bridge_client
                 .coin_read_api()
-                .get_total_supply(coin_type.clone())
+                .get_total_supply(coin_type.as_str())
                 .await;
             match resp {
                 Ok(supply) => {

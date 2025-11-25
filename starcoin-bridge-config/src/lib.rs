@@ -54,17 +54,19 @@ impl<C: Config> PersistedConfig<C> {
     }
 }
 
-// Re-export Starcoin's available_port utilities
+// Implement available_port utilities
 pub mod local_ip_utils {
-    use std::net::IpAddr;
+    use std::net::{IpAddr, TcpListener, SocketAddr};
     
-    // Wrap Starcoin's get_random_available_port to match Starcoin's signature
-    pub fn get_available_port(_host: &IpAddr) -> u16 {
-        starcoin_config::get_random_available_port()
+    // Get a random available port by binding to port 0 and letting OS assign
+    pub fn get_available_port(host: &IpAddr) -> u16 {
+        let socket_addr = SocketAddr::new(*host, 0);
+        let listener = TcpListener::bind(socket_addr).expect("Failed to bind to random port");
+        listener.local_addr().expect("Failed to get local address").port()
     }
     
-    pub fn get_available_ports(_host: &IpAddr, count: usize) -> Vec<u16> {
-        starcoin_config::get_random_available_ports(count)
+    pub fn get_available_ports(host: &IpAddr, count: usize) -> Vec<u16> {
+        (0..count).map(|_| get_available_port(host)).collect()
     }
     
     // Testing helper
@@ -73,5 +75,11 @@ pub mod local_ip_utils {
     }
 }
 
-// Re-export commonly used config types if needed
-pub use starcoin_config;
+// Provide port finding helper at root level for compatibility
+pub fn get_random_available_port() -> u16 {
+    local_ip_utils::get_available_port(&local_ip_utils::localhost_for_testing())
+}
+
+pub fn get_random_available_ports(count: usize) -> Vec<u16> {
+    local_ip_utils::get_available_ports(&local_ip_utils::localhost_for_testing(), count)
+}

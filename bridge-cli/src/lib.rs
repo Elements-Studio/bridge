@@ -540,8 +540,7 @@ impl LoadedBridgeCliConfig {
             StarcoinAddress::from_bytes(&pubkey[..16.min(pubkey.len())]).unwrap_or(StarcoinAddress::ZERO);
         let starcoin_bridge_sdk_client = StarcoinClientBuilder::default()
             .url(&self.starcoin_bridge_rpc_url)
-            .build()
-            .await?;
+            .build()?;
         // Convert StarcoinAddress to [u8; 32]
         let addr_bytes = starcoin_bridge_types::base_types::starcoin_bridge_address_to_bytes(starcoin_bridge_client_address);
         let gases = starcoin_bridge_sdk_client

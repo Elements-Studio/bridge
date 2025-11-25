@@ -1,11 +1,11 @@
-// Stub for starcoin-bridge-types - Remaining types that haven't been migrated to starcoin_vm_types
+// Stub for starcoin-bridge-types - Remaining types that haven't been migrated to starcoin_bridge_vm_types
 #![allow(dead_code, unused_variables)]
 
 use serde::{Deserialize, Serialize};
 
-// Re-export types that have been migrated to starcoin_vm_types
+// Re-export types that have been migrated to starcoin_bridge_vm_types
 pub mod base_types {
-    pub use starcoin_vm_types::bridge::base_types::*;
+    pub use starcoin_bridge_vm_types::bridge::base_types::*;
 
     // Type aliases for compatibility
     pub type TransactionDigest = [u8; 32];
@@ -65,16 +65,16 @@ pub mod base_types {
 }
 
 pub mod bridge {
-    pub use starcoin_vm_types::bridge::bridge::*;
+    pub use starcoin_bridge_vm_types::bridge::bridge::*;
 }
 
 pub mod committee {
-    pub use starcoin_vm_types::bridge::committee::*;
+    pub use starcoin_bridge_vm_types::bridge::committee::*;
 }
 
 pub mod crypto {
-    // Re-export what we have in starcoin_vm_types
-    pub use starcoin_vm_types::bridge::crypto::*;
+    // Re-export what we have in starcoin_bridge_vm_types
+    pub use starcoin_bridge_vm_types::bridge::crypto::*;
 
     use fastcrypto::{
         ed25519::Ed25519KeyPair,
@@ -84,8 +84,8 @@ pub mod crypto {
     };
     use serde::{Deserialize, Serialize};
 
-    // Re-export Signature from starcoin_vm_types
-    pub use starcoin_vm_types::bridge::crypto::Signature;
+    // Re-export Signature from starcoin_bridge_vm_types
+    pub use starcoin_bridge_vm_types::bridge::crypto::Signature;
 
     // NetworkKeyPair is just an alias for Ed25519KeyPair in Starcoin
     pub type NetworkKeyPair = Ed25519KeyPair;
@@ -143,15 +143,15 @@ pub mod crypto {
 
     // Implement starcoin Signer for StarcoinKeyPair
     impl
-        starcoin_vm_types::bridge::crypto::Signer<
-            starcoin_vm_types::bridge::crypto::AuthoritySignature,
+        starcoin_bridge_vm_types::bridge::crypto::Signer<
+            starcoin_bridge_vm_types::bridge::crypto::AuthoritySignature,
         > for StarcoinKeyPair
     {
-        fn sign(&self, _msg: &[u8]) -> starcoin_vm_types::bridge::crypto::AuthoritySignature {
+        fn sign(&self, _msg: &[u8]) -> starcoin_bridge_vm_types::bridge::crypto::AuthoritySignature {
             // Stub implementation - returns placeholder signature
             use fastcrypto::traits::ToFromBytes;
             // Create a placeholder Ed25519Signature with zeros
-            starcoin_vm_types::bridge::crypto::AuthoritySignature::from_bytes(&[0u8; 64])
+            starcoin_bridge_vm_types::bridge::crypto::AuthoritySignature::from_bytes(&[0u8; 64])
                 .expect("Failed to create placeholder signature")
         }
     }
@@ -226,19 +226,19 @@ pub mod crypto {
 }
 
 pub mod message_envelope {
-    pub use starcoin_vm_types::bridge::message_envelope::*;
+    pub use starcoin_bridge_vm_types::bridge::message_envelope::*;
 }
 
 pub mod messages_checkpoint {
-    pub use starcoin_vm_types::bridge::messages_checkpoint::*;
+    pub use starcoin_bridge_vm_types::bridge::messages_checkpoint::*;
 }
 
 pub mod object {
-    pub use starcoin_vm_types::bridge::object::*;
+    pub use starcoin_bridge_vm_types::bridge::object::*;
 }
 
 pub mod collection_types {
-    pub use starcoin_vm_types::bridge::collection_types::*;
+    pub use starcoin_bridge_vm_types::bridge::collection_types::*;
 }
 
 // ============= Types still needing stubs =============
@@ -276,7 +276,7 @@ pub mod quorum_driver_types {
 }
 
 pub mod digests {
-    pub use starcoin_vm_types::bridge::base_types::TransactionDigest;
+    pub use starcoin_bridge_vm_types::bridge::base_types::TransactionDigest;
 
     // Digest trait placeholder
     pub trait Digest: Clone + std::fmt::Debug {}
@@ -295,8 +295,8 @@ pub mod digests {
 pub mod transaction {
     use super::*;
 
-    // Use Starcoin's Transaction type but wrap it to add Starcoin-specific methods
-    pub use starcoin_vm_types::transaction::Transaction as StarcoinTransaction;
+    // Placeholder for Starcoin transaction type
+    pub type StarcoinTransaction = Vec<u8>;
 
     // Wrapper type for Transaction with Starcoin-compatible interface
     #[derive(Clone, Debug)]
@@ -330,13 +330,6 @@ pub mod transaction {
             _gas_budget: u64,
             _gas_price: u64,
         ) -> Self {
-            TransactionData
-        }
-    }
-
-    // Allow conversion from test builder TransactionData
-    impl From<starcoin_bridge_test_transaction_builder::TransactionData> for TransactionData {
-        fn from(_: starcoin_bridge_test_transaction_builder::TransactionData) -> Self {
             TransactionData
         }
     }
@@ -447,8 +440,8 @@ pub mod event {
     // Use a simple tuple for EventID (checkpoint_sequence, event_index)
     pub type EventID = (u64, u64);
 
-    // Use Starcoin's ContractEvent
-    pub use starcoin_vm_types::contract_event::ContractEvent as Event;
+    // Placeholder for contract event
+    pub type Event = Vec<u8>;
 }
 
 pub mod programmable_transaction_builder {
@@ -530,16 +523,6 @@ pub mod gas_coin {
             self.value
         }
     }
-
-    impl TryFrom<&starcoin_bridge_json_rpc_types::StarcoinObjectData> for GasCoin {
-        type Error = String;
-
-        fn try_from(_obj: &starcoin_bridge_json_rpc_types::StarcoinObjectData) -> Result<Self, Self::Error> {
-            // Simplified: just return a dummy gas coin
-            // In real implementation, would parse the object data
-            Ok(GasCoin { value: 1000000000 }) // 1 STARCOIN
-        }
-    }
 }
 
 pub mod full_checkpoint_content {
@@ -612,7 +595,7 @@ pub const STARCOIN_BRIDGE_OBJECT_ID: [u8; 32] = [0; 32];
 
 // Use Starcoin/Move types instead of stubs
 pub use move_core_types::identifier::Identifier;
-pub use starcoin_vm_types::language_storage::TypeTag;
+pub use move_core_types::language_storage::TypeTag;
 
 // Parse function stub
 pub fn parse_starcoin_bridge_type_tag(_s: &str) -> Result<TypeTag, String> {
