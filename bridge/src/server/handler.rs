@@ -14,10 +14,10 @@ use axum::Json;
 use ethers::providers::JsonRpcClient;
 use ethers::types::TxHash;
 use lru::LruCache;
+use starcoin_bridge_types::base_types::TransactionDigest;
 use std::num::NonZeroUsize;
 use std::str::FromStr;
 use std::sync::Arc;
-use starcoin_bridge_types::base_types::TransactionDigest;
 use tap::TapFallible;
 use tokio::sync::{oneshot, Mutex};
 use tracing::info;
@@ -238,13 +238,14 @@ impl BridgeRequestHandler {
         approved_governance_actions: Vec<BridgeAction>,
         metrics: Arc<BridgeMetrics>,
     ) -> Self {
-        let (starcoin_bridge_signer_tx, starcoin_bridge_rx) = mysten_metrics::metered_channel::channel(
-            1000,
-            &mysten_metrics::get_metrics()
-                .unwrap()
-                .channel_inflight
-                .with_label_values(&["server_starcoin_bridge_action_signing_queue"]),
-        );
+        let (starcoin_bridge_signer_tx, starcoin_bridge_rx) =
+            mysten_metrics::metered_channel::channel(
+                1000,
+                &mysten_metrics::get_metrics()
+                    .unwrap()
+                    .channel_inflight
+                    .with_label_values(&["server_starcoin_bridge_action_signing_queue"]),
+            );
         let (eth_signer_tx, eth_rx) = mysten_metrics::metered_channel::channel(
             1000,
             &mysten_metrics::get_metrics()
@@ -263,7 +264,9 @@ impl BridgeRequestHandler {
 
         SignerWithCache::new(
             signer.clone(),
-            StarcoinActionVerifier { starcoin_bridge_client },
+            StarcoinActionVerifier {
+                starcoin_bridge_client,
+            },
             metrics.clone(),
         )
         .spawn(starcoin_bridge_rx);

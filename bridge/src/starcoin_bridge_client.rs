@@ -6,10 +6,6 @@ use async_trait::async_trait;
 use core::panic;
 use fastcrypto::traits::ToFromBytes;
 use serde::de::DeserializeOwned;
-use std::collections::HashMap;
-use std::str::from_utf8;
-use std::sync::Arc;
-use std::time::Duration;
 use starcoin_bridge_json_rpc_api::BridgeReadApiClient;
 use starcoin_bridge_json_rpc_types::DevInspectResults;
 use starcoin_bridge_json_rpc_types::{EventFilter, Page, StarcoinEvent};
@@ -35,6 +31,10 @@ use starcoin_bridge_types::Identifier;
 use starcoin_bridge_types::TypeTag;
 use starcoin_bridge_types::BRIDGE_PACKAGE_ID;
 use starcoin_bridge_types::STARCOIN_BRIDGE_OBJECT_ID;
+use std::collections::HashMap;
+use std::str::from_utf8;
+use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::OnceCell;
 use tracing::{error, warn};
 
@@ -460,14 +460,13 @@ impl StarcoinClientInner for StarcoinSdkClient {
         // Query events from Starcoin using the SDK
         // Note: Currently get_events returns Vec<Event> where Event is Vec<u8> (stub)
         // We need to convert these to proper StarcoinEvent objects
-        let _events = self.event_api().get_events(&tx_digest).await
-            .map_err(|e| {
-                starcoin_bridge_sdk::error::Error::from(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    format!("Failed to get events: {}", e)
-                ))
-            })?;
-        
+        let _events = self.event_api().get_events(&tx_digest).await.map_err(|e| {
+            starcoin_bridge_sdk::error::Error::from(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("Failed to get events: {}", e),
+            ))
+        })?;
+
         // TODO: Parse the raw event bytes into StarcoinEvent objects
         // This requires understanding the event structure from Starcoin transactions
         Ok(vec![])
@@ -611,7 +610,9 @@ impl StarcoinClientInner for StarcoinSdkClient {
                 .read_api()
                 .get_object_with_options(
                     gas_object_id,
-                    StarcoinObjectDataOptions::default().with_owner().with_content(),
+                    StarcoinObjectDataOptions::default()
+                        .with_owner()
+                        .with_content(),
                 )
                 .await
                 .map(|resp| resp.data)
@@ -620,7 +621,9 @@ impl StarcoinClientInner for StarcoinSdkClient {
                     let owner = gas_obj.owner.clone().expect("Owner is requested");
                     // TODO: Parse gas coin value from object data
                     // For now, use a default value
-                    let gas_coin = GasCoin { value: 1_000_000_000 };
+                    let gas_coin = GasCoin {
+                        value: 1_000_000_000,
+                    };
                     // Convert Owner manually to avoid cyclic dependency
                     let owner_converted = match owner {
                         starcoin_bridge_json_rpc_types::Owner::AddressOwner(addr) => {
@@ -677,7 +680,8 @@ where
         )],
     };
     let kind = TransactionKind::programmable(pt);
-    let zero_address = starcoin_bridge_types::base_types::starcoin_bridge_address_to_bytes(StarcoinAddress::ZERO);
+    let zero_address =
+        starcoin_bridge_types::base_types::starcoin_bridge_address_to_bytes(StarcoinAddress::ZERO);
     let resp = starcoin_bridge_client
         .read_api()
         .dev_inspect_transaction_block(zero_address, kind, None, None)

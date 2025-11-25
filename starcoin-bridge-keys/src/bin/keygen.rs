@@ -49,13 +49,17 @@ fn main() -> Result<()> {
             println!("  File: {:?}", output);
             println!("\nIMPORTANT:");
             println!("  1. Keep this key file secure and backed up");
-            println!("  2. Update your bridge config 'bridge_authority_key_path' to point to this file");
+            println!(
+                "  2. Update your bridge config 'bridge_authority_key_path' to point to this file"
+            );
             println!("  3. The Ethereum address above is derived from this key and used for bridge operations");
         }
         Commands::Client { output, ecdsa } => {
             let key_type = if ecdsa { "Secp256k1" } else { "Ed25519" };
             println!("Generating bridge client key ({})...", key_type);
-            starcoin_bridge_keys::keygen::generate_bridge_client_key_and_write_to_file(&output, ecdsa)?;
+            starcoin_bridge_keys::keygen::generate_bridge_client_key_and_write_to_file(
+                &output, ecdsa,
+            )?;
             println!("\n✓ Bridge client key generated successfully!");
             println!("  File: {:?}", output);
         }
@@ -69,17 +73,17 @@ fn main() -> Result<()> {
 }
 
 fn examine_key_file(path: &PathBuf) -> Result<()> {
+    use fastcrypto::traits::{KeyPair, ToFromBytes};
     use starcoin_bridge_keys::keypair_file::read_key;
     use starcoin_bridge_keys::StarcoinKeyPair;
-    use fastcrypto::traits::{KeyPair, ToFromBytes};
-    
+
     let key = read_key(path, false)?;
-    
+
     match key {
         StarcoinKeyPair::Secp256k1(kp) => {
             println!("Key type: Secp256k1");
             println!("Public key (hex): {}", hex::encode(kp.public().as_bytes()));
-            
+
             // Calculate Ethereum address
             use sha3::{Digest, Keccak256};
             let pubkey_bytes = kp.public().as_bytes();
@@ -93,6 +97,6 @@ fn examine_key_file(path: &PathBuf) -> Result<()> {
             println!("Public key (hex): {}", hex::encode(kp.public().as_bytes()));
         }
     }
-    
+
     Ok(())
 }

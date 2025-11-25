@@ -1,203 +1,380 @@
-# Starcoin Bridge 快速部署指南
+# Starcoin Bridge Quick Deployment Guide
 
-## 一键重新部署
+## Quick Start
+
+The bridge deployment involves two separate chains that need to be set up independently:
+
+1. **Ethereum side** (automated): ETH network + Bridge configuration
+2. **Starcoin side** (manual): Starcoin dev node + Move contracts
+
+## Part 1: Ethereum Setup (Automated)
+
+### One-Command ETH Deployment
 
 ```bash
-# 完整清理并重新初始化（清除所有缓存、密钥、配置）
-make restart-all
-
-# 或者分步执行：
-make clean-all    # 清理所有文件和容器
-make deploy       # 部署 ETH 网络
-make init-bridge  # 初始化 Bridge 配置和密钥
+# Complete cleanup and reinitialization for ETH side only
+make setup-eth-and-config
 ```
 
-## 部署流程
+**What `make setup-eth-and-config` does:**
+- ✅ `make clean-eth-and-config` - Stops Docker containers, removes bridge-config/ and ~/.sui/bridge_keys/
+- ✅ `make deploy-eth-network` - Starts ETH network (Anvil on :8545, deploys contracts, serves info on :8080)
+- ✅ `make init-bridge-config` - Generates validator/client keys, creates server-config.yaml and client-config.yaml
+- ❌ Does NOT start or deploy anything for Starcoin
 
-### 1. 部署 Ethereum 网络 (自动化)
+### Or Execute Step by Step:
 
 ```bash
-cd /Volumes/SSD/bridge-migration/starcoin/bridge
-make deploy
+make clean-eth-and-config    # Stop all ETH containers, remove bridge-config/ and ~/.sui/bridge_keys/
+make deploy-eth-network      # Start Docker Compose (eth-node, eth-deployer, deployment-info containers)
+make init-bridge-config      # Run scripts/auto-gen-config.sh to generate keys and configs
 ```
 
-这会：
-- 启动 Anvil 本地 ETH 网络 (端口 8545)
-- 自动部署所有 Bridge 合约
-- 提供 HTTP API 访问部署信息 (端口 8080)
+## Part 2: Starcoin Setup (Manual)
 
-### 2. 初始化 Bridge 配置 (自动化)
+### Step 1: Start Starcoin Dev Node
 
+**Two startup modes available:**
+
+#### Option A: Start from scratch (clean mode)
 ```bash
-make init-bridge
+# In a NEW terminal window (Terminal 1), start fresh Starcoin dev node
+make start-starcoin-dev-node-clean
 ```
 
-这会自动：
-- 清空之前的所有密钥和配置
-- 生成新的 Bridge Validator 密钥 (ECDSA)
-- 生成新的 Bridge Client 密钥 (Ed25519)
-- 从 ETH 部署信息中提取合约地址
-- 生成 Bridge Server 配置文件
-- 生成 Bridge Client 配置文件
-- 生成环境变量文件
+**What `make start-starcoin-dev-node-clean` does:**
+- ✅ Removes `~/.starcoin/dev` directory completely (fresh start)
+- ✅ Runs `$(STARCOIN_PATH) -n dev console`
+- ✅ Starts Starcoin RPC on `ws://127.0.0.1:9870`
+- ⚠️  Runs in foreground - keep this terminal open!
+- ⚠️  **Use this for first-time deployment or when you need a clean state**
 
-**生成的文件位置：**
-- 密钥：`~/.starcoin/bridge_keys/`
-  - `validator_0_bridge_key` - 验证器签名密钥
-  - `bridge_client_key` - 客户端交易密钥
-  
-- 配置：`./bridge-config/`
-  - `server-config.yaml` - Bridge 服务器配置
-  - `client-config.yaml` - Bridge 客户端配置
-  - `.env` - 环境变量（包含所有地址和密钥）
-  - `eth-deployment.json` - ETH 部署信息
-  - `SETUP_SUMMARY.txt` - 配置摘要
+#### Option B: Start with existing data (resume mode)
+```bash
+# In a NEW terminal window (Terminal 1), resume Starcoin dev node
+make start-starcoin-dev-node
+```
 
-### 3. 查看部署信息
+**What `make start-starcoin-dev-node` does:**
+- ✅ Keeps existing `~/.starcoin/dev` directory (preserves blockchain state & deployed contracts)
+- ✅ Runs `$(STARCOIN_PATH) -n dev console`
+- ✅ Starts Starcoin RPC on `ws://127.0.0.1:9870`
+- ⚠️  Runs in foreground - keep this terminal open!
+- ⚠️  **Use this when contracts are already deployed and you just need to restart the node**
+
+**Environment Variable:**
+```bash
+# If starcoin is not in PATH, specify the path:
+STARCOIN_PATH=/path/to/starcoin make start-starcoin-dev-node
+STARCOIN_PATH=/path/to/starcoin make start-starcoin-dev-node-clean
+```
+
+### Step 2: Build Move Contracts
 
 ```bash
-# 查看配置摘要
-make bridge-info
+# In ANOTHER terminal (Terminal 2), build the bridge Move contracts
+make build-starcoin-contracts
+```
 
-# 查看部署状态
+**What `make build-starcoin-contracts` does:**
+- ✅ Changes to `../stc-bridge-move` directory
+- ✅ Runs `$(MPM_PATH) release` (uses MPM_PATH environment variable)
+- ✅ Generates `../stc-bridge-move/release/Stc-Bridge-Move.v0.0.1.blob`
+
+**Environment Variable:**
+```bash
+# If mpm is not in PATH, specify the path:
+MPM_PATH=/path/to/mpm make build-starcoin-contracts
+```
+
+### Step 3: Deploy Move Contracts to Starcoin
+
+```bash
+# In the same terminal (Terminal 2), deploy the compiled Move contracts
+make deploy-starcoin-contracts
+```
+
+**What `make deploy-starcoin-contracts` does:**
+- ✅ Calls `make build-starcoin-contracts` first (ensures latest build)
+- ✅ Checks if Starcoin node process is running
+- ✅ Runs `$(STARCOIN_PATH) -c $(STARCOIN_RPC) --local-account-dir $(STARCOIN_ACCOUNT_DIR) dev deploy <blob> -b`
+- ✅ Deploys bridge module to address `0x246b237c16c761e9478783dd83f7004a`
+
+**Environment Variables:**
+```bash
+# Customize deployment settings if needed:
+STARCOIN_PATH=/path/to/starcoin \
+MPM_PATH=/path/to/mpm \
+STARCOIN_RPC=ws://127.0.0.1:9870 \
+MOVE_CONTRACT_DIR=../stc-bridge-move \
+make deploy-starcoin-contracts
+```
+
+## Part 3: Start Bridge Server
+
+### Prerequisites Check
+
+Before starting the bridge, ensure:
+- ✅ ETH network is running (check with `make status`)
+- ✅ Bridge config exists (`bridge-config/server-config.yaml`)
+- ✅ Starcoin node is running
+- ✅ Move contracts are deployed
+
+### Start the Bridge
+
+```bash
+# In another terminal (Terminal 3), start bridge server
+make run-bridge-server
+```
+
+**What `make run-bridge-server` does:**
+- ✅ Checks if `bridge-config/server-config.yaml` exists
+- ✅ Checks if ETH node container is running
+- ✅ Builds `starcoin-bridge` binary if needed (cargo build --bin starcoin-bridge)
+- ✅ Runs `RUST_LOG=info,starcoin_bridge=debug ./target/debug/starcoin-bridge --config-path bridge/bridge-config/server-config.yaml`
+- ✅ Connects to ETH RPC at `http://localhost:8545`
+- ✅ Connects to Starcoin RPC at `ws://127.0.0.1:9870`
+- ✅ Starts bridge server on port `9191`
+- ✅ Enables metrics endpoint on port `9184`
+
+## Complete Deployment Flow
+
+```bash
+# Terminal 1: ETH + Config setup
+cd bridge
+make setup-eth-and-config
+# What it does:
+#   - make clean-eth-and-config:   Remove containers & configs
+#   - make deploy-eth-network:     Docker Compose up (eth-node, eth-deployer, deployment-info)
+#   - make init-bridge-config:     Generate keys & server-config.yaml
+# Wait for "ETH setup complete!" message...
+
+# Terminal 2: Start Starcoin (foreground process)
+# First time: use clean mode
+make start-starcoin-dev-node-clean
+# What it does:
+#   - rm -rf ~/.starcoin/dev
+#   - $(STARCOIN_PATH) -n dev console
+# Keep this terminal open!
+#
+# Next time: use resume mode (keeps contracts deployed)
+# make start-starcoin-dev-node
+
+# Terminal 3: Deploy Starcoin contracts
+make deploy-starcoin-contracts
+# What it does:
+#   - make build-starcoin-contracts:  $(MPM_PATH) release
+#   - $(STARCOIN_PATH) dev deploy <blob> -b
+# Wait for deployment confirmation...
+
+# Terminal 4: Start Bridge
+make run-bridge-server
+# What it does:
+#   - cargo build --bin starcoin-bridge
+#   - ./target/debug/starcoin-bridge --config-path bridge/bridge-config/server-config.yaml
+# Bridge will connect to both chains and start syncing...
+```
+
+## Deployment Information
+
+### View Status
+
+```bash
+# View overall deployment status
 make status
 
-# 查看环境变量
+# View bridge configuration summary
+make bridge-info
+
+# View environment variables
 cat bridge-config/.env
-
-# 测试 ETH RPC
-make test-rpc
 ```
 
-### 4. 启动 Starcoin 本地网络 (手动)
+## Common Commands
 
+### Help & Information
 ```bash
-# 在新终端中启动 Starcoin 本地测试网
-# 具体命令取决于 Starcoin 配置
+make help                     # Show all available make targets and environment variables
+make status                   # View deployment status (ETH containers, config files, keys)
+make bridge-info              # Display bridge configuration summary from SETUP_SUMMARY.txt
 ```
 
-### 5. 部署 Starcoin Bridge 合约 (待实现)
-
+### ETH Network Management
 ```bash
-# 加载环境变量
-source bridge-config/.env
-
-# 部署 Starcoin 端合约
-make deploy-starcoin
+make deploy-eth-network       # Deploy ETH network using Docker Compose (Anvil + contracts)
+make stop-eth-network         # Stop all ETH Docker containers
+make clean-eth-and-config     # Stop containers and remove all bridge config files
+make setup-eth-and-config     # Complete ETH setup (clean + deploy + generate configs)
 ```
 
-### 6. 注册 Bridge 委员会 (待实现)
-
+### Bridge Configuration
 ```bash
-make register
+make init-bridge-config       # Generate bridge keys and config files (requires ETH running)
 ```
 
-### 7. 测试跨链转账 (待实现)
-
+### Starcoin Node Management
 ```bash
-make test-bridge
+make start-starcoin-dev-node-clean # Start Starcoin dev node from scratch (removes ~/.starcoin/dev)
+make start-starcoin-dev-node       # Start Starcoin dev node with existing data (keeps ~/.starcoin/dev)
+make stop-starcoin-dev-node        # Stop Starcoin dev node processes
 ```
 
-## 常用命令
-
+### Starcoin Contract Deployment
 ```bash
-# 查看帮助
-make help
-
-# 部署/重启
-make deploy              # 部署 ETH 网络
-make init-bridge         # 初始化 Bridge 配置
-make restart-all         # 完整重新部署
-
-# 查看状态
-make status              # 查看部署状态
-make bridge-info         # 查看配置信息
-make ps                  # 查看运行中的容器
-
-# 日志
-make logs-eth            # ETH 节点日志
-make logs-deployer       # 部署器日志
-
-# 清理
-make stop-all            # 停止所有服务
-make clean-all           # 清理所有文件
+make build-starcoin-contracts  # Build Move contracts using mpm (generates release/*.blob)
+make deploy-starcoin-contracts # Deploy Move contracts to Starcoin (builds + deploys)
 ```
 
-## 重要文件
-
-### 环境变量 (.env)
+### Bridge Server
 ```bash
-# Validator 信息
-VALIDATOR_ETH_ADDRESS    # 验证器 ETH 地址
-VALIDATOR_STARCOIN_ADDRESS    # 验证器 Starcoin 地址
-VALIDATOR_PUBKEY         # 验证器公钥
-VALIDATOR_ETH_PRIVKEY    # 验证器 ETH 私钥
-
-# Client 信息
-CLIENT_STARCOIN_ADDRESS       # 客户端 Starcoin 地址
-
-# ETH 合约
-ETH_RPC_URL             # http://localhost:8545
-ETH_CHAIN_ID            # 31337
-STARCOIN_BRIDGE_ADDRESS      # StarcoinBridge 代理合约
-BRIDGE_COMMITTEE_ADDRESS # 委员会合约
-BRIDGE_VAULT_ADDRESS    # 金库合约
-WETH_ADDRESS            # WETH 代币
+make run-bridge-server        # Start bridge server (requires ETH + Starcoin + configs ready)
 ```
 
-### Bridge Server 配置 (server-config.yaml)
-- 监听端口：9191
-- Metrics 端口：9184
-- 连接到本地 ETH (localhost:8545) 和 Starcoin (localhost:9000)
-- 自动批准治理操作（本地测试模式）
-
-### Bridge Client 配置 (client-config.yaml)
-- 连接到本地 ETH 和 Starcoin 网络
-- 使用 client key 提交交易
-
-## 故障排除
-
-### ETH 部署失败
+### Logs & Debugging
 ```bash
-# 检查容器状态
+make logs-eth                 # View ETH node container logs
+make logs-deployer            # View ETH contract deployer logs
+docker ps                     # Check running containers
+ps aux | grep starcoin        # Check Starcoin processes
+```
+
+## Configuration Details
+
+### Environment Variables (.env)
+
+Generated automatically by `make init-bridge`:
+
+```bash
+# Validator information
+VALIDATOR_ETH_ADDRESS         # Validator ETH address
+VALIDATOR_STARCOIN_ADDRESS    # Validator Starcoin address
+VALIDATOR_PUBKEY              # Validator public key
+VALIDATOR_ETH_PRIVKEY         # Validator ETH private key
+
+# Client information
+CLIENT_STARCOIN_ADDRESS       # Client Starcoin address
+
+# ETH contracts
+ETH_RPC_URL                   # http://localhost:8545
+ETH_CHAIN_ID                  # 31337
+STARCOIN_BRIDGE_ADDRESS       # StarcoinBridge proxy contract
+BRIDGE_COMMITTEE_ADDRESS      # Committee contract
+BRIDGE_VAULT_ADDRESS          # Vault contract
+WETH_ADDRESS                  # WETH token
+```
+
+### Starcoin Configuration (Makefile Variables)
+
+Can be overridden via environment variables:
+
+```bash
+STARCOIN_PATH         # Path to starcoin binary (default: starcoin)
+MPM_PATH              # Path to mpm binary (default: mpm)
+STARCOIN_RPC          # Starcoin RPC URL (default: ws://127.0.0.1:9870)
+STARCOIN_DEV_DIR      # Dev data directory (default: ~/.starcoin/dev)
+MOVE_CONTRACT_DIR     # Move contracts location (default: ../stc-bridge-move)
+BRIDGE_ADDRESS        # Bridge contract address (default: 0x246b237c16c761e9478783dd83f7004a)
+```
+
+### Bridge Server Configuration (server-config.yaml)
+- Listen port: 9191
+- Metrics port: 9184
+- Connect to local ETH (localhost:8545) and Starcoin (localhost:9000)
+- Auto-approve governance operations (local test mode)
+
+### Bridge Client Configuration (client-config.yaml)
+- Connect to local ETH and Starcoin networks
+- Submit transactions using client key
+
+## Troubleshooting
+
+### ETH Deployment Failed
+```bash
+# Check container status
 docker ps -a | grep bridge
 
-# 查看部署日志
+# View deployment logs
 make logs-deployer
 
-# 重新部署
-make clean-all && make deploy
+# Redeploy ETH side only
+make clean-eth-and-config && make setup-eth-and-config
 ```
 
-### Bridge 初始化失败
+### Bridge Initialization Failed
 ```bash
-# 确保 ETH 网络正在运行
+# Ensure ETH network is running
 curl http://localhost:8080/deployment.json
 
-# 重新初始化
+# Reinitialize (keeps ETH network running)
 rm -rf bridge-config ~/.starcoin/bridge_keys
-make init-bridge
+make init-bridge-config
 ```
 
-### 端口冲突
+### Starcoin Node Failed to Start
 ```bash
-# 检查端口占用
+# Check if port is already in use
+lsof -i :9870   # Starcoin RPC port
+
+# Stop existing Starcoin processes
+make stop-starcoin-dev-node
+
+# Option 1: Clean restart (fresh state)
+make start-starcoin-dev-node-clean
+
+# Option 2: Resume with existing data
+make start-starcoin-dev-node
+```
+
+### Move Contract Deployment Failed
+```bash
+# Check if Starcoin node is running
+ps aux | grep starcoin | grep dev
+
+# Verify RPC connection
+curl -X POST http://127.0.0.1:9870 \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","method":"node.info","params":[],"id":1}'
+
+# Rebuild and redeploy
+make build-starcoin-contracts
+make deploy-starcoin-contracts
+```
+
+### Port Conflicts
+```bash
+# Check port usage
 lsof -i :8545   # ETH RPC
 lsof -i :8080   # Deployment info
-lsof -i :9000   # Starcoin RPC
+lsof -i :9870   # Starcoin RPC
+lsof -i :9191   # Bridge server
 
-# 停止现有服务
-make stop-all
+# Stop all services
+make stop-eth-network        # Stops ETH
+make stop-starcoin-dev-node  # Stops Starcoin
 ```
 
-## API 访问
-
-### ETH 部署信息 API
+### Bridge Server Can't Connect
 ```bash
-# 完整部署信息
+# Verify both chains are running
+docker ps | grep eth-node        # ETH should be running
+ps aux | grep starcoin | grep dev # Starcoin should be running
+
+# Check RPC endpoints
+curl http://localhost:8545
+curl http://127.0.0.1:9870
+
+# Verify Move contracts are deployed
+# (Check Starcoin console output for deployment confirmation)
+```
+
+## API Access
+
+### ETH Deployment Information API
+```bash
+# Complete deployment information
 curl http://localhost:8080/deployment.json | jq
 
-# 提取特定信息
+# Extract specific information
 curl -s http://localhost:8080/deployment.json | jq '{
   chainId: .network.chainId,
   contracts: .contracts | keys,
@@ -207,56 +384,128 @@ curl -s http://localhost:8080/deployment.json | jq '{
 
 ### ETH RPC
 ```bash
-# 获取 ChainID
+# Get ChainID
 curl -X POST http://localhost:8545 \
   -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","method":"eth_chainId","params":[],"id":1}'
 
-# 获取区块高度
+# Get block height
 curl -X POST http://localhost:8545 \
   -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}'
 ```
 
-## 架构说明
+## Architecture Overview
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                     Docker Compose                          │
-├─────────────────────────────────────────────────────────────┤
-│  ┌─────────────┐  ┌──────────────┐  ┌──────────────────┐  │
-│  │  eth-node   │  │ eth-deployer │  │ deployment-info │  │
-│  │   (Anvil)   │─>│   (Foundry)  │─>│     (Nginx)      │  │
-│  │  :8545      │  │              │  │     :8080        │  │
-│  └─────────────┘  └──────────────┘  └──────────────────┘  │
-└─────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│                    Docker Compose (ETH Side)                     │
+├──────────────────────────────────────────────────────────────────┤
+│  ┌─────────────┐  ┌──────────────┐  ┌──────────────────────┐   │
+│  │  eth-node   │  │ eth-deployer │  │  deployment-info     │   │
+│  │   (Anvil)   │─>│   (Foundry)  │─>│     (Nginx)          │   │
+│  │  :8545      │  │              │  │     :8080            │   │
+│  └─────────────┘  └──────────────┘  └──────────────────────┘   │
+└──────────────────────────────────────────────────────────────────┘
          │                                      │
-         │                                      │ HTTP API
-         │ RPC                                  │
-         ▼                                      ▼
-┌─────────────────┐                    ┌─────────────────┐
-│  Bridge Server  │                    │  init-bridge.sh │
-│   (starcoin-bridge-bridge)  │                    │  (自动配置)      │
-│   :9191        │                    └─────────────────┘
-└─────────────────┘                            │
+         │ RPC                                  │ HTTP API
          │                                      │
-         │ RPC                                  │ 生成
+         │                                      ▼
+         │                              ┌──────────────────┐
+         │                              │  init-bridge.sh  │
+         │                              │  (auto-config)   │
+         │                              └──────────────────┘
+         │                                      │
+         │                                      │ Generate
+         │                                      ▼
+         │                              ┌──────────────────┐
+         │                              │  Configuration   │
+         │                              │  • Keys          │
+         │                              │  • Configs       │
+         │                              │  • .env          │
+         │                              └──────────────────┘
+         │                                      │
+         │                                      │ Config
          ▼                                      ▼
-┌─────────────────┐                    ┌─────────────────┐
-│Starcoin Network │                    │  Configuration  │
-│   (starcoin)    │                    │  • Keys         │
-│   :9000        │                    │  • Configs      │
-└─────────────────┘                    │  • .env         │
-                                        └─────────────────┘
+┌────────────────────────────────────────────────────────────┐
+│                    Bridge Server                           │
+│                 (starcoin-bridge)                          │
+│                     :9191                                  │
+│                     :9184 (metrics)                        │
+└────────────────────────────────────────────────────────────┘
+         │
+         │ RPC
+         ▼
+┌──────────────────────────────────────────────────────────────┐
+│              Starcoin Dev Node (Manual Start)                │
+├──────────────────────────────────────────────────────────────┤
+│  ┌────────────────┐                  ┌──────────────────┐   │
+│  │  starcoin      │                  │  Bridge Module   │   │
+│  │  console       │<─────────────────│  (Move)          │   │
+│  │  :9870 (RPC)   │   mpm deploy     │  0x246b...4a     │   │
+│  └────────────────┘                  └──────────────────┘   │
+└──────────────────────────────────────────────────────────────┘
 ```
 
-## 下一步
+## Deployment Checklist
 
-运行 `make restart-all` 后，按照终端输出的提示操作：
+### Phase 1: ETH Setup (Automated)
+- [ ] Run `make setup-eth-and-config`
+- [ ] Verify ETH network: `docker ps | grep eth-node`
+- [ ] Verify deployment API: `curl http://localhost:8080/deployment.json`
+- [ ] Check config files: `ls bridge-config/`
+- [ ] Check keys: `ls ~/.starcoin/bridge_keys/`
 
-1. ✅ ETH 网络已部署
-2. ✅ Bridge 配置已初始化
-3. ⏳ 启动 Starcoin 网络
-4. ⏳ 部署 Starcoin Bridge 合约
-5. ⏳ 注册 Bridge 委员会
-6. ⏳ 测试跨链转账
+### Phase 2: Starcoin Setup (Manual)
+- [ ] Terminal 1: Run `make start-starcoin-dev-node-clean` (first time) or `make start-starcoin-dev-node` (resume)
+- [ ] Terminal 2: Run `make build-starcoin-contracts`
+- [ ] Terminal 2: Run `make deploy-starcoin-contracts` (skip if already deployed in resume mode)
+- [ ] Verify deployment in Starcoin console output
+
+### Phase 3: Bridge Server (Manual)
+- [ ] Terminal 3: Run `make run-bridge-server`
+- [ ] Verify bridge connects to both chains
+- [ ] Check logs for "Bridge server started"
+
+### Phase 4: Testing (Future)
+- [ ] Register bridge committee
+- [ ] Test cross-chain transfers
+- [ ] Monitor bridge operations
+
+## Quick Reference
+
+### Key Commands
+```bash
+# ETH side (automated - does clean + deploy + init)
+make setup-eth-and-config         # Full ETH setup: stops containers, deploys ETH, generates keys/configs
+
+# Starcoin side (manual - requires separate terminals)
+make start-starcoin-dev-node-clean # Start fresh: rm -rf ~/.starcoin/dev && $(STARCOIN_PATH) -n dev console
+make start-starcoin-dev-node       # Resume: $(STARCOIN_PATH) -n dev console (keeps existing data)
+make deploy-starcoin-contracts     # Deploy contracts: $(MPM_PATH) release && $(STARCOIN_PATH) dev deploy <blob> -b
+
+# Bridge server (manual - requires ETH + Starcoin running)
+make run-bridge-server            # Start bridge: cargo build && ./target/debug/starcoin-bridge --config-path ...
+
+# Status checks
+make status                       # Check: Docker containers, config files, keys
+make bridge-info                  # Display: SETUP_SUMMARY.txt contents
+```
+
+### Key Ports
+```
+8545  - ETH RPC (Anvil)
+8080  - ETH Deployment Info (Nginx)
+9870  - Starcoin RPC (WebSocket)
+9191  - Bridge Server
+9184  - Bridge Metrics
+```
+
+### Key Directories
+```
+bridge-config/              - Bridge configuration files
+~/.starcoin/bridge_keys/    - Validator and client keys
+~/.starcoin/dev/            - Starcoin dev node data
+../stc-bridge-move/         - Move contracts source
+../stc-bridge-move/release/ - Compiled Move blobs
+```

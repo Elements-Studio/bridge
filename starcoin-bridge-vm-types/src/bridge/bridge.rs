@@ -5,18 +5,14 @@ use super::base_types::ObjectID;
 use super::base_types::ObjectIDExt;
 use super::base_types::SequenceNumber;
 use super::collection_types::LinkedTableNode;
+use super::collection_types::{Bag, LinkedTable, VecMap};
 use super::dynamic_field::{get_dynamic_field_from_store, Field};
 use super::error::StarcoinResult;
 use super::object::Owner;
 use super::storage::ObjectStore;
 use super::versioned::Versioned;
+use super::{base_types::StarcoinAddress, error::StarcoinError, id::UID};
 use crate::STARCOIN_BRIDGE_OBJECT_ID;
-use super::{
-    base_types::StarcoinAddress,
-    error::StarcoinError,
-    id::UID,
-};
-use super::collection_types::{Bag, LinkedTable, VecMap};
 use enum_dispatch::enum_dispatch;
 use move_core_types::ident_str;
 use move_core_types::identifier::IdentStr;
@@ -97,7 +93,9 @@ impl BridgeChainId {
     pub fn is_starcoin_bridge_chain(&self) -> bool {
         matches!(
             self,
-            BridgeChainId::StarcoinMainnet | BridgeChainId::StarcoinTestnet | BridgeChainId::StarcoinCustom
+            BridgeChainId::StarcoinMainnet
+                | BridgeChainId::StarcoinTestnet
+                | BridgeChainId::StarcoinCustom
         )
     }
 }
@@ -196,7 +194,9 @@ pub fn get_bridge_wrapper(object_store: &dyn ObjectStore) -> Result<BridgeWrappe
     let wrapper = object_store
         .get_object(&STARCOIN_BRIDGE_OBJECT_ID)
         // Don't panic here on None because object_store is a generic store.
-        .ok_or_else(|| StarcoinError::StarcoinBridgeReadError("BridgeWrapper object not found".to_owned()))?;
+        .ok_or_else(|| {
+            StarcoinError::StarcoinBridgeReadError("BridgeWrapper object not found".to_owned())
+        })?;
     // In Starcoin, Object.data is already Vec<u8>, no need for try_as_move()
     let result = bcs::from_bytes::<BridgeWrapper>(&wrapper.data)
         .map_err(|err| StarcoinError::StarcoinBridgeReadError(err.to_string()))?;
@@ -286,14 +286,16 @@ impl BridgeTrait for BridgeInnerV1 {
             .into_iter()
             .map(|e| {
                 let source = BridgeChainId::try_from(e.key.source).map_err(|_e| {
-                    StarcoinError::GenericBridgeError(
-                        format!("Unrecognized chain id: {}", e.key.source),
-                    )
+                    StarcoinError::GenericBridgeError(format!(
+                        "Unrecognized chain id: {}",
+                        e.key.source
+                    ))
                 })?;
                 let destination = BridgeChainId::try_from(e.key.destination).map_err(|_e| {
-                    StarcoinError::GenericBridgeError(
-                        format!("Unrecognized chain id: {}", e.key.destination),
-                    )
+                    StarcoinError::GenericBridgeError(format!(
+                        "Unrecognized chain id: {}",
+                        e.key.destination
+                    ))
                 })?;
                 Ok((source, destination, e.value))
             })
@@ -319,14 +321,16 @@ impl BridgeTrait for BridgeInnerV1 {
             .into_iter()
             .map(|e| {
                 let source = BridgeChainId::try_from(e.key.source).map_err(|_e| {
-                    StarcoinError::GenericBridgeError(
-                        format!("Unrecognized chain id: {}", e.key.source),
-                    )
+                    StarcoinError::GenericBridgeError(format!(
+                        "Unrecognized chain id: {}",
+                        e.key.source
+                    ))
                 })?;
                 let destination = BridgeChainId::try_from(e.key.destination).map_err(|_e| {
-                    StarcoinError::GenericBridgeError(
-                        format!("Unrecognized chain id: {}", e.key.destination),
-                    )
+                    StarcoinError::GenericBridgeError(format!(
+                        "Unrecognized chain id: {}",
+                        e.key.destination
+                    ))
                 })?;
                 Ok((source, destination, e.value))
             })

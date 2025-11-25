@@ -33,6 +33,7 @@ use rocksdb::{
     WriteBatch,
 };
 use serde::{de::DeserializeOwned, Serialize};
+use starcoin_bridge_macros::{fail_point, nondeterministic};
 use std::ops::{Bound, Deref};
 use std::{
     borrow::Borrow,
@@ -43,7 +44,6 @@ use std::{
     time::Duration,
 };
 use std::{collections::HashSet, ffi::CStr};
-use starcoin_bridge_macros::{fail_point, nondeterministic};
 #[cfg(tidehunter)]
 use tidehunter::{db::Db as TideHunterDb, key_shape::KeySpace};
 use tokio::sync::oneshot;

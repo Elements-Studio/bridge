@@ -387,24 +387,24 @@ mod tests {
     use crate::crypto::BridgeAuthorityPublicKeyBytes;
     use crate::crypto::BridgeAuthoritySignInfo;
     use crate::events::EmittedStarcoinToEthTokenBridgeV1;
+    use crate::test_utils::{StarcoinAddressTestExt, TransactionDigestTestExt}; // Import test traits
     use crate::types::BlocklistType;
     use crate::types::EmergencyActionType;
     use crate::types::USD_MULTIPLIER;
     use ethers::abi::ParamType;
     use ethers::types::{Address as EthAddress, TxHash};
-    use crate::test_utils::{StarcoinAddressTestExt, TransactionDigestTestExt};  // Import test traits
     use fastcrypto::encoding::Encoding;
     use fastcrypto::encoding::Hex;
     use fastcrypto::hash::HashFunction;
     use fastcrypto::hash::Keccak256;
     use fastcrypto::traits::ToFromBytes;
     use prometheus::Registry;
-    use std::str::FromStr;
     use starcoin_bridge_types::base_types::{StarcoinAddress, TransactionDigest};
     use starcoin_bridge_types::bridge::BridgeChainId;
     use starcoin_bridge_types::bridge::TOKEN_ID_BTC;
     use starcoin_bridge_types::bridge::TOKEN_ID_USDC;
     use starcoin_bridge_types::TypeTag;
+    use std::str::FromStr;
 
     use super::*;
 
@@ -494,10 +494,8 @@ mod tests {
         let nonce = 10u64;
         let starcoin_bridge_chain_id = BridgeChainId::StarcoinTestnet;
         let eth_chain_id = BridgeChainId::EthSepolia;
-        let starcoin_bridge_address = StarcoinAddress::from_str(
-            "0x00000000000000000000000000000064",
-        )
-        .unwrap();
+        let starcoin_bridge_address =
+            StarcoinAddress::from_str("0x00000000000000000000000000000064").unwrap();
         let eth_address =
             EthAddress::from_str("0x00000000000000000000000000000000000000c8").unwrap();
         let token_id = TOKEN_ID_USDC;
@@ -858,7 +856,8 @@ mod tests {
 
     #[test]
     #[ignore] // Starcoin-specific regression test with 32-byte addresses, incompatible with Starcoin's 16-byte addresses
-    fn test_bridge_message_encoding_regression_eth_to_starcoin_bridge_token_bridge_v1() -> anyhow::Result<()> {
+    fn test_bridge_message_encoding_regression_eth_to_starcoin_bridge_token_bridge_v1(
+    ) -> anyhow::Result<()> {
         telemetry_subscribers::init_for_testing();
         let registry = Registry::new();
         mysten_metrics::init_metrics(&registry);
@@ -868,10 +867,8 @@ mod tests {
         let nonce = 10u64;
         let starcoin_bridge_chain_id = BridgeChainId::StarcoinTestnet;
         let eth_chain_id = BridgeChainId::EthSepolia;
-        let starcoin_bridge_address = StarcoinAddress::from_str(
-            "0x00000000000000000000000000000064",
-        )
-        .unwrap();
+        let starcoin_bridge_address =
+            StarcoinAddress::from_str("0x00000000000000000000000000000064").unwrap();
         let eth_address =
             EthAddress::from_str("0x00000000000000000000000000000000000000c8").unwrap();
         let token_id = TOKEN_ID_USDC;
@@ -923,12 +920,7 @@ mod tests {
                 TypeTag::from_str("0x500e429a24478405d5130222b20f8570::usdc::USDC").unwrap(),
                 TypeTag::from_str("0x46bfe51da1bd9511919a92eb11541496::usdt::USDT").unwrap(),
             ],
-            token_prices: vec![
-                500_000_000u64,
-                30_000_000u64,
-                1_000u64,
-                1_000u64,
-            ]
+            token_prices: vec![500_000_000u64, 30_000_000u64, 1_000u64, 1_000u64],
         });
         let encoded_bytes = action.to_bytes().unwrap();
 

@@ -6,8 +6,8 @@
 use crate::starcoin_bridge_watchdog::Observable;
 use async_trait::async_trait;
 use prometheus::IntGaugeVec;
-use std::{collections::BTreeMap, sync::Arc};
 use starcoin_bridge_sdk::StarcoinClient;
+use std::{collections::BTreeMap, sync::Arc};
 
 use tokio::time::Duration;
 use tracing::{error, info};

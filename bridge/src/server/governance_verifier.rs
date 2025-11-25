@@ -95,7 +95,8 @@ mod tests {
         );
 
         // Token transfer action is not allowed
-        let action_4 = get_test_starcoin_bridge_to_eth_bridge_action(None, None, None, None, None, None, None);
+        let action_4 =
+            get_test_starcoin_bridge_to_eth_bridge_action(None, None, None, None, None, None, None);
         assert!(matches!(
             GovernanceVerifier::new(vec![action_1, action_2, action_4.clone()]).unwrap_err(),
             BridgeError::ActionIsNotGovernanceAction(..)

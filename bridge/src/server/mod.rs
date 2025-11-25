@@ -25,10 +25,10 @@ use fastcrypto::{
     encoding::{Encoding, Hex},
     traits::ToFromBytes,
 };
-use std::sync::Arc;
-use std::{net::SocketAddr, str::FromStr};
 use starcoin_bridge_types::bridge::BridgeChainId;
 use starcoin_bridge_types::TypeTag;
+use std::sync::Arc;
+use std::{net::SocketAddr, str::FromStr};
 use tracing::{info, instrument};
 
 pub mod governance_verifier;
@@ -117,7 +117,10 @@ pub(crate) fn make_router(
         .route(PING_PATH, get(ping))
         .route(METRICS_KEY_PATH, get(metrics_key_fetch))
         .route(ETH_TO_STARCOIN_TX_PATH, get(handle_eth_tx_hash))
-        .route(STARCOIN_TO_ETH_TX_PATH, get(handle_starcoin_bridge_tx_digest))
+        .route(
+            STARCOIN_TO_ETH_TX_PATH,
+            get(handle_starcoin_bridge_tx_digest),
+        )
         .route(
             COMMITTEE_BLOCKLIST_UPDATE_PATH,
             get(handle_update_committee_blocklist_action),
@@ -133,7 +136,10 @@ pub(crate) fn make_router(
             EVM_CONTRACT_UPGRADE_PATH_WITH_CALLDATA,
             get(handle_evm_contract_upgrade_with_calldata),
         )
-        .route(ADD_TOKENS_ON_STARCOIN_PATH, get(handle_add_tokens_on_starcoin))
+        .route(
+            ADD_TOKENS_ON_STARCOIN_PATH,
+            get(handle_add_tokens_on_starcoin),
+        )
         .route(ADD_TOKENS_ON_EVM_PATH, get(handle_add_tokens_on_evm))
         .with_state((handler, metrics, metadata))
 }
@@ -524,15 +530,15 @@ async fn handle_add_tokens_on_starcoin(
 
 #[instrument(level = "error", skip_all, fields(chain_id=chain_id, nonce=nonce, native=native, token_ids=token_ids, token_addresses=token_addresses, token_starcoin_bridge_decimals=token_starcoin_bridge_decimals, token_prices=token_prices))]
 async fn handle_add_tokens_on_evm(
-    Path((chain_id, nonce, native, token_ids, token_addresses, token_starcoin_bridge_decimals, token_prices)): Path<(
-        u8,
-        u64,
-        u8,
-        String,
-        String,
-        String,
-        String,
-    )>,
+    Path((
+        chain_id,
+        nonce,
+        native,
+        token_ids,
+        token_addresses,
+        token_starcoin_bridge_decimals,
+        token_prices,
+    )): Path<(u8, u64, u8, String, String, String, String)>,
     State((handler, metrics, _metadata)): State<(
         Arc<impl BridgeRequestHandlerTrait + Sync + Send>,
         Arc<BridgeMetrics>,
@@ -562,7 +568,10 @@ async fn handle_add_tokens_on_evm(
         // Validate list sizes to prevent DoS
         validate_list_size(&token_ids, "token_ids")?;
         validate_list_size(&token_addresses, "token_addresses")?;
-        validate_list_size(&token_starcoin_bridge_decimals, "token_starcoin_bridge_decimals")?;
+        validate_list_size(
+            &token_starcoin_bridge_decimals,
+            "token_starcoin_bridge_decimals",
+        )?;
         validate_list_size(&token_prices, "token_prices")?;
 
         let token_ids = token_ids

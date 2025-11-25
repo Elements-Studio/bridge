@@ -2,8 +2,8 @@
 #![allow(dead_code, unused_variables, unused_imports)]
 
 use anyhow::Result;
-use starcoin_bridge_vm_types::bridge::bridge::{BridgeCommitteeSummary, MoveTypeCommitteeMember};
 use starcoin_bridge_types::bridge::{BridgeSummary, BridgeTreasurySummary};
+use starcoin_bridge_vm_types::bridge::bridge::{BridgeCommitteeSummary, MoveTypeCommitteeMember};
 use starcoin_rpc_client::RpcClient;
 use starcoin_types::account_address::AccountAddress;
 use starcoin_types::language_storage::StructTag;
@@ -39,7 +39,7 @@ impl StarcoinClient {
             client: std::sync::Arc::new(client),
         }
     }
-    
+
     // Create a new StarcoinClient by connecting to a WebSocket URL
     pub fn connect_websocket(url: &str) -> Result<Self> {
         let client = RpcClient::connect_websocket(url)?;
@@ -122,9 +122,9 @@ impl ReadApi {
         let bridge_addr = AccountAddress::from_hex_literal(BRIDGE_ADDRESS)?;
         let resource_type = format!("{}::{}::{}", BRIDGE_ADDRESS, BRIDGE_MODULE, BRIDGE_RESOURCE);
         let struct_tag = StructTag::from_str(&resource_type)?;
-        
+
         let resource_opt = self.client.get_resource(bridge_addr, struct_tag)?;
-        
+
         if let Some(resource) = resource_opt {
             // Parse the Bridge resource and convert to BridgeSummary
             parse_bridge_summary_from_resource(resource)
@@ -173,9 +173,7 @@ impl ReadApi {
         // TODO: Implement actual Starcoin object query
         // Starcoin doesn't have a direct object model like Sui
         // Objects are represented as resources at account addresses
-        Ok(starcoin_bridge_json_rpc_types::StarcoinObjectResponse { 
-            data: None
-        })
+        Ok(starcoin_bridge_json_rpc_types::StarcoinObjectResponse { data: None })
     }
 }
 
@@ -196,10 +194,10 @@ impl GovernanceApi {
     ) -> Result<starcoin_bridge_json_rpc_types::StarcoinSystemStateSummary> {
         // Query actual Starcoin epoch and chain info
         let chain_info = self.client.chain_info()?;
-        
+
         Ok(starcoin_bridge_json_rpc_types::StarcoinSystemStateSummary {
-            epoch: chain_info.head.number.0,  // Use block number as epoch
-            protocol_version: 1,  // Starcoin doesn't expose protocol version in same way
+            epoch: chain_info.head.number.0, // Use block number as epoch
+            protocol_version: 1,             // Starcoin doesn't expose protocol version in same way
             system_state_version: 1,
             active_validators: vec![],
         })
@@ -212,7 +210,7 @@ impl GovernanceApi {
     ) -> Result<starcoin_bridge_json_rpc_types::StarcoinCommittee> {
         // TODO: Query actual Starcoin bridge committee from chain
         use std::collections::HashMap;
-        
+
         Ok(starcoin_bridge_json_rpc_types::StarcoinCommittee {
             epoch: epoch.unwrap_or(0),
             validators: HashMap::new(),
@@ -255,8 +253,12 @@ impl EventApi {
         // 2. Query events from Starcoin node via RPC
         // 3. Convert Starcoin events to bridge event format
         // 4. Handle pagination with cursor
-        log::debug!("query_events called with query: {:?}, cursor: {:?}", query, cursor);
-        
+        log::debug!(
+            "query_events called with query: {:?}, cursor: {:?}",
+            query,
+            cursor
+        );
+
         // For now, return empty results
         // Full implementation requires mapping between Sui-style event filters and Starcoin events
         Ok(starcoin_bridge_json_rpc_types::EventPage {
@@ -267,26 +269,33 @@ impl EventApi {
     }
 
     // Get events by transaction digest
-    pub async fn get_events(&self, digest: &[u8; 32]) -> Result<Vec<starcoin_bridge_types::event::Event>> {
+    pub async fn get_events(
+        &self,
+        digest: &[u8; 32],
+    ) -> Result<Vec<starcoin_bridge_types::event::Event>> {
         // Query transaction events from Starcoin using call_raw_api
         // This avoids HashValue type conflicts between different crates
         let tx_hash_hex = format!("0x{}", hex::encode(digest));
-        
+
         // Use raw API call to get transaction info
         let params = serde_json::json!([tx_hash_hex]);
-        let result = self.client.call_raw_api("chain.get_transaction_info", starcoin_rpc_client::Params::Array(vec![
-            serde_json::Value::String(tx_hash_hex)
-        ]))?;
-        
+        let result = self.client.call_raw_api(
+            "chain.get_transaction_info",
+            starcoin_rpc_client::Params::Array(vec![serde_json::Value::String(tx_hash_hex)]),
+        )?;
+
         // Check if transaction was found
         if result.is_null() {
             log::debug!("Transaction {} not found", hex::encode(digest));
             return Ok(vec![]);
         }
-        
+
         // TODO: Parse transaction info and extract events
         // For now, return empty list as event conversion needs implementation
-        log::debug!("Found transaction {}, but event conversion not yet implemented", hex::encode(digest));
+        log::debug!(
+            "Found transaction {}, but event conversion not yet implemented",
+            hex::encode(digest)
+        );
         Ok(vec![])
     }
 }
@@ -314,21 +323,23 @@ impl QuorumDriverApi {
         // 2. Submit via txpool.submit_transaction RPC
         // 3. Wait for transaction to be included in a block
         // 4. Return the transaction result with digest, effects, and events
-        
+
         log::warn!("execute_transaction_block called - full implementation requires transaction format conversion");
-        
+
         // Full implementation would:
         // let starcoin_tx = convert_to_starcoin_transaction(tx)?;
         // let tx_hash = self.client.submit_transaction(starcoin_tx)?;
         // let tx_info = self.client.chain_get_transaction_info(tx_hash)?.ok_or(...)?;
         // return convert_to_response(tx_info, options)
-        
-        Ok(starcoin_bridge_json_rpc_types::StarcoinTransactionBlockResponse {
-            digest: None,
-            effects: None,
-            events: None,
-            object_changes: None,
-        })
+
+        Ok(
+            starcoin_bridge_json_rpc_types::StarcoinTransactionBlockResponse {
+                digest: None,
+                effects: None,
+                events: None,
+                object_changes: None,
+            },
+        )
     }
 }
 
@@ -366,22 +377,31 @@ impl starcoin_bridge_json_rpc_api::BridgeReadApiClient for BridgeReadApi {
         Ok(1)
     }
 
-    async fn get_latest_bridge(&self) -> Result<starcoin_bridge_vm_types::bridge::bridge::BridgeSummary, eyre::Error> {
+    async fn get_latest_bridge(
+        &self,
+    ) -> Result<starcoin_bridge_vm_types::bridge::bridge::BridgeSummary, eyre::Error> {
         // Get the actual bridge summary from chain
-        let summary = self.starcoin_client()
+        let summary = self
+            .starcoin_client()
             .get_resource(
                 AccountAddress::from_hex_literal(BRIDGE_ADDRESS)
                     .map_err(|e| eyre::eyre!("Invalid bridge address: {}", e))?,
-                StructTag::from_str(&format!("{}::{}::{}", BRIDGE_ADDRESS, BRIDGE_MODULE, BRIDGE_RESOURCE))
-                    .map_err(|e| eyre::eyre!("Invalid struct tag: {}", e))?
+                StructTag::from_str(&format!(
+                    "{}::{}::{}",
+                    BRIDGE_ADDRESS, BRIDGE_MODULE, BRIDGE_RESOURCE
+                ))
+                .map_err(|e| eyre::eyre!("Invalid struct tag: {}", e))?,
             )
             .map_err(|e| eyre::eyre!("Failed to get bridge resource: {}", e))?;
-            
+
         if let Some(resource) = summary {
             parse_bridge_vm_summary_from_resource(resource)
                 .map_err(|e| eyre::eyre!("Failed to parse bridge summary: {}", e))
         } else {
-            Err(eyre::eyre!("Bridge resource not found at address {}", BRIDGE_ADDRESS))
+            Err(eyre::eyre!(
+                "Bridge resource not found at address {}",
+                BRIDGE_ADDRESS
+            ))
         }
     }
 }
@@ -487,7 +507,9 @@ pub mod wallet_context {
         ) -> Result<starcoin_bridge_types::crypto::Signature> {
             // For now, return an empty signature
             // Real implementation would need access to private keys
-            log::warn!("sign_transaction called - returning empty signature (needs keystore integration)");
+            log::warn!(
+                "sign_transaction called - returning empty signature (needs keystore integration)"
+            );
             Ok(starcoin_bridge_types::crypto::Signature(vec![]))
         }
     }
@@ -514,36 +536,39 @@ fn get_field<'a>(
     fields: &'a [(Identifier, starcoin_rpc_api::types::AnnotatedMoveValueView)],
     name: &str,
 ) -> Option<&'a starcoin_rpc_api::types::AnnotatedMoveValueView> {
-    fields.iter()
+    fields
+        .iter()
         .find(|(id, _)| id.as_str() == name)
         .map(|(_, v)| v)
 }
 
 // Parse BridgeSummary from Move resource (for starcoin_bridge_types)
-fn parse_bridge_summary_from_resource(resource: AnnotatedMoveStructView) -> Result<starcoin_bridge_types::bridge::BridgeSummary> {
+fn parse_bridge_summary_from_resource(
+    resource: AnnotatedMoveStructView,
+) -> Result<starcoin_bridge_types::bridge::BridgeSummary> {
     use starcoin_bridge_types::bridge::*;
-    
+
     // The Bridge resource has an 'inner' field of type BridgeInner
     let inner = get_field(&resource.value, "inner")
         .ok_or_else(|| anyhow::anyhow!("Missing 'inner' field in Bridge resource"))?;
-    
+
     let inner_struct = match inner {
         starcoin_rpc_api::types::AnnotatedMoveValueView::Struct(s) => s,
         _ => anyhow::bail!("Expected 'inner' to be a struct"),
     };
-    
+
     // Extract fields from BridgeInner
     let bridge_version = extract_u64(&inner_struct.value, "bridge_version")?;
     let message_version = extract_u8(&inner_struct.value, "message_version")?;
     let chain_id = extract_u8(&inner_struct.value, "chain_id")?;
     let paused = extract_bool(&inner_struct.value, "paused")?;
-    
+
     // Parse committee
     let committee = parse_committee(&inner_struct.value)?;
-    
+
     // Parse treasury
     let treasury = BridgeTreasurySummary::default(); // TODO: parse treasury details
-    
+
     Ok(BridgeSummary {
         committee,
         treasury,
@@ -558,25 +583,27 @@ fn parse_bridge_summary_from_resource(resource: AnnotatedMoveStructView) -> Resu
 }
 
 // Parse BridgeSummary from Move resource (for starcoin_bridge_vm_types)
-fn parse_bridge_vm_summary_from_resource(resource: AnnotatedMoveStructView) -> Result<starcoin_bridge_vm_types::bridge::bridge::BridgeSummary> {
+fn parse_bridge_vm_summary_from_resource(
+    resource: AnnotatedMoveStructView,
+) -> Result<starcoin_bridge_vm_types::bridge::bridge::BridgeSummary> {
     use starcoin_bridge_vm_types::bridge::bridge::*;
-    
+
     let inner = get_field(&resource.value, "inner")
         .ok_or_else(|| anyhow::anyhow!("Missing 'inner' field in Bridge resource"))?;
-    
+
     let inner_struct = match inner {
         starcoin_rpc_api::types::AnnotatedMoveValueView::Struct(s) => s,
         _ => anyhow::bail!("Expected 'inner' to be a struct"),
     };
-    
+
     let bridge_version = extract_u64(&inner_struct.value, "bridge_version")?;
     let message_version = extract_u8(&inner_struct.value, "message_version")?;
     let chain_id = extract_u8(&inner_struct.value, "chain_id")?;
     let paused = extract_bool(&inner_struct.value, "paused")?;
-    
+
     let committee = parse_committee_vm(&inner_struct.value)?;
     let treasury = BridgeTreasurySummary::default();
-    
+
     Ok(BridgeSummary {
         committee,
         treasury,
@@ -591,22 +618,25 @@ fn parse_bridge_vm_summary_from_resource(resource: AnnotatedMoveStructView) -> R
 }
 
 // Parse committee for starcoin_bridge_types
-fn parse_committee(fields: &[(Identifier, starcoin_rpc_api::types::AnnotatedMoveValueView)]) -> Result<starcoin_bridge_types::bridge::BridgeCommitteeSummary> {
+fn parse_committee(
+    fields: &[(Identifier, starcoin_rpc_api::types::AnnotatedMoveValueView)],
+) -> Result<starcoin_bridge_types::bridge::BridgeCommitteeSummary> {
     use starcoin_bridge_types::bridge::*;
-    
+
     let committee_field = get_field(fields, "committee")
         .ok_or_else(|| anyhow::anyhow!("Missing 'committee' field"))?;
-    
+
     let committee_struct = match committee_field {
         starcoin_rpc_api::types::AnnotatedMoveValueView::Struct(s) => s,
         _ => anyhow::bail!("Expected 'committee' to be a struct"),
     };
-    
-    let last_committee_update_epoch = extract_u64(&committee_struct.value, "last_committee_update_epoch")?;
-    
+
+    let last_committee_update_epoch =
+        extract_u64(&committee_struct.value, "last_committee_update_epoch")?;
+
     // Parse members from SimpleMap - returns Vec<(Vec<u8>, MoveTypeCommitteeMember)>
     let members = parse_committee_members(&committee_struct.value)?;
-    
+
     Ok(BridgeCommitteeSummary {
         members,
         member_registration: vec![],
@@ -615,21 +645,24 @@ fn parse_committee(fields: &[(Identifier, starcoin_rpc_api::types::AnnotatedMove
 }
 
 // Parse committee for starcoin_bridge_vm_types
-fn parse_committee_vm(fields: &[(Identifier, starcoin_rpc_api::types::AnnotatedMoveValueView)]) -> Result<starcoin_bridge_vm_types::bridge::bridge::BridgeCommitteeSummary> {
+fn parse_committee_vm(
+    fields: &[(Identifier, starcoin_rpc_api::types::AnnotatedMoveValueView)],
+) -> Result<starcoin_bridge_vm_types::bridge::bridge::BridgeCommitteeSummary> {
     use starcoin_bridge_vm_types::bridge::bridge::*;
-    
+
     let committee_field = get_field(fields, "committee")
         .ok_or_else(|| anyhow::anyhow!("Missing 'committee' field"))?;
-    
+
     let committee_struct = match committee_field {
         starcoin_rpc_api::types::AnnotatedMoveValueView::Struct(s) => s,
         _ => anyhow::bail!("Expected 'committee' to be a struct"),
     };
-    
-    let last_committee_update_epoch = extract_u64(&committee_struct.value, "last_committee_update_epoch")?;
-    
+
+    let last_committee_update_epoch =
+        extract_u64(&committee_struct.value, "last_committee_update_epoch")?;
+
     let members = parse_committee_members_vm(&committee_struct.value)?;
-    
+
     Ok(BridgeCommitteeSummary {
         members,
         member_registration: vec![],
@@ -638,24 +671,31 @@ fn parse_committee_vm(fields: &[(Identifier, starcoin_rpc_api::types::AnnotatedM
 }
 
 // Parse committee members from SimpleMap for starcoin_bridge_types
-fn parse_committee_members(fields: &[(Identifier, starcoin_rpc_api::types::AnnotatedMoveValueView)]) -> Result<Vec<(Vec<u8>, starcoin_bridge_vm_types::bridge::bridge::MoveTypeCommitteeMember)>> {
-    let members_field = get_field(fields, "members")
-        .ok_or_else(|| anyhow::anyhow!("Missing 'members' field"))?;
-    
+fn parse_committee_members(
+    fields: &[(Identifier, starcoin_rpc_api::types::AnnotatedMoveValueView)],
+) -> Result<
+    Vec<(
+        Vec<u8>,
+        starcoin_bridge_vm_types::bridge::bridge::MoveTypeCommitteeMember,
+    )>,
+> {
+    let members_field =
+        get_field(fields, "members").ok_or_else(|| anyhow::anyhow!("Missing 'members' field"))?;
+
     // SimpleMap is represented as a struct with 'data' field containing vector of key-value pairs
     let members_struct = match members_field {
         starcoin_rpc_api::types::AnnotatedMoveValueView::Struct(s) => s,
         _ => anyhow::bail!("Expected 'members' to be a struct"),
     };
-    
+
     let data_field = get_field(&members_struct.value, "data")
         .ok_or_else(|| anyhow::anyhow!("Missing 'data' field in SimpleMap"))?;
-    
+
     let data_vec = match data_field {
         starcoin_rpc_api::types::AnnotatedMoveValueView::Vector(v) => v,
         _ => anyhow::bail!("Expected 'data' to be a vector"),
     };
-    
+
     let mut members = Vec::new();
     for entry in data_vec {
         if let starcoin_rpc_api::types::AnnotatedMoveValueView::Struct(entry_struct) = entry {
@@ -663,73 +703,86 @@ fn parse_committee_members(fields: &[(Identifier, starcoin_rpc_api::types::Annot
             let key_field = get_field(&entry_struct.value, "key")
                 .ok_or_else(|| anyhow::anyhow!("Missing 'key' field in map entry"))?;
             let pubkey = extract_bytes_from_value(key_field)?;
-            
+
             let value_field = get_field(&entry_struct.value, "value")
                 .ok_or_else(|| anyhow::anyhow!("Missing 'value' field in map entry"))?;
-            
-            if let starcoin_rpc_api::types::AnnotatedMoveValueView::Struct(member_struct) = value_field {
+
+            if let starcoin_rpc_api::types::AnnotatedMoveValueView::Struct(member_struct) =
+                value_field
+            {
                 let member = parse_committee_member_vm(&member_struct.value)?;
                 members.push((pubkey, member));
             }
         }
     }
-    
+
     Ok(members)
 }
 
 // Parse committee members for starcoin_bridge_vm_types
-fn parse_committee_members_vm(fields: &[(Identifier, starcoin_rpc_api::types::AnnotatedMoveValueView)]) -> Result<Vec<(Vec<u8>, starcoin_bridge_vm_types::bridge::bridge::MoveTypeCommitteeMember)>> {
-    let members_field = get_field(fields, "members")
-        .ok_or_else(|| anyhow::anyhow!("Missing 'members' field"))?;
-    
+fn parse_committee_members_vm(
+    fields: &[(Identifier, starcoin_rpc_api::types::AnnotatedMoveValueView)],
+) -> Result<
+    Vec<(
+        Vec<u8>,
+        starcoin_bridge_vm_types::bridge::bridge::MoveTypeCommitteeMember,
+    )>,
+> {
+    let members_field =
+        get_field(fields, "members").ok_or_else(|| anyhow::anyhow!("Missing 'members' field"))?;
+
     let members_struct = match members_field {
         starcoin_rpc_api::types::AnnotatedMoveValueView::Struct(s) => s,
         _ => anyhow::bail!("Expected 'members' to be a struct"),
     };
-    
+
     let data_field = get_field(&members_struct.value, "data")
         .ok_or_else(|| anyhow::anyhow!("Missing 'data' field in SimpleMap"))?;
-    
+
     let data_vec = match data_field {
         starcoin_rpc_api::types::AnnotatedMoveValueView::Vector(v) => v,
         _ => anyhow::bail!("Expected 'data' to be a vector"),
     };
-    
+
     let mut members = Vec::new();
     for entry in data_vec {
         if let starcoin_rpc_api::types::AnnotatedMoveValueView::Struct(entry_struct) = entry {
             let key_field = get_field(&entry_struct.value, "key")
                 .ok_or_else(|| anyhow::anyhow!("Missing 'key' field in map entry"))?;
             let pubkey = extract_bytes_from_value(key_field)?;
-            
+
             let value_field = get_field(&entry_struct.value, "value")
                 .ok_or_else(|| anyhow::anyhow!("Missing 'value' field in map entry"))?;
-            
-            if let starcoin_rpc_api::types::AnnotatedMoveValueView::Struct(member_struct) = value_field {
+
+            if let starcoin_rpc_api::types::AnnotatedMoveValueView::Struct(member_struct) =
+                value_field
+            {
                 let member = parse_committee_member_vm(&member_struct.value)?;
                 members.push((pubkey, member));
             }
         }
     }
-    
+
     Ok(members)
 }
 
 // Parse individual committee member for starcoin_bridge_vm_types
-fn parse_committee_member_vm(fields: &[(Identifier, starcoin_rpc_api::types::AnnotatedMoveValueView)]) -> Result<starcoin_bridge_vm_types::bridge::bridge::MoveTypeCommitteeMember> {
-    use starcoin_bridge_vm_types::bridge::bridge::*;
+fn parse_committee_member_vm(
+    fields: &[(Identifier, starcoin_rpc_api::types::AnnotatedMoveValueView)],
+) -> Result<starcoin_bridge_vm_types::bridge::bridge::MoveTypeCommitteeMember> {
     use move_core_types::account_address::AccountAddress as MoveAccountAddress;
-    
+    use starcoin_bridge_vm_types::bridge::bridge::*;
+
     let starcoin_address = extract_address(fields, "starcoin_address")?;
     let bridge_pubkey_bytes = extract_bytes(fields, "bridge_pubkey_bytes")?;
     let voting_power = extract_u64(fields, "voting_power")?;
     let http_rest_url = extract_bytes(fields, "http_rest_url")?;
     let blocklisted = extract_bool(fields, "blocklisted")?;
-    
+
     // Convert AccountAddress to MoveAccountAddress (16 bytes)
     let move_addr = MoveAccountAddress::from_bytes(starcoin_address.as_ref())
         .unwrap_or(MoveAccountAddress::ZERO);
-    
+
     Ok(MoveTypeCommitteeMember {
         starcoin_bridge_address: move_addr,
         bridge_pubkey_bytes,
@@ -740,10 +793,13 @@ fn parse_committee_member_vm(fields: &[(Identifier, starcoin_rpc_api::types::Ann
 }
 
 // Extract u64 from Move value
-fn extract_u64(fields: &[(Identifier, starcoin_rpc_api::types::AnnotatedMoveValueView)], field_name: &str) -> Result<u64> {
+fn extract_u64(
+    fields: &[(Identifier, starcoin_rpc_api::types::AnnotatedMoveValueView)],
+    field_name: &str,
+) -> Result<u64> {
     let value = get_field(fields, field_name)
         .ok_or_else(|| anyhow::anyhow!("Missing '{}' field", field_name))?;
-    
+
     match value {
         starcoin_rpc_api::types::AnnotatedMoveValueView::U64(v) => Ok(v.0),
         _ => anyhow::bail!("Expected '{}' to be u64, got {:?}", field_name, value),
@@ -751,10 +807,13 @@ fn extract_u64(fields: &[(Identifier, starcoin_rpc_api::types::AnnotatedMoveValu
 }
 
 // Extract u8 from Move value
-fn extract_u8(fields: &[(Identifier, starcoin_rpc_api::types::AnnotatedMoveValueView)], field_name: &str) -> Result<u8> {
+fn extract_u8(
+    fields: &[(Identifier, starcoin_rpc_api::types::AnnotatedMoveValueView)],
+    field_name: &str,
+) -> Result<u8> {
     let value = get_field(fields, field_name)
         .ok_or_else(|| anyhow::anyhow!("Missing '{}' field", field_name))?;
-    
+
     match value {
         starcoin_rpc_api::types::AnnotatedMoveValueView::U8(v) => Ok(*v),
         _ => anyhow::bail!("Expected '{}' to be u8, got {:?}", field_name, value),
@@ -762,10 +821,13 @@ fn extract_u8(fields: &[(Identifier, starcoin_rpc_api::types::AnnotatedMoveValue
 }
 
 // Extract bool from Move value
-fn extract_bool(fields: &[(Identifier, starcoin_rpc_api::types::AnnotatedMoveValueView)], field_name: &str) -> Result<bool> {
+fn extract_bool(
+    fields: &[(Identifier, starcoin_rpc_api::types::AnnotatedMoveValueView)],
+    field_name: &str,
+) -> Result<bool> {
     let value = get_field(fields, field_name)
         .ok_or_else(|| anyhow::anyhow!("Missing '{}' field", field_name))?;
-    
+
     match value {
         starcoin_rpc_api::types::AnnotatedMoveValueView::Bool(v) => Ok(*v),
         _ => anyhow::bail!("Expected '{}' to be bool, got {:?}", field_name, value),
@@ -773,14 +835,19 @@ fn extract_bool(fields: &[(Identifier, starcoin_rpc_api::types::AnnotatedMoveVal
 }
 
 // Extract bytes from Move value by field name
-fn extract_bytes(fields: &[(Identifier, starcoin_rpc_api::types::AnnotatedMoveValueView)], field_name: &str) -> Result<Vec<u8>> {
+fn extract_bytes(
+    fields: &[(Identifier, starcoin_rpc_api::types::AnnotatedMoveValueView)],
+    field_name: &str,
+) -> Result<Vec<u8>> {
     let value = get_field(fields, field_name)
         .ok_or_else(|| anyhow::anyhow!("Missing '{}' field", field_name))?;
     extract_bytes_from_value(value)
 }
 
 // Extract bytes from a Move value
-fn extract_bytes_from_value(value: &starcoin_rpc_api::types::AnnotatedMoveValueView) -> Result<Vec<u8>> {
+fn extract_bytes_from_value(
+    value: &starcoin_rpc_api::types::AnnotatedMoveValueView,
+) -> Result<Vec<u8>> {
     match value {
         starcoin_rpc_api::types::AnnotatedMoveValueView::Bytes(v) => Ok(v.0.clone()),
         starcoin_rpc_api::types::AnnotatedMoveValueView::Vector(v) => {
@@ -800,10 +867,13 @@ fn extract_bytes_from_value(value: &starcoin_rpc_api::types::AnnotatedMoveValueV
 }
 
 // Extract address from Move value
-fn extract_address(fields: &[(Identifier, starcoin_rpc_api::types::AnnotatedMoveValueView)], field_name: &str) -> Result<AccountAddress> {
+fn extract_address(
+    fields: &[(Identifier, starcoin_rpc_api::types::AnnotatedMoveValueView)],
+    field_name: &str,
+) -> Result<AccountAddress> {
     let value = get_field(fields, field_name)
         .ok_or_else(|| anyhow::anyhow!("Missing '{}' field", field_name))?;
-    
+
     match value {
         starcoin_rpc_api::types::AnnotatedMoveValueView::Address(addr) => Ok(*addr),
         _ => anyhow::bail!("Expected '{}' to be address, got {:?}", field_name, value),

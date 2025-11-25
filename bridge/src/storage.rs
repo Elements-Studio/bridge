@@ -1,10 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use starcoin_bridge_types::Identifier;
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
-use starcoin_bridge_types::Identifier;
 
 use starcoin_bridge_types::event::EventID;
 use typed_store::rocks::{DBMap, MetricConf};
@@ -114,9 +114,14 @@ impl BridgeOrchestratorTables {
         &self,
         identifiers: &[Identifier],
     ) -> BridgeResult<Vec<Option<EventID>>> {
-        self.starcoin_bridge_syncer_cursors.multi_get(identifiers).map_err(|e| {
-            BridgeError::StorageError(format!("Couldn't get starcoin_bridge_syncer_cursors: {:?}", e))
-        })
+        self.starcoin_bridge_syncer_cursors
+            .multi_get(identifiers)
+            .map_err(|e| {
+                BridgeError::StorageError(format!(
+                    "Couldn't get starcoin_bridge_syncer_cursors: {:?}",
+                    e
+                ))
+            })
     }
 
     pub fn get_eth_event_cursors(
@@ -126,7 +131,10 @@ impl BridgeOrchestratorTables {
         self.eth_syncer_cursors
             .multi_get(contract_addresses)
             .map_err(|e| {
-                BridgeError::StorageError(format!("Couldn't get starcoin_bridge_syncer_cursors: {:?}", e))
+                BridgeError::StorageError(format!(
+                    "Couldn't get starcoin_bridge_syncer_cursors: {:?}",
+                    e
+                ))
             })
     }
 }

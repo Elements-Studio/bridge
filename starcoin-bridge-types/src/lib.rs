@@ -147,7 +147,10 @@ pub mod crypto {
             starcoin_bridge_vm_types::bridge::crypto::AuthoritySignature,
         > for StarcoinKeyPair
     {
-        fn sign(&self, _msg: &[u8]) -> starcoin_bridge_vm_types::bridge::crypto::AuthoritySignature {
+        fn sign(
+            &self,
+            _msg: &[u8],
+        ) -> starcoin_bridge_vm_types::bridge::crypto::AuthoritySignature {
             // Stub implementation - returns placeholder signature
             use fastcrypto::traits::ToFromBytes;
             // Create a placeholder Ed25519Signature with zeros
@@ -166,17 +169,15 @@ pub mod crypto {
         /// Decode base64 string with scheme flag prefix to keypair
         fn decode_base64(value: &str) -> Result<Self, FastCryptoError> {
             use base64ct::{Base64, Encoding};
-            let bytes = Base64::decode_vec(value)
-                .map_err(|_| FastCryptoError::InvalidInput)?;
-            Self::from_bytes(&bytes)
-                .map_err(|_| FastCryptoError::InvalidInput)
+            let bytes = Base64::decode_vec(value).map_err(|_| FastCryptoError::InvalidInput)?;
+            Self::from_bytes(&bytes).map_err(|_| FastCryptoError::InvalidInput)
         }
     }
-    
+
     /// Signature scheme flags matching Starcoin's implementation
     const ED25519_FLAG: u8 = 0x00;
     const SECP256K1_FLAG: u8 = 0x01;
-    
+
     impl StarcoinKeyPair {
         /// Get the scheme flag for this keypair
         fn scheme_flag(&self) -> u8 {
@@ -185,13 +186,13 @@ pub mod crypto {
                 StarcoinKeyPair::Secp256k1(_) => SECP256K1_FLAG,
             }
         }
-        
+
         /// Convert keypair to bytes with scheme flag prefix (flag || privkey)
         pub fn to_bytes(&self) -> Vec<u8> {
             let mut bytes: Vec<u8> = Vec::new();
             // Add scheme flag as first byte
             bytes.push(self.scheme_flag());
-            
+
             // Add private key bytes
             match self {
                 StarcoinKeyPair::Ed25519(kp) => {
@@ -203,11 +204,11 @@ pub mod crypto {
             }
             bytes
         }
-        
+
         /// Parse keypair from bytes with scheme flag prefix (flag || privkey)
         pub fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
             let flag = bytes.first().ok_or(FastCryptoError::InvalidInput)?;
-            
+
             match *flag {
                 ED25519_FLAG => {
                     let kp = Ed25519KeyPair::from_bytes(&bytes[1..])
@@ -586,9 +587,9 @@ pub mod starcoin_bridge_system_state {
 // From Move.toml: Bridge = "0x246b237c16c761e9478783dd83f7004a"
 // Padded with zeros in front to maintain compatibility with existing code expecting 32 bytes
 pub const BRIDGE_PACKAGE_ID: [u8; 32] = [
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  // 16 zero bytes padding
-    0x24, 0x6b, 0x23, 0x7c, 0x16, 0xc7, 0x61, 0xe9,  // Actual Starcoin address
-    0x47, 0x87, 0x83, 0xdd, 0x83, 0xf7, 0x00, 0x4a
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 16 zero bytes padding
+    0x24, 0x6b, 0x23, 0x7c, 0x16, 0xc7, 0x61, 0xe9, // Actual Starcoin address
+    0x47, 0x87, 0x83, 0xdd, 0x83, 0xf7, 0x00, 0x4a,
 ];
 // Note: Starcoin doesn't have a separate bridge object like Starcoin
 pub const STARCOIN_BRIDGE_OBJECT_ID: [u8; 32] = [0; 32];

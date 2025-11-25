@@ -10,8 +10,8 @@ pub mod error;
 pub mod id;
 pub mod multiaddr;
 pub mod object;
-pub mod storage;
 pub mod starcoin_serde;
+pub mod storage;
 
 // Bridge business logic modules
 pub mod bridge;

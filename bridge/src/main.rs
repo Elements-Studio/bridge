@@ -4,14 +4,14 @@
 use clap::Parser;
 use fastcrypto::traits::KeyPair;
 use mysten_metrics::start_prometheus_server;
-use std::{
-    net::{IpAddr, Ipv4Addr, SocketAddr},
-    path::PathBuf,
-};
 use starcoin_bridge::config::BridgeNodeConfig;
 use starcoin_bridge::node::run_bridge_node;
 use starcoin_bridge::server::BridgeNodePublicMetadata;
 use starcoin_bridge_config::Config;
+use std::{
+    net::{IpAddr, Ipv4Addr, SocketAddr},
+    path::PathBuf,
+};
 // use starcoin_bridge_metrics_push_client::start_metrics_push_task;  // Disabled: conflicts with starcoin's subtle version
 use tracing::info;
 

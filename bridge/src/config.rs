@@ -19,11 +19,6 @@ use fastcrypto::traits::KeyPair;
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
-use std::collections::BTreeMap;
-use std::collections::HashSet;
-use std::path::PathBuf;
-use std::str::FromStr;
-use std::sync::Arc;
 use starcoin_bridge_config::Config;
 use starcoin_bridge_json_rpc_types::Coin;
 use starcoin_bridge_keys::keypair_file::read_key;
@@ -35,6 +30,11 @@ use starcoin_bridge_types::crypto::{NetworkKeyPair, StarcoinKeyPair};
 use starcoin_bridge_types::digests::{get_mainnet_chain_identifier, get_testnet_chain_identifier};
 use starcoin_bridge_types::event::EventID;
 use starcoin_bridge_types::object::Owner;
+use std::collections::BTreeMap;
+use std::collections::HashSet;
+use std::path::PathBuf;
+use std::str::FromStr;
+use std::sync::Arc;
 use tracing::info;
 
 #[serde_as]
@@ -196,9 +196,14 @@ impl BridgeNodeConfig {
 
         // we do this check here instead of `prepare_for_starcoin` below because
         // that is only called when `run_client` is true.
-        let starcoin_bridge_client =
-            Arc::new(StarcoinClient::<StarcoinSdkClient>::new(&self.starcoin.starcoin_bridge_rpc_url, metrics.clone()).await?);
-        
+        let starcoin_bridge_client = Arc::new(
+            StarcoinClient::<StarcoinSdkClient>::new(
+                &self.starcoin.starcoin_bridge_rpc_url,
+                metrics.clone(),
+            )
+            .await?,
+        );
+
         // Validate that bridge authority key is part of the committee
         let bridge_committee = starcoin_bridge_client
             .get_bridge_committee()
@@ -249,8 +254,9 @@ impl BridgeNodeConfig {
         }
 
         // If client is enabled, prepare client config
-        let (bridge_client_key, client_starcoin_bridge_address, gas_object_ref) =
-            self.prepare_for_starcoin(starcoin_bridge_client.clone(), metrics).await?;
+        let (bridge_client_key, client_starcoin_bridge_address, gas_object_ref) = self
+            .prepare_for_starcoin(starcoin_bridge_client.clone(), metrics)
+            .await?;
 
         let db_path = self
             .db_path
@@ -407,7 +413,8 @@ impl BridgeNodeConfig {
         let mut addr_bytes = [0u8; 32];
         addr_bytes[..public_bytes.len().min(32)]
             .copy_from_slice(&public_bytes[..public_bytes.len().min(32)]);
-        let client_starcoin_bridge_address = starcoin_bridge_types::base_types::starcoin_bridge_address_from_bytes(addr_bytes);
+        let client_starcoin_bridge_address =
+            starcoin_bridge_types::base_types::starcoin_bridge_address_from_bytes(addr_bytes);
 
         let gas_object_id = match self.starcoin.bridge_client_gas_object {
             Some(id) => id,
@@ -434,7 +441,11 @@ impl BridgeNodeConfig {
         metrics.gas_coin_balance.set(balance as i64);
 
         info!("Starcoin client setup complete");
-        Ok((bridge_client_key, client_starcoin_bridge_address, gas_object_ref))
+        Ok((
+            bridge_client_key,
+            client_starcoin_bridge_address,
+            gas_object_ref,
+        ))
     }
 }
 
@@ -480,7 +491,8 @@ pub async fn pick_highest_balance_coin(
 ) -> anyhow::Result<Coin> {
     info!("Looking for a suitable gas coin for address {:?}", address);
 
-    let address_bytes = starcoin_bridge_types::base_types::starcoin_bridge_address_to_bytes(address);
+    let address_bytes =
+        starcoin_bridge_types::base_types::starcoin_bridge_address_to_bytes(address);
     // Only look at STARCOIN coins specifically
     let mut stream = coin_read_api
         .get_coins_stream(address_bytes, Some("0x2::starcoin::STARCOIN".to_string()))

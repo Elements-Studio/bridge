@@ -18,11 +18,11 @@ pub mod monitor;
 pub mod node;
 pub mod orchestrator;
 pub mod server;
-pub mod storage;
-pub mod starcoin_bridge_watchdog;
 pub mod starcoin_bridge_client;
 pub mod starcoin_bridge_syncer;
 pub mod starcoin_bridge_transaction_builder;
+pub mod starcoin_bridge_watchdog;
+pub mod storage;
 pub mod types;
 pub mod utils;
 

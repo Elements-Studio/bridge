@@ -23,7 +23,7 @@ pub const STARCOIN_BRIDGE_OBJECT_ID: [u8; 32] = [0; 32];
 
 // Re-export main types for convenience
 pub use bridge::{
-    base_types, bridge as bridge_types, collection_types, committee, crypto, dynamic_field,
-    error, executable_transaction, id, message_envelope, messages_checkpoint, multiaddr, object,
+    base_types, bridge as bridge_types, collection_types, committee, crypto, dynamic_field, error,
+    executable_transaction, id, message_envelope, messages_checkpoint, multiaddr, object,
     starcoin_serde, storage, versioned,
 };

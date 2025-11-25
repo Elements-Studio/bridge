@@ -5,7 +5,8 @@ use crate::abi::{
     EthBridgeCommittee, EthBridgeConfig, EthBridgeLimiter, EthBridgeVault, EthStarcoinBridge,
 };
 use crate::config::{
-    default_ed25519_key_pair, BridgeNodeConfig, EthConfig, MetricsConfig, StarcoinConfig, WatchdogConfig,
+    default_ed25519_key_pair, BridgeNodeConfig, EthConfig, MetricsConfig, StarcoinConfig,
+    WatchdogConfig,
 };
 use crate::crypto::BridgeAuthorityKeyPair;
 use crate::crypto::BridgeAuthorityPublicKeyBytes;
@@ -26,10 +27,6 @@ use fastcrypto::traits::EncodeDecodeBase64;
 use fastcrypto::traits::KeyPair;
 use fastcrypto::traits::ToFromBytes;
 use futures::future::join_all;
-use std::collections::BTreeMap;
-use std::path::PathBuf;
-use std::str::FromStr;
-use std::sync::Arc;
 use starcoin_bridge_config::Config;
 use starcoin_bridge_json_rpc_types::StarcoinExecutionStatus;
 use starcoin_bridge_json_rpc_types::StarcoinSystemStateSummary;
@@ -48,6 +45,10 @@ use starcoin_bridge_types::crypto::StarcoinKeyPair;
 use starcoin_bridge_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
 use starcoin_bridge_types::transaction::{ObjectArg, TransactionData};
 use starcoin_bridge_types::BRIDGE_PACKAGE_ID;
+use std::collections::BTreeMap;
+use std::path::PathBuf;
+use std::str::FromStr;
+use std::sync::Arc;
 
 pub type EthSigner = SignerMiddleware<Provider<Http>, Wallet<SigningKey>>;
 
@@ -74,7 +75,8 @@ pub fn generate_bridge_authority_key_and_write_to_file(
     // For testing, use first 16 bytes of public key
     let pub_bytes = kp.public().as_bytes();
     let starcoin_bridge_address =
-        StarcoinAddress::from_bytes(&pub_bytes[..16.min(pub_bytes.len())]).unwrap_or(StarcoinAddress::ZERO);
+        StarcoinAddress::from_bytes(&pub_bytes[..16.min(pub_bytes.len())])
+            .unwrap_or(StarcoinAddress::ZERO);
     println!(
         "Corresponding Starcoin address by this ecdsa key: {:?}",
         starcoin_bridge_address
@@ -105,8 +107,12 @@ pub fn generate_bridge_client_key_and_write_to_file(
     // StarcoinKeyPair.public() returns Vec<u8>, convert to StarcoinAddress (AccountAddress = 16 bytes)
     let pub_bytes = kp.public();
     let starcoin_bridge_address =
-        StarcoinAddress::from_bytes(&pub_bytes[..16.min(pub_bytes.len())]).unwrap_or(StarcoinAddress::ZERO);
-    println!("Corresponding Starcoin address by this key: {:?}", starcoin_bridge_address);
+        StarcoinAddress::from_bytes(&pub_bytes[..16.min(pub_bytes.len())])
+            .unwrap_or(StarcoinAddress::ZERO);
+    println!(
+        "Corresponding Starcoin address by this key: {:?}",
+        starcoin_bridge_address
+    );
 
     let contents = kp.encode_base64();
     std::fs::write(path, contents)
@@ -194,9 +200,12 @@ pub fn examine_key(path: &PathBuf, is_validator_key: bool) -> Result<(), anyhow:
         }
     };
     // Convert Vec<u8> to StarcoinAddress (AccountAddress = 16 bytes)
-    let starcoin_bridge_address =
-        StarcoinAddress::from_bytes(&pubkey[..16.min(pubkey.len())]).unwrap_or(StarcoinAddress::ZERO);
-    println!("Corresponding Starcoin address: {:?}", starcoin_bridge_address);
+    let starcoin_bridge_address = StarcoinAddress::from_bytes(&pubkey[..16.min(pubkey.len())])
+        .unwrap_or(StarcoinAddress::ZERO);
+    println!(
+        "Corresponding Starcoin address: {:?}",
+        starcoin_bridge_address
+    );
     println!("Corresponding PublicKey: {:?}", Hex::encode(pubkey));
     Ok(())
 }
@@ -241,7 +250,8 @@ pub fn generate_bridge_node_config_and_write_to_file(
         }),
     };
     if run_client {
-        config.starcoin.bridge_client_key_path = Some(PathBuf::from("/path/to/your/bridge_client_key"));
+        config.starcoin.bridge_client_key_path =
+            Some(PathBuf::from("/path/to/your/bridge_client_key"));
         config.db_path = Some(PathBuf::from("/path/to/your/client_db"));
     }
     config.save(path)
@@ -307,7 +317,9 @@ pub async fn get_committee_voting_power_by_name(
         .members()
         .iter()
         .map(|v| {
-            let addr_bytes = starcoin_bridge_types::base_types::starcoin_bridge_address_to_bytes(v.1.starcoin_bridge_address);
+            let addr_bytes = starcoin_bridge_types::base_types::starcoin_bridge_address_to_bytes(
+                v.1.starcoin_bridge_address,
+            );
             (
                 starcoin_bridge_committee
                     .remove(&addr_bytes)
@@ -333,7 +345,9 @@ pub async fn get_validator_names_by_pub_keys(
         .members()
         .iter()
         .map(|(name, validator)| {
-            let addr_bytes = starcoin_bridge_types::base_types::starcoin_bridge_address_to_bytes(validator.starcoin_bridge_address);
+            let addr_bytes = starcoin_bridge_types::base_types::starcoin_bridge_address_to_bytes(
+                validator.starcoin_bridge_address,
+            );
             (
                 name.clone(),
                 starcoin_bridge_committee

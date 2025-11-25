@@ -4,13 +4,13 @@
 use crate::config::WatchdogConfig;
 use crate::crypto::BridgeAuthorityPublicKeyBytes;
 use crate::metered_eth_provider::MeteredEthHttpProvier;
+use crate::starcoin_bridge_client::StarcoinBridgeClient;
 use crate::starcoin_bridge_watchdog::eth_bridge_status::EthBridgeStatus;
 use crate::starcoin_bridge_watchdog::eth_vault_balance::{EthereumVaultBalance, VaultAsset};
 use crate::starcoin_bridge_watchdog::metrics::WatchdogMetrics;
 use crate::starcoin_bridge_watchdog::starcoin_bridge_status::StarcoinBridgeStatus;
 use crate::starcoin_bridge_watchdog::total_supplies::TotalSupplies;
 use crate::starcoin_bridge_watchdog::{BridgeWatchDog, Observable};
-use crate::starcoin_bridge_client::StarcoinBridgeClient;
 use crate::types::BridgeCommittee;
 use crate::utils::{
     get_committee_voting_power_by_name, get_eth_contract_addresses, get_validator_names_by_pub_keys,
@@ -25,20 +25,13 @@ use crate::{
     monitor::BridgeMonitor,
     orchestrator::BridgeOrchestrator,
     server::{handler::BridgeRequestHandler, run_server, BridgeNodePublicMetadata},
-    storage::BridgeOrchestratorTables,
     starcoin_bridge_syncer::StarcoinSyncer,
+    storage::BridgeOrchestratorTables,
 };
 use arc_swap::ArcSwap;
 use ethers::providers::Provider;
 use ethers::types::Address as EthAddress;
 use mysten_metrics::spawn_logged_monitored_task;
-use std::collections::BTreeMap;
-use std::{
-    collections::HashMap,
-    net::{IpAddr, Ipv4Addr, SocketAddr},
-    sync::Arc,
-    time::Duration,
-};
 use starcoin_bridge_types::{
     bridge::{
         BRIDGE_COMMITTEE_MODULE_NAME, BRIDGE_LIMITER_MODULE_NAME, BRIDGE_MODULE_NAME,
@@ -46,6 +39,13 @@ use starcoin_bridge_types::{
     },
     event::EventID,
     Identifier,
+};
+use std::collections::BTreeMap;
+use std::{
+    collections::HashMap,
+    net::{IpAddr, Ipv4Addr, SocketAddr},
+    sync::Arc,
+    time::Duration,
 };
 use tokio::task::JoinHandle;
 use tracing::info;
@@ -123,7 +123,8 @@ pub async fn run_bridge_node(
         handles.extend(client_components);
     }
 
-    let committee_name_mapping = get_committee_voting_power_by_name(&committee, &starcoin_bridge_system).await;
+    let committee_name_mapping =
+        get_committee_voting_power_by_name(&committee, &starcoin_bridge_system).await;
     for (name, voting_power) in committee_name_mapping.into_iter() {
         metrics
             .current_bridge_voting_rights
@@ -306,13 +307,14 @@ async fn start_client_components(
 
     let (bridge_pause_tx, bridge_pause_rx) = tokio::sync::watch::channel(is_bridge_paused);
 
-    let (starcoin_bridge_monitor_tx, starcoin_bridge_monitor_rx) = mysten_metrics::metered_channel::channel(
-        10000,
-        &mysten_metrics::get_metrics()
-            .unwrap()
-            .channel_inflight
-            .with_label_values(&["starcoin_bridge_monitor_queue"]),
-    );
+    let (starcoin_bridge_monitor_tx, starcoin_bridge_monitor_rx) =
+        mysten_metrics::metered_channel::channel(
+            10000,
+            &mysten_metrics::get_metrics()
+                .unwrap()
+                .channel_inflight
+                .with_label_values(&["starcoin_bridge_monitor_queue"]),
+        );
     let (eth_monitor_tx, eth_monitor_rx) = mysten_metrics::metered_channel::channel(
         10000,
         &mysten_metrics::get_metrics()
@@ -321,7 +323,8 @@ async fn start_client_components(
             .with_label_values(&["eth_monitor_queue"]),
     );
 
-    let starcoin_bridge_token_type_tags = Arc::new(ArcSwap::from(Arc::new(starcoin_bridge_token_type_tags)));
+    let starcoin_bridge_token_type_tags =
+        Arc::new(ArcSwap::from(Arc::new(starcoin_bridge_token_type_tags)));
     let bridge_action_executor = BridgeActionExecutor::new(
         starcoin_bridge_client.clone(),
         bridge_auth_agg.clone(),
@@ -371,7 +374,10 @@ fn get_starcoin_bridge_modules_to_watch(
         BRIDGE_LIMITER_MODULE_NAME.to_owned(),
     ];
     if let Some(cursor) = starcoin_bridge_module_last_processed_event_id_override {
-        info!("Overriding cursor for starcoin bridge modules to {:?}", cursor);
+        info!(
+            "Overriding cursor for starcoin bridge modules to {:?}",
+            cursor
+        );
         return HashMap::from_iter(
             starcoin_bridge_modules
                 .iter()

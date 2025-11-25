@@ -3,8 +3,8 @@
 
 //! The StarcoinBridgeStatus observable monitors whether the Starcoin Bridge is paused.
 
-use crate::starcoin_bridge_watchdog::Observable;
 use crate::starcoin_bridge_client::StarcoinBridgeClient;
+use crate::starcoin_bridge_watchdog::Observable;
 use async_trait::async_trait;
 use prometheus::IntGauge;
 use std::sync::Arc;
@@ -19,7 +19,10 @@ pub struct StarcoinBridgeStatus {
 
 impl StarcoinBridgeStatus {
     pub fn new(starcoin_bridge_client: Arc<StarcoinBridgeClient>, metric: IntGauge) -> Self {
-        Self { starcoin_bridge_client, metric }
+        Self {
+            starcoin_bridge_client,
+            metric,
+        }
     }
 }
 

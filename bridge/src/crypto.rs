@@ -20,10 +20,10 @@ use fastcrypto::{
 };
 use fastcrypto::{hash::Keccak256, traits::KeyPair};
 use serde::{Deserialize, Serialize};
-use std::fmt::Debug;
-use std::fmt::{Display, Formatter};
 use starcoin_bridge_types::base_types::ConciseableName;
 use starcoin_bridge_types::message_envelope::VerifiedEnvelope;
+use std::fmt::Debug;
+use std::fmt::{Display, Formatter};
 use tap::TapFallible;
 pub type BridgeAuthorityKeyPair = Secp256k1KeyPair;
 pub type BridgeAuthorityPublicKey = Secp256k1PublicKey;
@@ -198,19 +198,21 @@ pub fn verify_signed_bridge_action(
 #[cfg(test)]
 mod tests {
     use crate::events::EmittedStarcoinToEthTokenBridgeV1;
-    use crate::test_utils::{get_test_authority_and_key, get_test_starcoin_bridge_to_eth_bridge_action};
-    use crate::test_utils::{StarcoinAddressTestExt, TransactionDigestTestExt};  // Import test traits
+    use crate::test_utils::{
+        get_test_authority_and_key, get_test_starcoin_bridge_to_eth_bridge_action,
+    };
+    use crate::test_utils::{StarcoinAddressTestExt, TransactionDigestTestExt}; // Import test traits
     use crate::types::SignedBridgeAction;
     use crate::types::{BridgeAction, BridgeAuthority, StarcoinToEthBridgeAction};
     use ethers::types::Address as EthAddress;
     use fastcrypto::traits::{KeyPair, ToFromBytes};
     use prometheus::Registry;
-    use std::str::FromStr;
-    use std::sync::Arc;
     use starcoin_bridge_types::base_types::StarcoinAddress;
+    use starcoin_bridge_types::base_types::TransactionDigest;
     use starcoin_bridge_types::bridge::{BridgeChainId, TOKEN_ID_ETH};
     use starcoin_bridge_types::crypto::get_key_pair;
-    use starcoin_bridge_types::base_types::TransactionDigest;
+    use std::str::FromStr;
+    use std::sync::Arc;
 
     use super::*;
 
@@ -228,8 +230,15 @@ mod tests {
 
         let committee = BridgeCommittee::new(vec![authority1.clone(), authority2.clone()]).unwrap();
 
-        let action: BridgeAction =
-            get_test_starcoin_bridge_to_eth_bridge_action(None, Some(1), Some(1), Some(100), None, None, None);
+        let action: BridgeAction = get_test_starcoin_bridge_to_eth_bridge_action(
+            None,
+            Some(1),
+            Some(1),
+            Some(100),
+            None,
+            None,
+            None,
+        );
 
         let sig = BridgeAuthoritySignInfo::new(&action, &secret);
 
@@ -247,8 +256,15 @@ mod tests {
             BridgeError::MismatchedAuthoritySigner
         ));
 
-        let mismatched_action: BridgeAction =
-            get_test_starcoin_bridge_to_eth_bridge_action(None, Some(2), Some(3), Some(4), None, None, None);
+        let mismatched_action: BridgeAction = get_test_starcoin_bridge_to_eth_bridge_action(
+            None,
+            Some(2),
+            Some(3),
+            Some(4),
+            None,
+            None,
+            None,
+        );
         // Verification should fail - mismatched action
         assert!(matches!(
             verify_signed_bridge_action(
@@ -262,8 +278,15 @@ mod tests {
         ));
 
         // Signature is invalid (signed over different message), verification should fail
-        let action2: BridgeAction =
-            get_test_starcoin_bridge_to_eth_bridge_action(None, Some(3), Some(5), Some(77), None, None, None);
+        let action2: BridgeAction = get_test_starcoin_bridge_to_eth_bridge_action(
+            None,
+            Some(3),
+            Some(5),
+            Some(77),
+            None,
+            None,
+            None,
+        );
 
         let invalid_sig = BridgeAuthoritySignInfo::new(&action2, &secret);
         let signed_action = SignedBridgeAction::new_from_data_and_sig(action.clone(), invalid_sig);

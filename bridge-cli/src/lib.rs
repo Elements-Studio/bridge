@@ -14,20 +14,20 @@ use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use shared_crypto::intent::Intent;
 use shared_crypto::intent::IntentMessage;
-use std::path::PathBuf;
-use std::str::FromStr;
-use std::sync::Arc;
 use starcoin_bridge::abi::EthBridgeCommittee;
 use starcoin_bridge::abi::{eth_starcoin_bridge, EthStarcoinBridge};
 use starcoin_bridge::crypto::BridgeAuthorityPublicKeyBytes;
 use starcoin_bridge::error::BridgeResult;
 use starcoin_bridge::starcoin_bridge_client::StarcoinBridgeClient;
+use std::path::PathBuf;
+use std::str::FromStr;
+use std::sync::Arc;
 
 use starcoin_bridge::types::BridgeAction;
 use starcoin_bridge::types::{
-    AddTokensOnEvmAction, AddTokensOnStarcoinAction, AssetPriceUpdateAction, BlocklistCommitteeAction,
-    BlocklistType, EmergencyAction, EmergencyActionType, EvmContractUpgradeAction,
-    LimitUpdateAction,
+    AddTokensOnEvmAction, AddTokensOnStarcoinAction, AssetPriceUpdateAction,
+    BlocklistCommitteeAction, BlocklistType, EmergencyAction, EmergencyActionType,
+    EvmContractUpgradeAction, LimitUpdateAction,
 };
 use starcoin_bridge::utils::{get_eth_signer_client, EthSigner};
 use starcoin_bridge_config::Config;
@@ -190,7 +190,11 @@ pub enum GovernanceClientCommands {
         token_addresses: Vec<EthAddress>,
         #[clap(name = "token-prices", use_value_delimiter = true, long)]
         token_prices: Vec<u64>,
-        #[clap(name = "token-starcoin-bridge-decimals", use_value_delimiter = true, long)]
+        #[clap(
+            name = "token-starcoin-bridge-decimals",
+            use_value_delimiter = true,
+            long
+        )]
         token_starcoin_bridge_decimals: Vec<u8>,
     },
     #[clap(name = "upgrade-evm-contract")]
@@ -422,11 +426,12 @@ impl LoadedBridgeCliConfig {
                 "At least one of `starcoin_bridge_key_path` or `eth_key_path` must be provided"
             ));
         }
-        let starcoin_bridge_key = if let Some(starcoin_bridge_key_path) = &cli_config.starcoin_bridge_key_path {
-            Some(read_key(starcoin_bridge_key_path, false)?)
-        } else {
-            None
-        };
+        let starcoin_bridge_key =
+            if let Some(starcoin_bridge_key_path) = &cli_config.starcoin_bridge_key_path {
+                Some(read_key(starcoin_bridge_key_path, false)?)
+            } else {
+                None
+            };
         let eth_key = if let Some(eth_key_path) = &cli_config.eth_key_path {
             let eth_key = read_key(eth_key_path, true)?;
             Some(eth_key)
@@ -495,20 +500,24 @@ impl LoadedBridgeCliConfig {
             }
         };
         let eth_signer = get_eth_signer_client(&cli_config.eth_rpc_url, &private_key).await?;
-        let starcoin_bridge = EthStarcoinBridge::new(cli_config.eth_bridge_proxy_address, provider.clone());
-        let eth_bridge_committee_proxy_address: EthAddress = starcoin_bridge.committee().call().await?;
+        let starcoin_bridge =
+            EthStarcoinBridge::new(cli_config.eth_bridge_proxy_address, provider.clone());
+        let eth_bridge_committee_proxy_address: EthAddress =
+            starcoin_bridge.committee().call().await?;
         let eth_bridge_limiter_proxy_address: EthAddress = starcoin_bridge.limiter().call().await?;
         let eth_committee =
             EthBridgeCommittee::new(eth_bridge_committee_proxy_address, provider.clone());
-        let eth_bridge_committee_proxy_address: EthAddress = starcoin_bridge.committee().call().await?;
+        let eth_bridge_committee_proxy_address: EthAddress =
+            starcoin_bridge.committee().call().await?;
         let eth_bridge_config_proxy_address: EthAddress = eth_committee.config().call().await?;
 
         let eth_address = eth_signer.address();
         let eth_chain_id = provider.get_chainid().await?;
         // Convert Vec<u8> to StarcoinAddress (AccountAddress = 16 bytes)
         let pub_bytes = starcoin_bridge_key.public();
-        let starcoin_bridge_address = StarcoinAddress::from_bytes(&pub_bytes[..16.min(pub_bytes.len())])
-            .unwrap_or(StarcoinAddress::ZERO);
+        let starcoin_bridge_address =
+            StarcoinAddress::from_bytes(&pub_bytes[..16.min(pub_bytes.len())])
+                .unwrap_or(StarcoinAddress::ZERO);
         println!("Using Starcoin address: {:?}", starcoin_bridge_address);
         println!("Using Eth address: {:?}", eth_address);
         println!("Using Eth chain: {:?}", eth_chain_id);
@@ -537,12 +546,15 @@ impl LoadedBridgeCliConfig {
         let pubkey = self.starcoin_bridge_key.public();
         // Convert Vec<u8> to StarcoinAddress (AccountAddress = 16 bytes)
         let starcoin_bridge_client_address =
-            StarcoinAddress::from_bytes(&pubkey[..16.min(pubkey.len())]).unwrap_or(StarcoinAddress::ZERO);
+            StarcoinAddress::from_bytes(&pubkey[..16.min(pubkey.len())])
+                .unwrap_or(StarcoinAddress::ZERO);
         let starcoin_bridge_sdk_client = StarcoinClientBuilder::default()
             .url(&self.starcoin_bridge_rpc_url)
             .build()?;
         // Convert StarcoinAddress to [u8; 32]
-        let addr_bytes = starcoin_bridge_types::base_types::starcoin_bridge_address_to_bytes(starcoin_bridge_client_address);
+        let addr_bytes = starcoin_bridge_types::base_types::starcoin_bridge_address_to_bytes(
+            starcoin_bridge_client_address,
+        );
         let gases = starcoin_bridge_sdk_client
             .coin_read_api()
             .get_coins(addr_bytes, None, None, None)
@@ -572,7 +584,11 @@ impl LoadedBridgeCliConfig {
                 )
             }
         };
-        Ok((starcoin_bridge_key_clone, starcoin_bridge_client_address, gas.object_ref()))
+        Ok((
+            starcoin_bridge_key_clone,
+            starcoin_bridge_client_address,
+            gas.object_ref(),
+        ))
     }
 }
 #[derive(Parser)]
@@ -630,7 +646,10 @@ impl BridgeClientCommands {
                 let frac_wei = U256::from((frac_part * 1_000_000_000_000_000_000f64) as u64);
                 let amount = int_wei + frac_wei;
                 let eth_tx = eth_starcoin_bridge
-                    .bridge_eth(starcoin_bridge_recipient_address.to_vec().into(), target_chain)
+                    .bridge_eth(
+                        starcoin_bridge_recipient_address.to_vec().into(),
+                        target_chain,
+                    )
                     .value(amount);
                 let pending_tx = eth_tx.send().await.unwrap();
                 let tx_receipt = pending_tx.await.unwrap().unwrap();
@@ -691,8 +710,8 @@ async fn deposit_on_starcoin(
         .unwrap();
     // Convert Vec<u8> to StarcoinAddress (AccountAddress = 16 bytes)
     let pub_bytes = config.starcoin_bridge_key.public();
-    let sender =
-        StarcoinAddress::from_bytes(&pub_bytes[..16.min(pub_bytes.len())]).unwrap_or(StarcoinAddress::ZERO);
+    let sender = StarcoinAddress::from_bytes(&pub_bytes[..16.min(pub_bytes.len())])
+        .unwrap_or(StarcoinAddress::ZERO);
     let sender_bytes = starcoin_bridge_types::base_types::starcoin_bridge_address_to_bytes(sender);
     let gas_obj_ref = inner_client
         .coin_read_api()
@@ -765,10 +784,15 @@ async fn claim_on_eth(
     }
     let parsed_message = parsed_message.unwrap();
     let sigs = starcoin_bridge_client
-        .get_token_transfer_action_onchain_signatures_until_success(starcoin_bridge_chain_id, seq_num)
+        .get_token_transfer_action_onchain_signatures_until_success(
+            starcoin_bridge_chain_id,
+            seq_num,
+        )
         .await;
     if sigs.is_none() {
-        println!("No signatures found for seq_num: {seq_num}, chain id: {starcoin_bridge_chain_id}");
+        println!(
+            "No signatures found for seq_num: {seq_num}, chain id: {starcoin_bridge_chain_id}"
+        );
         return Ok(());
     }
     let signatures = sigs

@@ -30,15 +30,13 @@ use fastcrypto::traits::KeyPair;
 use fastcrypto::traits::ToFromBytes;
 use hex_literal::hex;
 use move_core_types::language_storage::TypeTag;
-use std::collections::{BTreeMap, HashMap};
-use std::net::IpAddr;
-use std::net::Ipv4Addr;
-use std::net::SocketAddr;
 use starcoin_bridge_config::local_ip_utils;
 use starcoin_bridge_json_rpc_types::StarcoinTransactionBlockEffectsAPI;
 use starcoin_bridge_sdk::wallet_context::WalletContext;
 use starcoin_bridge_test_transaction_builder::TestTransactionBuilder;
-use starcoin_bridge_types::base_types::{ObjectRef, SequenceNumber, StarcoinAddress, TransactionDigest};
+use starcoin_bridge_types::base_types::{
+    ObjectRef, SequenceNumber, StarcoinAddress, TransactionDigest,
+};
 use starcoin_bridge_types::bridge::{
     BridgeChainId, BridgeCommitteeSummary, MoveTypeCommitteeMember, TOKEN_ID_USDC,
 };
@@ -46,6 +44,10 @@ use starcoin_bridge_types::crypto::get_key_pair;
 use starcoin_bridge_types::object::Owner;
 use starcoin_bridge_types::transaction::{CallArg, ObjectArg};
 use starcoin_bridge_types::{BRIDGE_PACKAGE_ID, STARCOIN_BRIDGE_OBJECT_ID};
+use std::collections::{BTreeMap, HashMap};
+use std::net::IpAddr;
+use std::net::Ipv4Addr;
+use std::net::SocketAddr;
 use tokio::task::JoinHandle;
 
 // Testing helper extensions - publicly export for use in test modules
@@ -69,7 +71,7 @@ impl TransactionDigestTestExt for TransactionDigest {
         use rand::Rng;
         let mut rng = rand::thread_rng();
         let bytes: [u8; 32] = rng.gen();
-        bytes  // TransactionDigest is just [u8; 32]
+        bytes // TransactionDigest is just [u8; 32]
     }
 }
 
@@ -84,7 +86,9 @@ impl SequenceNumberTestExt for SequenceNumber {
 }
 
 // Auto-import for use within this module
-use self::{StarcoinAddressTestExt as _, TransactionDigestTestExt as _, SequenceNumberTestExt as _};
+use self::{
+    SequenceNumberTestExt as _, StarcoinAddressTestExt as _, TransactionDigestTestExt as _,
+};
 
 // WalletContext testing helpers - stub implementations
 pub trait WalletContextTestExt {
@@ -154,7 +158,7 @@ impl TestTransactionBuilderExt for TestTransactionBuilder {
 
 pub const DUMMY_MUTALBE_BRIDGE_OBJECT_ARG: ObjectArg = ObjectArg::SharedObject {
     id: STARCOIN_BRIDGE_OBJECT_ID,
-    initial_shared_version: 1u64,  // SequenceNumber is just u64
+    initial_shared_version: 1u64, // SequenceNumber is just u64
     mutable: true,
 };
 
@@ -190,12 +194,14 @@ pub fn get_test_starcoin_bridge_to_eth_bridge_action(
     token_id: Option<u8>,
 ) -> BridgeAction {
     BridgeAction::StarcoinToEthBridgeAction(StarcoinToEthBridgeAction {
-        starcoin_bridge_tx_digest: starcoin_bridge_tx_digest.unwrap_or_else(TransactionDigest::random),
+        starcoin_bridge_tx_digest: starcoin_bridge_tx_digest
+            .unwrap_or_else(TransactionDigest::random),
         starcoin_bridge_tx_event_index: starcoin_bridge_tx_event_index.unwrap_or(0),
         starcoin_bridge_event: EmittedStarcoinToEthTokenBridgeV1 {
             nonce: nonce.unwrap_or_default(),
             starcoin_bridge_chain_id: BridgeChainId::StarcoinCustom,
-            starcoin_bridge_address: sender_address.unwrap_or_else(StarcoinAddress::random_for_testing_only),
+            starcoin_bridge_address: sender_address
+                .unwrap_or_else(StarcoinAddress::random_for_testing_only),
             eth_chain_id: BridgeChainId::EthCustom,
             eth_address: recipient_address.unwrap_or_else(EthAddress::random),
             token_id: token_id.unwrap_or(TOKEN_ID_USDC),
@@ -219,7 +225,8 @@ pub fn get_test_eth_to_starcoin_bridge_action(
             starcoin_bridge_chain_id: BridgeChainId::StarcoinCustom,
             token_id: token_id.unwrap_or(TOKEN_ID_USDC),
             starcoin_bridge_adjusted_amount: amount.unwrap_or(100_000),
-            starcoin_bridge_address: starcoin_bridge_address.unwrap_or_else(StarcoinAddress::random_for_testing_only),
+            starcoin_bridge_address: starcoin_bridge_address
+                .unwrap_or_else(StarcoinAddress::random_for_testing_only),
             eth_address: EthAddress::random(),
         },
     })
@@ -405,7 +412,7 @@ pub async fn bridge_token(
         token_id: TOKEN_ID_USDC,
         amount_starcoin_bridge_adjusted: 100_000,
     }
-    
+
     /* Original implementation - requires full Starcoin test infrastructure
     let rgp = context.get_reference_gas_price().await.unwrap();
     let sender = context.active_address().unwrap();
@@ -489,7 +496,7 @@ pub async fn approve_action_with_validator_secrets(
     } else {
         None
     }
-    
+
     /* Original implementation - requires full Starcoin test infrastructure
     let action_certificate = get_certified_action_with_validator_secrets(action, validator_secrets);
     let rgp = wallet_context.get_reference_gas_price().await.unwrap();

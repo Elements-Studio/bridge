@@ -5,8 +5,7 @@ use super::base_types::AuthorityName;
 use super::committee::{Committee, EpochId};
 use super::crypto::{
     authority_public_key_bytes, AuthorityKeyPair, AuthorityQuorumSignInfo, AuthoritySignInfo,
-    AuthoritySignature, AuthorityStrongQuorumSignInfo, EmptySignInfo,
-    Signer,
+    AuthoritySignature, AuthorityStrongQuorumSignInfo, EmptySignInfo, Signer,
 };
 use super::error::StarcoinResult;
 use super::executable_transaction::CertificateProof;
@@ -161,12 +160,7 @@ impl<T> Envelope<T, AuthoritySignInfo>
 where
     T: Message + Serialize,
 {
-    pub fn new<S>(
-        epoch: EpochId,
-        data: T,
-        secret: &S,
-        authority: AuthorityName,
-    ) -> Self
+    pub fn new<S>(epoch: EpochId, data: T, secret: &S, authority: AuthorityName) -> Self
     where
         S: Signer<AuthoritySignature>,
     {
@@ -187,7 +181,13 @@ where
     where
         S: Signer<AuthoritySignature>,
     {
-        AuthoritySignInfo::new(epoch, &data, &Intent::starcoin_bridge_app(T::SCOPE), authority, secret)
+        AuthoritySignInfo::new(
+            epoch,
+            &data,
+            &Intent::starcoin_bridge_app(T::SCOPE),
+            authority,
+            secret,
+        )
     }
 
     pub fn epoch(&self) -> EpochId {

@@ -6,9 +6,6 @@
 use crate::error::{BridgeError, BridgeResult};
 use crate::test_utils::DUMMY_MUTALBE_BRIDGE_OBJECT_ARG;
 use async_trait::async_trait;
-use std::collections::{HashMap, VecDeque};
-use std::sync::atomic::AtomicU64;
-use std::sync::{Arc, Mutex};
 use starcoin_bridge_json_rpc_types::StarcoinTransactionBlockResponse;
 use starcoin_bridge_json_rpc_types::{EventFilter, EventPage, StarcoinEvent};
 use starcoin_bridge_types::base_types::{ObjectID, ObjectRef, TransactionDigest};
@@ -20,6 +17,9 @@ use starcoin_bridge_types::gas_coin::GasCoin;
 use starcoin_bridge_types::object::Owner;
 use starcoin_bridge_types::transaction::{ObjectArg, Transaction};
 use starcoin_bridge_types::Identifier;
+use std::collections::{HashMap, VecDeque};
+use std::sync::atomic::AtomicU64;
+use std::sync::{Arc, Mutex};
 
 use crate::starcoin_bridge_client::StarcoinClientInner;
 use crate::types::{BridgeAction, BridgeActionStatus, IsBridgePaused};
@@ -33,11 +33,18 @@ pub struct StarcoinMockClient {
     latest_checkpoint_sequence_number: Arc<AtomicU64>,
     events: Arc<Mutex<HashMap<(ObjectID, Identifier, Option<EventID>), EventPage>>>,
     past_event_query_params: Arc<Mutex<VecDeque<(ObjectID, Identifier, Option<EventID>)>>>,
-    events_by_tx_digest:
-        Arc<Mutex<HashMap<TransactionDigest, Result<Vec<StarcoinEvent>, starcoin_bridge_sdk::error::Error>>>>,
+    events_by_tx_digest: Arc<
+        Mutex<
+            HashMap<
+                TransactionDigest,
+                Result<Vec<StarcoinEvent>, starcoin_bridge_sdk::error::Error>,
+            >,
+        >,
+    >,
     transaction_responses:
         Arc<Mutex<HashMap<TransactionDigest, BridgeResult<StarcoinTransactionBlockResponse>>>>,
-    wildcard_transaction_response: Arc<Mutex<Option<BridgeResult<StarcoinTransactionBlockResponse>>>>,
+    wildcard_transaction_response:
+        Arc<Mutex<Option<BridgeResult<StarcoinTransactionBlockResponse>>>>,
     get_object_info: Arc<Mutex<HashMap<ObjectID, (GasCoin, ObjectRef, Owner)>>>,
     onchain_status: Arc<Mutex<HashMap<(u8, u64), BridgeActionStatus>>>,
     bridge_committee_summary: Arc<Mutex<Option<BridgeCommitteeSummary>>>,
@@ -76,7 +83,11 @@ impl StarcoinMockClient {
             .insert((package, module, Some(cursor)), events);
     }
 
-    pub fn add_events_by_tx_digest(&self, tx_digest: TransactionDigest, events: Vec<StarcoinEvent>) {
+    pub fn add_events_by_tx_digest(
+        &self,
+        tx_digest: TransactionDigest,
+        events: Vec<StarcoinEvent>,
+    ) {
         self.events_by_tx_digest
             .lock()
             .unwrap()
@@ -86,7 +97,9 @@ impl StarcoinMockClient {
     pub fn add_events_by_tx_digest_error(&self, tx_digest: TransactionDigest) {
         self.events_by_tx_digest.lock().unwrap().insert(
             tx_digest,
-            Err(starcoin_bridge_sdk::error::Error::StarcoinError("".to_string())),
+            Err(starcoin_bridge_sdk::error::Error::StarcoinError(
+                "".to_string(),
+            )),
         );
     }
 
@@ -161,16 +174,16 @@ impl StarcoinClientInner for StarcoinMockClient {
             EventFilter::MoveEventModule { package, module } => {
                 let module_id = Identifier::new(module.as_str()).unwrap();
                 let key = (package, module_id, cursor);
-                self.past_event_query_params.lock().unwrap().push_back(key.clone());
-                Ok(events
-                    .get(&key)
-                    .cloned()
-                    .unwrap_or_else(|| {
-                        panic!(
-                            "No preset events found for package: {:?}, module: {:?}, cursor: {:?}",
-                            package, module, cursor
-                        )
-                    }))
+                self.past_event_query_params
+                    .lock()
+                    .unwrap()
+                    .push_back(key.clone());
+                Ok(events.get(&key).cloned().unwrap_or_else(|| {
+                    panic!(
+                        "No preset events found for package: {:?}, module: {:?}, cursor: {:?}",
+                        package, module, cursor
+                    )
+                }))
             }
             _ => unimplemented!(),
         }
@@ -188,7 +201,9 @@ impl StarcoinClientInner for StarcoinMockClient {
         {
             Ok(events) => Ok(events.clone()),
             // starcoin_bridge_sdk::error::Error is not Clone
-            Err(_) => Err(starcoin_bridge_sdk::error::Error::StarcoinError("Mock error".to_string())),
+            Err(_) => Err(starcoin_bridge_sdk::error::Error::StarcoinError(
+                "Mock error".to_string(),
+            )),
         }
     }
 

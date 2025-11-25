@@ -11,10 +11,10 @@ use crate::{
     starcoin_bridge_client::{StarcoinClient, StarcoinClientInner},
 };
 use mysten_metrics::spawn_logged_monitored_task;
-use std::{collections::HashMap, sync::Arc};
 use starcoin_bridge_json_rpc_types::StarcoinEvent;
 use starcoin_bridge_types::BRIDGE_PACKAGE_ID;
 use starcoin_bridge_types::{event::EventID, Identifier};
+use std::{collections::HashMap, sync::Arc};
 use tokio::{
     sync::Notify,
     task::JoinHandle,
@@ -120,14 +120,19 @@ where
                     tracing::error!("Failed to query latest checkpoint sequence number from starcoin client after retry");
                     continue;
                 };
-                last_synced_starcoin_bridge_checkpoints_metric.set(latest_checkpoint_sequence_number as i64);
+                last_synced_starcoin_bridge_checkpoints_metric
+                    .set(latest_checkpoint_sequence_number as i64);
             }
         });
 
         loop {
             interval.tick().await;
             let Ok(Ok(events)) = retry_with_max_elapsed_time!(
-                starcoin_bridge_client.query_events_by_module(BRIDGE_PACKAGE_ID, module.clone(), cursor),
+                starcoin_bridge_client.query_events_by_module(
+                    BRIDGE_PACKAGE_ID,
+                    module.clone(),
+                    cursor
+                ),
                 Duration::from_secs(120)
             ) else {
                 tracing::error!("Failed to query events from starcoin client after retry");

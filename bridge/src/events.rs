@@ -20,7 +20,6 @@ use fastcrypto::traits::ToFromBytes;
 use move_core_types::language_storage::StructTag;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
-use std::str::FromStr;
 use starcoin_bridge_json_rpc_types::StarcoinEvent;
 use starcoin_bridge_types::base_types::TransactionDigest;
 use starcoin_bridge_types::base_types::{StarcoinAddress, ToHex};
@@ -32,6 +31,7 @@ use starcoin_bridge_types::collection_types::VecMap;
 use starcoin_bridge_types::parse_starcoin_bridge_type_tag;
 use starcoin_bridge_types::TypeTag;
 use starcoin_bridge_types::BRIDGE_PACKAGE_ID;
+use std::str::FromStr;
 
 // `TokendDepositedEvent` emitted in bridge.move
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
@@ -146,12 +146,13 @@ impl TryFrom<MoveTokenRegistrationEvent> for TokenRegistrationEvent {
     type Error = BridgeError;
 
     fn try_from(event: MoveTokenRegistrationEvent) -> BridgeResult<Self> {
-        let type_name = parse_starcoin_bridge_type_tag(&format!("0x{}", event.type_name)).map_err(|e| {
-            BridgeError::InternalError(format!(
-                "Failed to parse TypeTag: {e}, type name: {}",
-                event.type_name
-            ))
-        })?;
+        let type_name =
+            parse_starcoin_bridge_type_tag(&format!("0x{}", event.type_name)).map_err(|e| {
+                BridgeError::InternalError(format!(
+                    "Failed to parse TypeTag: {e}, type name: {}",
+                    event.type_name
+                ))
+            })?;
 
         Ok(Self {
             type_name,
@@ -185,12 +186,13 @@ impl TryFrom<MoveNewTokenEvent> for NewTokenEvent {
     type Error = BridgeError;
 
     fn try_from(event: MoveNewTokenEvent) -> BridgeResult<Self> {
-        let type_name = parse_starcoin_bridge_type_tag(&format!("0x{}", event.type_name)).map_err(|e| {
-            BridgeError::InternalError(format!(
-                "Failed to parse TypeTag: {e}, type name: {}",
-                event.type_name
-            ))
-        })?;
+        let type_name =
+            parse_starcoin_bridge_type_tag(&format!("0x{}", event.type_name)).map_err(|e| {
+                BridgeError::InternalError(format!(
+                    "Failed to parse TypeTag: {e}, type name: {}",
+                    event.type_name
+                ))
+            })?;
 
         Ok(Self {
             token_id: event.token_id,
@@ -411,13 +413,13 @@ impl StarcoinBridgeEvent {
         starcoin_bridge_tx_event_index: u16,
     ) -> Option<BridgeAction> {
         match self {
-            StarcoinBridgeEvent::StarcoinToEthTokenBridgeV1(event) => {
-                Some(BridgeAction::StarcoinToEthBridgeAction(StarcoinToEthBridgeAction {
+            StarcoinBridgeEvent::StarcoinToEthTokenBridgeV1(event) => Some(
+                BridgeAction::StarcoinToEthBridgeAction(StarcoinToEthBridgeAction {
                     starcoin_bridge_tx_digest,
                     starcoin_bridge_tx_event_index,
                     starcoin_bridge_event: event.clone(),
-                }))
-            }
+                }),
+            ),
             StarcoinBridgeEvent::TokenTransferApproved(_event) => None,
             StarcoinBridgeEvent::TokenTransferClaimed(_event) => None,
             StarcoinBridgeEvent::TokenTransferAlreadyApproved(_event) => None,

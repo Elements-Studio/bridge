@@ -28,9 +28,9 @@ use crate::metrics::BridgeMetrics;
 use crate::{
     client::bridge_authority_aggregator::BridgeAuthorityAggregator,
     error::BridgeError,
-    storage::BridgeOrchestratorTables,
     starcoin_bridge_client::{StarcoinClient, StarcoinClientInner},
     starcoin_bridge_transaction_builder::build_starcoin_bridge_transaction,
+    storage::BridgeOrchestratorTables,
     types::{BridgeAction, BridgeActionStatus, VerifiedCertifiedBridgeAction},
 };
 use std::collections::HashMap;
@@ -220,9 +220,10 @@ where
     }
 
     async fn should_proceed_signing(starcoin_bridge_client: &Arc<StarcoinClient<C>>) -> bool {
-        let Ok(Ok(is_paused)) =
-            retry_with_max_elapsed_time!(starcoin_bridge_client.is_bridge_paused(), Duration::from_secs(600))
-        else {
+        let Ok(Ok(is_paused)) = retry_with_max_elapsed_time!(
+            starcoin_bridge_client.is_bridge_paused(),
+            Duration::from_secs(600)
+        ) else {
             error!("Failed to get bridge status after retry");
             return false;
         };
@@ -340,7 +341,8 @@ where
 
         // Only token transfer action should reach here
         match &action {
-            BridgeAction::StarcoinToEthBridgeAction(_) | BridgeAction::EthToStarcoinBridgeAction(_) => (),
+            BridgeAction::StarcoinToEthBridgeAction(_)
+            | BridgeAction::EthToStarcoinBridgeAction(_) => (),
             _ => unreachable!("Non token transfer action should not reach here"),
         };
 
@@ -464,15 +466,22 @@ where
 
         // Get gas coin and record balance in metrics
         // Monitor gas_coin_balance metric for low balance alerts
-        let (gas_coin, gas_object_ref) =
-            Self::get_gas_data_assert_ownership(*starcoin_bridge_address, gas_object_id, starcoin_bridge_client).await;
+        let (gas_coin, gas_object_ref) = Self::get_gas_data_assert_ownership(
+            *starcoin_bridge_address,
+            gas_object_id,
+            starcoin_bridge_client,
+        )
+        .await;
         metrics.gas_coin_balance.set(gas_coin.value() as i64);
 
         let ceriticate_clone = certificate.clone();
 
         // Check once: if the action is already processed, skip it.
         if Self::handle_already_processed_token_transfer_action_maybe(
-            starcoin_bridge_client, action, store, metrics,
+            starcoin_bridge_client,
+            action,
+            store,
+            metrics,
         )
         .await
         {
@@ -481,7 +490,9 @@ where
         }
 
         info!("Building Starcoin transaction");
-        let rgp = starcoin_bridge_client.get_reference_gas_price_until_success().await;
+        let rgp = starcoin_bridge_client
+            .get_reference_gas_price_until_success()
+            .await;
         let tx_data = match build_starcoin_bridge_transaction(
             *starcoin_bridge_address,
             &gas_object_ref,
@@ -521,7 +532,10 @@ where
 
         // Check twice: If the action is already processed, skip it.
         if Self::handle_already_processed_token_transfer_action_maybe(
-            starcoin_bridge_client, action, store, metrics,
+            starcoin_bridge_client,
+            action,
+            store,
+            metrics,
         )
         .await
         {
@@ -529,7 +543,11 @@ where
             return;
         }
 
-        info!(?tx_digest, ?gas_object_ref, "Sending transaction to Starcoin");
+        info!(
+            ?tx_digest,
+            ?gas_object_ref,
+            "Sending transaction to Starcoin"
+        );
         match starcoin_bridge_client
             .execute_transaction_block_with_effects(signed_tx)
             .await

@@ -18,46 +18,44 @@ pub mod keygen {
 
     /// Generate a new Secp256k1 keypair for bridge authority and write to file
     /// The key is written as base64-encoded `flag || privkey` (StarcoinKeyPair format)
-    pub fn generate_bridge_authority_key_and_write_to_file(
-        path: &PathBuf,
-    ) -> Result<()> {
+    pub fn generate_bridge_authority_key_and_write_to_file(path: &PathBuf) -> Result<()> {
         let (_, kp): ((), Secp256k1KeyPair) = starcoin_bridge_types::crypto::get_key_pair();
-        
+
         println!("Generated new Secp256k1 keypair for bridge authority");
-        
+
         // Print public key
         use fastcrypto::traits::{KeyPair as _, ToFromBytes};
         println!("Public key (hex): {}", hex::encode(kp.public().as_bytes()));
-        
+
         // Calculate Ethereum address from public key
         let eth_address = calculate_eth_address(&kp.public());
         println!("Ethereum address: 0x{}", hex::encode(eth_address));
-        
+
         // Wrap in StarcoinKeyPair and encode (this adds the scheme flag)
         let starcoin_kp = StarcoinKeyPair::Secp256k1(kp);
         let base64_encoded = starcoin_kp.encode_base64();
-        
+
         // Write to file
         std::fs::write(path, base64_encoded)
             .map_err(|err| anyhow!("Failed to write key to {:?}: {}", path, err))?;
-        
+
         println!("Key written to: {:?}", path);
         Ok(())
     }
-    
+
     /// Calculate Ethereum address from Secp256k1 public key
     fn calculate_eth_address(pubkey: &fastcrypto::secp256k1::Secp256k1PublicKey) -> [u8; 20] {
-        use sha3::{Digest, Keccak256};
         use fastcrypto::traits::ToFromBytes;
-        
+        use sha3::{Digest, Keccak256};
+
         // Get uncompressed public key (65 bytes: 0x04 + x + y)
         let pubkey_bytes = pubkey.as_bytes();
-        
+
         // For Ethereum address, we hash the x and y coordinates (skip the first byte 0x04)
         // Secp256k1PublicKey in fastcrypto is 33 bytes (compressed), need to expand
         // For now, use a simplified approach - hash the bytes we have
         let hash = Keccak256::digest(&pubkey_bytes[..]);
-        
+
         // Take last 20 bytes
         let mut addr = [0u8; 20];
         addr.copy_from_slice(&hash[12..]);
@@ -72,14 +70,14 @@ pub mod keygen {
     ) -> Result<()> {
         use fastcrypto::ed25519::Ed25519KeyPair;
         use fastcrypto::traits::KeyPair as _;
-        
+
         use fastcrypto::traits::{KeyPair as _, ToFromBytes};
-        
+
         let kp = if use_ecdsa {
             let (_, kp): ((), Secp256k1KeyPair) = starcoin_bridge_types::crypto::get_key_pair();
             println!("Generated new Secp256k1 keypair for bridge client");
             println!("Public key (hex): {}", hex::encode(kp.public().as_bytes()));
-            
+
             let eth_address = calculate_eth_address(&kp.public());
             println!("Ethereum address: 0x{}", hex::encode(eth_address));
             StarcoinKeyPair::Secp256k1(kp)
@@ -89,14 +87,14 @@ pub mod keygen {
             println!("Public key (hex): {}", hex::encode(kp.public().as_bytes()));
             StarcoinKeyPair::Ed25519(kp)
         };
-        
+
         // Encode the keypair as base64
         let contents = kp.encode_base64();
-        
+
         // Write to file
         std::fs::write(path, contents)
             .map_err(|err| anyhow!("Failed to write key to {:?}: {}", path, err))?;
-        
+
         println!("Key written to: {:?}", path);
         Ok(())
     }
@@ -105,10 +103,7 @@ pub mod keygen {
 pub mod keypair_file {
     use super::*;
     use anyhow::{anyhow, Result};
-    use fastcrypto::{
-        secp256k1::Secp256k1KeyPair,
-        traits::EncodeDecodeBase64,
-    };
+    use fastcrypto::{secp256k1::Secp256k1KeyPair, traits::EncodeDecodeBase64};
     use std::path::PathBuf;
 
     // Read a StarcoinKeyPair from a file

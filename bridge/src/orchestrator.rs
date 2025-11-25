@@ -13,20 +13,21 @@ use crate::action_executor::{
 use crate::error::BridgeError;
 use crate::events::StarcoinBridgeEvent;
 use crate::metrics::BridgeMetrics;
-use crate::storage::BridgeOrchestratorTables;
 use crate::starcoin_bridge_client::{StarcoinClient, StarcoinClientInner};
+use crate::storage::BridgeOrchestratorTables;
 use crate::types::EthLog;
 use ethers::types::Address as EthAddress;
 use mysten_metrics::spawn_logged_monitored_task;
-use std::sync::Arc;
 use starcoin_bridge_json_rpc_types::StarcoinEvent;
 use starcoin_bridge_types::Identifier;
+use std::sync::Arc;
 use tokio::task::JoinHandle;
 use tracing::{error, info};
 
 pub struct BridgeOrchestrator<C> {
     _starcoin_bridge_client: Arc<StarcoinClient<C>>,
-    starcoin_bridge_events_rx: mysten_metrics::metered_channel::Receiver<(Identifier, Vec<StarcoinEvent>)>,
+    starcoin_bridge_events_rx:
+        mysten_metrics::metered_channel::Receiver<(Identifier, Vec<StarcoinEvent>)>,
     eth_events_rx: mysten_metrics::metered_channel::Receiver<(EthAddress, u64, Vec<EthLog>)>,
     store: Arc<BridgeOrchestratorTables>,
     starcoin_bridge_monitor_tx: mysten_metrics::metered_channel::Sender<StarcoinBridgeEvent>,
@@ -40,7 +41,10 @@ where
 {
     pub fn new(
         starcoin_bridge_client: Arc<StarcoinClient<C>>,
-        starcoin_bridge_events_rx: mysten_metrics::metered_channel::Receiver<(Identifier, Vec<StarcoinEvent>)>,
+        starcoin_bridge_events_rx: mysten_metrics::metered_channel::Receiver<(
+            Identifier,
+            Vec<StarcoinEvent>,
+        )>,
         eth_events_rx: mysten_metrics::metered_channel::Receiver<(EthAddress, u64, Vec<EthLog>)>,
         store: Arc<BridgeOrchestratorTables>,
         starcoin_bridge_monitor_tx: mysten_metrics::metered_channel::Sender<StarcoinBridgeEvent>,
@@ -71,13 +75,15 @@ where
         task_handles.extend(handles);
         let executor_sender_clone = executor_sender.clone();
         let metrics_clone = self.metrics.clone();
-        task_handles.push(spawn_logged_monitored_task!(Self::run_starcoin_bridge_watcher(
-            store_clone,
-            executor_sender_clone,
-            self.starcoin_bridge_events_rx,
-            self.starcoin_bridge_monitor_tx,
-            metrics_clone,
-        )));
+        task_handles.push(spawn_logged_monitored_task!(
+            Self::run_starcoin_bridge_watcher(
+                store_clone,
+                executor_sender_clone,
+                self.starcoin_bridge_events_rx,
+                self.starcoin_bridge_monitor_tx,
+                metrics_clone,
+            )
+        ));
         let store_clone = self.store.clone();
 
         // Re-submit pending actions to executor
@@ -106,7 +112,10 @@ where
     async fn run_starcoin_bridge_watcher(
         store: Arc<BridgeOrchestratorTables>,
         executor_tx: mysten_metrics::metered_channel::Sender<BridgeActionExecutionWrapper>,
-        mut starcoin_bridge_events_rx: mysten_metrics::metered_channel::Receiver<(Identifier, Vec<StarcoinEvent>)>,
+        mut starcoin_bridge_events_rx: mysten_metrics::metered_channel::Receiver<(
+            Identifier,
+            Vec<StarcoinEvent>,
+        )>,
         monitor_tx: mysten_metrics::metered_channel::Sender<StarcoinBridgeEvent>,
         metrics: Arc<BridgeMetrics>,
     ) {
@@ -157,9 +166,10 @@ where
                     .await
                     .expect("Sending event to monitor channel should not fail");
 
-                if let Some(action) = bridge_event
-                    .try_into_bridge_action(starcoin_bridge_event.id.tx_digest, starcoin_bridge_event.id.event_seq as u16)
-                {
+                if let Some(action) = bridge_event.try_into_bridge_action(
+                    starcoin_bridge_event.id.tx_digest,
+                    starcoin_bridge_event.id.event_seq as u16,
+                ) {
                     metrics.last_observed_actions_seq_num.with_label_values(&[
                         action.chain_id().to_string().as_str(),
                         action.action_type().to_string().as_str(),
@@ -169,7 +179,11 @@ where
             }
 
             if !actions.is_empty() {
-                info!("Received {} actions from Starcoin: {:?}", actions.len(), actions);
+                info!(
+                    "Received {} actions from Starcoin: {:?}",
+                    actions.len(),
+                    actions
+                );
                 metrics
                     .starcoin_bridge_watcher_received_actions
                     .inc_by(actions.len() as u64);

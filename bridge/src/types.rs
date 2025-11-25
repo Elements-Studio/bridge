@@ -22,9 +22,6 @@ use rand::seq::{IteratorRandom, SliceRandom};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use shared_crypto::intent::IntentScope;
-use std::collections::{BTreeMap, BTreeSet};
-use std::fmt::Debug;
-use strum_macros::Display;
 use starcoin_bridge_types::base_types::StarcoinAddress;
 use starcoin_bridge_types::base_types::TransactionDigest;
 use starcoin_bridge_types::bridge::{
@@ -42,6 +39,9 @@ use starcoin_bridge_types::committee::CommitteeTrait;
 use starcoin_bridge_types::committee::StakeUnit;
 use starcoin_bridge_types::message_envelope::{Envelope, Message, VerifiedEnvelope};
 use starcoin_bridge_types::TypeTag;
+use std::collections::{BTreeMap, BTreeSet};
+use std::fmt::Debug;
+use strum_macros::Display;
 
 pub const BRIDGE_AUTHORITY_TOTAL_VOTING_POWER: u64 = 10000;
 
@@ -140,7 +140,7 @@ impl BridgeCommittee {
         exclude: Option<&BTreeSet<BridgeAuthorityPublicKeyBytes>>,
     ) -> Vec<BridgeAuthorityPublicKeyBytes> {
         use rand::thread_rng;
-        
+
         let mut candidates: Vec<_> = self
             .members
             .iter()
@@ -269,7 +269,7 @@ impl CommitteeTrait for BridgeCommittee {
 // Implement starcoin-bridge-authority-aggregation CommitteeTrait for BridgeCommittee
 impl starcoin_bridge_authority_aggregation::CommitteeTrait for BridgeCommittee {
     type AuthorityKey = BridgeAuthorityPublicKeyBytes;
-    
+
     fn weight(&self, author: &BridgeAuthorityPublicKeyBytes) -> u64 {
         self.members
             .get(author)
@@ -476,7 +476,9 @@ impl BridgeAction {
 
     pub fn chain_id(&self) -> BridgeChainId {
         match self {
-            BridgeAction::StarcoinToEthBridgeAction(a) => a.starcoin_bridge_event.starcoin_bridge_chain_id,
+            BridgeAction::StarcoinToEthBridgeAction(a) => {
+                a.starcoin_bridge_event.starcoin_bridge_chain_id
+            }
             BridgeAction::EthToStarcoinBridgeAction(a) => a.eth_bridge_event.eth_chain_id,
             BridgeAction::BlocklistCommitteeAction(a) => a.chain_id,
             BridgeAction::EmergencyAction(a) => a.chain_id,
@@ -698,9 +700,9 @@ mod tests {
     use crate::test_utils::get_test_starcoin_bridge_to_eth_bridge_action;
     use ethers::types::Address as EthAddress;
     use fastcrypto::traits::KeyPair;
-    use std::collections::HashSet;
     use starcoin_bridge_types::bridge::TOKEN_ID_BTC;
     use starcoin_bridge_types::crypto::get_key_pair;
+    use std::collections::HashSet;
 
     use super::*;
 
@@ -769,7 +771,8 @@ mod tests {
     // Regression test to avoid accidentally change to approval threshold
     #[test]
     fn test_bridge_action_approval_threshold_regression_test() -> anyhow::Result<()> {
-        let action = get_test_starcoin_bridge_to_eth_bridge_action(None, None, None, None, None, None, None);
+        let action =
+            get_test_starcoin_bridge_to_eth_bridge_action(None, None, None, None, None, None, None);
         assert_eq!(action.approval_threshold(), 3334);
 
         let action = get_test_eth_to_starcoin_bridge_action(None, None, None, None);

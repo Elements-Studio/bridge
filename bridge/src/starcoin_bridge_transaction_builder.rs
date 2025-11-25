@@ -3,7 +3,6 @@
 
 use fastcrypto::traits::ToFromBytes;
 use move_core_types::ident_str;
-use std::{collections::HashMap, str::FromStr};
 use starcoin_bridge_types::bridge::{
     BRIDGE_CREATE_ADD_TOKEN_ON_STARCOIN_MESSAGE_FUNCTION_NAME,
     BRIDGE_EXECUTE_SYSTEM_MESSAGE_FUNCTION_NAME, BRIDGE_MESSAGE_MODULE_NAME, BRIDGE_MODULE_NAME,
@@ -16,6 +15,7 @@ use starcoin_bridge_types::{
     TypeTag,
 };
 use starcoin_bridge_types::{Identifier, BRIDGE_PACKAGE_ID};
+use std::{collections::HashMap, str::FromStr};
 
 use crate::{
     error::{BridgeError, BridgeResult},
@@ -82,13 +82,15 @@ pub fn build_starcoin_bridge_transaction(
             // It does not need a Starcoin tranaction to execute EVM contract upgrade
             unreachable!()
         }
-        BridgeAction::AddTokensOnStarcoinAction(_) => build_add_tokens_on_starcoin_bridge_transaction(
-            client_address,
-            gas_object_ref,
-            action,
-            bridge_object_arg,
-            rgp,
-        ),
+        BridgeAction::AddTokensOnStarcoinAction(_) => {
+            build_add_tokens_on_starcoin_bridge_transaction(
+                client_address,
+                gas_object_ref,
+                action,
+                bridge_object_arg,
+                rgp,
+            )
+        }
         BridgeAction::AddTokensOnEvmAction(_) => {
             // It does not need a Starcoin tranaction to add tokens on EVM
             unreachable!()

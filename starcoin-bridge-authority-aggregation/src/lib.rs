@@ -1,7 +1,7 @@
 // Stub for starcoin-bridge-authority-aggregation - Byzantine fault-tolerant quorum aggregation
 #![allow(dead_code, unused_variables)]
 
-use futures::{Future, future::BoxFuture, stream::FuturesUnordered};
+use futures::{future::BoxFuture, stream::FuturesUnordered, Future};
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -17,7 +17,7 @@ pub enum ReduceOutput<R, S> {
 }
 
 impl<R, S> ReduceOutput<R, S> {
-    // Map error type 
+    // Map error type
     pub fn map_err<E, F>(self, f: F) -> Result<R, E>
     where
         F: FnOnce(S) -> E,
@@ -42,7 +42,7 @@ pub trait CommitteeTrait {
 }
 
 // Byzantine fault-tolerant quorum map-reduce with timeout and preferences
-// Based on Starcoin's authority aggregation implementation  
+// Based on Starcoin's authority aggregation implementation
 pub async fn quorum_map_then_reduce_with_timeout_and_prefs<
     'a,
     Committee,
@@ -78,25 +78,25 @@ where
     V: Send + 'a,
     E: Send + 'a,
 {
-    use futures::{StreamExt, stream::FuturesUnordered};
-    
+    use futures::{stream::FuturesUnordered, StreamExt};
+
     let start = Instant::now();
-    
+
     // Collect all authority names - honor preferences for ordering
     let mut authorities: Vec<K> = authority_clients.keys().cloned().collect();
-    
+
     // If preferences provided, try those first
     if let Some(prefs) = &authority_preferences {
         // Split into preferred and others
         let (mut preferred, mut others): (Vec<_>, Vec<_>) = authorities
             .into_iter()
             .partition(|k| prefs.ordering_pref.contains(k));
-        
+
         // Preferred authorities first, then others
         preferred.append(&mut others);
         authorities = preferred;
     }
-    
+
     // Collect all authority futures
     let mut responses: FuturesUnordered<_> = authorities
         .into_iter()
@@ -104,19 +104,20 @@ where
             let execute = map_each_authority.clone();
             let name_ret = name.clone();
             let client = authority_clients[&name].clone();
-            async move { 
-                (name_ret.clone(), execute(name_ret, client).await) 
-            }
+            async move { (name_ret.clone(), execute(name_ret, client).await) }
         })
         .collect();
-    
+
     // Process results as they arrive
-    while let Ok(Some((authority_name, result))) =
-        tokio_timeout(total_timeout.saturating_sub(start.elapsed()), responses.next()).await
+    while let Ok(Some((authority_name, result))) = tokio_timeout(
+        total_timeout.saturating_sub(start.elapsed()),
+        responses.next(),
+    )
+    .await
     {
         // Get authority weight from committee
         let authority_weight = committee.weight(&authority_name);
-        
+
         accumulated_state = match reduce_result(
             accumulated_state,
             authority_name,
@@ -135,7 +136,7 @@ where
             }
         };
     }
-    
+
     // Exhausted all authorities or timeout
     Err(accumulated_state)
 }

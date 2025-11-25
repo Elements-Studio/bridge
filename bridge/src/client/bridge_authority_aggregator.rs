@@ -13,15 +13,17 @@ use crate::types::{
     BridgeAction, BridgeCommittee, CertifiedBridgeAction, VerifiedCertifiedBridgeAction,
     VerifiedSignedBridgeAction,
 };
+use starcoin_bridge_authority_aggregation::ReduceOutput;
+use starcoin_bridge_authority_aggregation::{
+    quorum_map_then_reduce_with_timeout_and_prefs, SigRequestPrefs,
+};
+use starcoin_bridge_types::base_types::{ConciseDisplay, ConciseableName};
+use starcoin_bridge_types::committee::{StakeUnit, TOTAL_VOTING_POWER};
 use std::collections::btree_map::Entry;
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 use std::sync::Arc;
 use std::time::Duration;
-use starcoin_bridge_authority_aggregation::ReduceOutput;
-use starcoin_bridge_authority_aggregation::{quorum_map_then_reduce_with_timeout_and_prefs, SigRequestPrefs};
-use starcoin_bridge_types::base_types::{ConciseDisplay, ConciseableName};
-use starcoin_bridge_types::committee::{StakeUnit, TOTAL_VOTING_POWER};
 use tracing::{error, info, warn};
 
 const TOTAL_TIMEOUT_MS: u64 = 5_000;
@@ -296,7 +298,7 @@ async fn request_sign_bridge_action_into_certification(
                         };
                     }
                 };
-                
+
                 match state.handle_verified_signed_action(
                     name.clone(),
                     stake,

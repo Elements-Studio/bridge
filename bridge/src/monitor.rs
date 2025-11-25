@@ -17,9 +17,9 @@ use crate::retry_with_max_elapsed_time;
 use crate::starcoin_bridge_client::{StarcoinClient, StarcoinClientInner};
 use crate::types::{BridgeCommittee, IsBridgePaused};
 use arc_swap::ArcSwap;
+use starcoin_bridge_types::TypeTag;
 use std::collections::HashMap;
 use std::sync::Arc;
-use starcoin_bridge_types::TypeTag;
 use tokio::time::Duration;
 use tracing::{error, info, warn};
 
@@ -441,9 +441,10 @@ async fn get_latest_bridge_pause_status_with_emergency_event<C: StarcoinClientIn
 ) -> IsBridgePaused {
     let mut remaining_retry_times = REFRESH_BRIDGE_RETRY_TIMES;
     loop {
-        let Ok(Ok(summary)) =
-            retry_with_max_elapsed_time!(starcoin_bridge_client.get_bridge_summary(), Duration::from_secs(600))
-        else {
+        let Ok(Ok(summary)) = retry_with_max_elapsed_time!(
+            starcoin_bridge_client.get_bridge_summary(),
+            Duration::from_secs(600)
+        ) else {
             error!("Failed to get bridge summary after retry");
             continue;
         };
