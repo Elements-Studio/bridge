@@ -230,35 +230,72 @@ setup-eth-and-config: ## Complete ETH setup (clean + deploy ETH network + genera
 # Status & Monitoring
 # ============================================================
 status: ## Show current deployment status
-	@echo "$(YELLOW)=== Deployment Status ===$(NC)"
+	@echo "$(YELLOW)╔════════════════════════════════════════╗$(NC)"
+	@echo "$(YELLOW)║  Starcoin Bridge - Status              ║$(NC)"
+	@echo "$(YELLOW)╚════════════════════════════════════════╝$(NC)"
 	@echo ""
 	@echo "$(YELLOW)ETH Network:$(NC)"
-	@docker ps --filter "name=bridge-eth" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null || echo "  $(RED)✗ Not running$(NC)"
-	@echo ""
-	@echo "$(YELLOW)Bridge Config:$(NC)"
-	@if [ -d bridge-config ]; then \
-		for file in client-config.yaml eth-deployment.json server-config.yaml SETUP_SUMMARY.txt; do \
-			if [ -f "bridge-config/$$file" ]; then \
-				echo "  $(GREEN)✓$(NC) $$file $(shell pwd)/bridge-config/$$file"; \
-			else \
-				echo "  $(RED)✗$(NC) $$file (missing)"; \
-			fi; \
-		done; \
+	@if docker ps --filter "name=bridge-eth-node" --format "{{.Names}}" 2>/dev/null | grep -q bridge-eth-node; then \
+		ETH_STATUS=$$(docker ps --filter "name=bridge-eth-node" --format "{{.Status}}" 2>/dev/null); \
+		echo "  $(GREEN)✓ bridge-eth-node$(NC) - $$ETH_STATUS"; \
+		echo "  RPC: http://localhost:8545"; \
 	else \
-		echo "  $(RED)✗ Not initialized (run: make init-bridge)$(NC)"; \
+		echo "  $(RED)✗ Not running$(NC)"; \
+		echo "  $(YELLOW)Start: make deploy-eth-network$(NC)"; \
 	fi
 	@echo ""
-	@echo "$(YELLOW)Bridge Keys:$(NC)"
-	@if [ -d ~/.sui/bridge_keys ]; then \
-		for file in bridge_client_key validator_0_bridge_key; do \
-			if [ -f "$$HOME/.sui/bridge_keys/$$file" ]; then \
-				echo "  $(GREEN)✓$(NC) $$file $$HOME/.sui/bridge_keys/$$file"; \
-			else \
-				echo "  $(RED)✗$(NC) $$file (missing)"; \
-			fi; \
-		done; \
+	@echo "$(YELLOW)Starcoin Node:$(NC)"
+	@if $(STARCOIN_PATH) -c $(STARCOIN_RPC) chain info >/dev/null 2>&1; then \
+		STARCOIN_PID=$$(ps aux | grep '[s]tarcoin.*-n dev.*-d /tmp' | awk '{print $$2}' | head -1); \
+		BLOCK_NUM=$$($(STARCOIN_PATH) -c $(STARCOIN_RPC) chain info 2>/dev/null | grep '"number"' | head -1 | awk -F'"' '{print $$4}'); \
+		if [ -n "$$STARCOIN_PID" ]; then \
+			echo "  $(GREEN)✓ Running$(NC) (PID: $$STARCOIN_PID, Block: $$BLOCK_NUM)"; \
+		else \
+			echo "  $(GREEN)✓ Running$(NC) (Block: $$BLOCK_NUM)"; \
+		fi; \
+		echo "  RPC: $(STARCOIN_RPC)"; \
 	else \
-		echo "  $(RED)✗ Not generated (run: make init-bridge)$(NC)"; \
+		echo "  $(RED)✗ Not running or unreachable$(NC)"; \
+		echo "  $(YELLOW)Start: make start-starcoin-dev-node$(NC)"; \
+	fi
+	@echo ""
+	@echo "$(YELLOW)Configuration:$(NC)"
+	@if [ -f bridge-config/server-config.yaml ]; then \
+		echo "  $(GREEN)✓ server-config.yaml$(NC)"; \
+		if [ -f bridge-node/server-config/bridge_authority.key ]; then \
+			ETH_ADDR=$$(grep "Ethereum address:" bridge-config/server-config.yaml | awk '{print $$4}' || echo "N/A"); \
+			echo "    └─ ETH Address: $$ETH_ADDR"; \
+		fi; \
+	else \
+		echo "  $(RED)✗ server-config.yaml (missing)$(NC)"; \
+		echo "  $(YELLOW)Run: make setup-eth-and-config$(NC)"; \
+	fi
+	@if [ -f bridge-node/server-config/bridge_authority.key ]; then \
+		echo "  $(GREEN)✓ bridge_authority.key$(NC)"; \
+	else \
+		echo "  $(RED)✗ bridge_authority.key (missing)$(NC)"; \
+	fi
+	@if [ -f bridge-config/bridge.db ]; then \
+		echo "  $(GREEN)✓ bridge.db$(NC)"; \
+	else \
+		echo "  $(YELLOW)⚠ bridge.db (will be created on first run)$(NC)"; \
+	fi
+	@echo ""
+	@echo "$(YELLOW)Deployed Contracts:$(NC)"
+	@if docker exec bridge-deployment-info cat /usr/share/nginx/html/deployment.txt 2>/dev/null | grep "ERC1967Proxy" > /dev/null; then \
+		echo "  $(GREEN)✓ ETH Contracts:$(NC)"; \
+		docker exec bridge-deployment-info cat /usr/share/nginx/html/deployment.txt 2>/dev/null | while read line; do echo "    $$line"; done; \
+	else \
+		echo "  $(RED)✗ No ETH deployment info$(NC)"; \
+	fi
+	@echo ""
+	@echo "$(YELLOW)Bridge Server:$(NC)"
+	@if pgrep -f "bridge-node" > /dev/null 2>&1; then \
+		echo "  $(GREEN)✓ Running$(NC) (PID: $$(pgrep -f 'bridge-node'))"; \
+		echo "  Port: 9191"; \
+	else \
+		echo "  $(RED)✗ Not running$(NC)"; \
+		echo "  $(YELLOW)Start: make run-bridge-server$(NC)"; \
 	fi
 
 bridge-info: ## Show bridge deployment information
