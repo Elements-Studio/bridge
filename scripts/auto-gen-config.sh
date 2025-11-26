@@ -11,15 +11,15 @@ echo "🔧 Auto-generating bridge configuration..."
 # 1. Generate bridge authority key
 echo "📝 Generating bridge authority key..."
 mkdir -p "$BRIDGE_ROOT/bridge-node/server-config"
-cd "$STARCOIN_ROOT"
 
-if [ ! -f "$STARCOIN_ROOT/target/debug/keygen" ]; then
+if [ ! -f "$BRIDGE_ROOT/target/debug/keygen" ]; then
     echo "   Building keygen tool..."
+    cd "$BRIDGE_ROOT"
     cargo build --bin keygen --quiet
 fi
 
 AUTHORITY_KEY_PATH="$BRIDGE_ROOT/bridge-node/server-config/bridge_authority.key"
-"$STARCOIN_ROOT/target/debug/keygen" authority --output "$AUTHORITY_KEY_PATH" > /tmp/keygen_output.txt 2>&1
+"$BRIDGE_ROOT/target/debug/keygen" authority --output "$AUTHORITY_KEY_PATH" > /tmp/keygen_output.txt 2>&1
 
 # Extract Ethereum address from keygen output
 ETH_ADDRESS=$(grep "Ethereum address:" /tmp/keygen_output.txt | awk '{print $3}')
@@ -28,13 +28,22 @@ echo "   📍 Ethereum address: $ETH_ADDRESS"
 
 # 2. Get ETH deployment info
 echo "📝 Reading ETH deployment info..."
-DEPLOYMENT_JSON=$(docker exec bridge-deployment-info cat /usr/share/nginx/html/deployment.json 2>/dev/null)
-if [ -z "$DEPLOYMENT_JSON" ]; then
-    echo "   ❌ Error: Could not read deployment.json from container"
+
+# Try JSON first (for compatibility), fallback to text format
+if docker exec bridge-deployment-info test -f /usr/share/nginx/html/deployment.json 2>/dev/null; then
+    ETH_PROXY_ADDRESS=$(docker exec bridge-deployment-info cat /usr/share/nginx/html/deployment.json 2>/dev/null | grep -o '"ERC1967Proxy":"0x[a-fA-F0-9]*"' | cut -d'"' -f4)
+fi
+
+# Fallback to text format
+if [ -z "$ETH_PROXY_ADDRESS" ] && docker exec bridge-deployment-info test -f /usr/share/nginx/html/deployment.txt 2>/dev/null; then
+    ETH_PROXY_ADDRESS=$(docker exec bridge-deployment-info grep "^ERC1967Proxy=" /usr/share/nginx/html/deployment.txt 2>/dev/null | cut -d'=' -f2)
+fi
+
+if [ -z "$ETH_PROXY_ADDRESS" ]; then
+    echo "   ❌ Error: Could not read deployment info from container"
     exit 1
 fi
 
-ETH_PROXY_ADDRESS=$(echo "$DEPLOYMENT_JSON" | jq -r '.contracts.ERC1967Proxy')
 echo "   ✅ ETH Proxy Address: $ETH_PROXY_ADDRESS"
 
 # 3. Generate server-config.yaml

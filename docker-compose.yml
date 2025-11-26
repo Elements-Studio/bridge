@@ -47,35 +47,34 @@ services:
           --broadcast \
           --legacy \
           --slow \
-          -vvv
+          -vvv 2>&1 | tee /tmp/forge_output.log
         
-        if [ $$? -eq 0 ] && [ -f "broadcast/deploy_bridge.s.sol/31337/run-latest.json" ]; then
-          if ! command -v jq >/dev/null 2>&1; then
-            apt-get update -qq && apt-get install -y -qq jq > /dev/null 2>&1
-          fi
-          
-          cat broadcast/deploy_bridge.s.sol/31337/run-latest.json | jq '{
-            network: {
-              name: "Anvil Local Network",
-              chainId: 31337,
-              rpcUrl: "http://localhost:8545"
-            },
-            deployment: {
-              timestamp: (now | strftime("%Y-%m-%dT%H:%M:%SZ")),
-              deployer: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-            },
-            contracts: ([.transactions[] | select(.transactionType == "CREATE" and .contractAddress != null) | {(.contractName): .contractAddress}] | add),
-            accounts: {
-              default: {
-                address: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-                privateKey: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
-                balance: "10000 ETH"
-              }
-            }
-          }' > /deployments/deployment.json
-          
-          echo "Deployment info saved to /deployments/deployment.json"
-        fi
+        # Extract deployment info from forge output (no JSON parsing needed)
+        echo "Extracting deployment info..."
+        
+        # Base config
+        echo "NETWORK=Anvil Local Network" > /deployments/deployment.txt
+        echo "CHAIN_ID=31337" >> /deployments/deployment.txt
+        echo "RPC_URL=http://localhost:8545" >> /deployments/deployment.txt
+        echo "DEPLOYER=0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" >> /deployments/deployment.txt
+        echo "PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80" >> /deployments/deployment.txt
+        echo "" >> /deployments/deployment.txt
+        
+        # Extract contracts from forge output (clean format)
+        grep "\\[Deployed\\]" /tmp/forge_output.log | sed -E 's/^[[:space:]]*\\[Deployed\\] ([^:]+): (0x[a-fA-F0-9]+).*$$/\\1=\\2/' >> /deployments/deployment.txt
+        
+        # Get proxy address
+        PROXY=$$(grep "\\[Deployed\\] SuiBridge:" /tmp/forge_output.log | grep -o '0x[a-fA-F0-9]*' | head -1)
+        [ -z "$$PROXY" ] && PROXY="0x0000000000000000000000000000000000000000"
+        
+        echo "ERC1967Proxy=$$PROXY" >> /deployments/deployment.txt
+        
+        # Minimal JSON for compatibility
+        echo "{\"contracts\":{\"ERC1967Proxy\":\"$$PROXY\"}}" > /deployments/deployment.json
+        
+        echo "=== Deployment Complete ==="
+        cat /deployments/deployment.txt
+        echo "==========================="
     depends_on:
       eth-node:
         condition: service_healthy

@@ -16,16 +16,44 @@ RED    := \033[0;31m
 NC     := \033[0m # No Color
 
 # ============================================================
+# Safe Delete Function - Requires user confirmation (unless FORCE_YES=1)
+# ============================================================
+define safe_rm
+	@if [ "$(FORCE_YES)" = "1" ]; then \
+		echo "$(YELLOW)⚠️  Auto-deleting (forced):$(NC) $(RED)$(1)$(NC)"; \
+		rm -rf $(1); \
+		echo "$(GREEN)✓ Deleted$(NC)"; \
+	else \
+		echo "$(YELLOW)⚠️  Warning: About to delete:$(NC)"; \
+		echo "$(RED)  $(1)$(NC)"; \
+		printf "$(YELLOW)Do you want to continue? (y/N): $(NC)"; \
+		read -n 1 -r REPLY; \
+		echo; \
+		if [ "$$REPLY" = "y" ] || [ "$$REPLY" = "Y" ]; then \
+			rm -rf $(1); \
+			echo "$(GREEN)✓ Deleted$(NC)"; \
+		else \
+			echo "$(YELLOW)✗ Cancelled$(NC)"; \
+			exit 1; \
+		fi; \
+	fi
+endef
+
+# ============================================================
 # Configuration Variables (override with env vars)
 # ============================================================
-STARCOIN_PATH ?= starcoin                              # Path to starcoin binary
-MPM_PATH ?= mpm                                        # Path to Move Package Manager
-STARCOIN_DEV_PARENT_DIR ?= /Users/manager             # Parent directory for dev node
-STARCOIN_DEV_DIR ?= $(STARCOIN_DEV_PARENT_DIR)/dev   # Dev node data directory
-STARCOIN_RPC ?= $(STARCOIN_DEV_DIR)/starcoin.ipc     # IPC socket for RPC
+# Parent directory for dev node
+STARCOIN_DEV_PARENT_DIR ?= /tmp
+# Dev node data directory
+STARCOIN_DEV_DIR ?= $(STARCOIN_DEV_PARENT_DIR)/dev
+# IPC socket for RPC
+STARCOIN_RPC ?= $(STARCOIN_DEV_DIR)/starcoin.ipc
+# Account vaults directory
 STARCOIN_ACCOUNT_DIR ?= $(STARCOIN_DEV_DIR)/account_vaults
-MOVE_CONTRACT_DIR ?= ../stc-bridge-move               # Move contracts location
-BRIDGE_ADDRESS ?= 0x246b237c16c761e9478783dd83f7004a # Deployed bridge address
+# Move contracts location
+MOVE_CONTRACT_DIR ?= ../stc-bridge-move
+# Deployed bridge address
+BRIDGE_ADDRESS ?= 0x246b237c16c761e9478783dd83f7004a
 
 # ============================================================
 # Help & Documentation
@@ -129,17 +157,17 @@ stop-eth-network: ## Stop ETH Docker containers
 	@docker-compose down
 	@echo "$(GREEN)✓ ETH network stopped$(NC)"
 
-clean-eth-and-config: ## Clean ETH containers, bridge-config/ and keys
+clean-eth-and-config: ## Clean ETH containers, bridge-config/ and keys. Use FORCE_YES=1 to skip confirmation
 	@echo "$(YELLOW)Cleaning ETH network and bridge configuration...$(NC)"
-	@rm -rf bridge-config
-	@rm -rf ~/.sui/bridge_keys
+	$(call safe_rm,bridge-config)
+	$(call safe_rm,~/.sui/bridge_keys)
 	@docker-compose down -v
 	@echo "$(GREEN)✓ Cleaned$(NC)"
 
 # ============================================================
 # Automated ETH + Config Setup (one command deployment)
 # ============================================================
-setup-eth-and-config: ## Complete ETH setup (clean + deploy ETH network + generate bridge config)
+setup-eth-and-config: ## Complete ETH setup (clean + deploy ETH network + generate bridge config). Use FORCE_YES=1 to skip confirmation
 	@echo "$(YELLOW)╔════════════════════════════════════════╗$(NC)"
 	@echo "$(YELLOW)║  ETH Network & Config Setup            ║$(NC)"
 	@echo "$(YELLOW)╚════════════════════════════════════════╝$(NC)"
@@ -147,30 +175,31 @@ setup-eth-and-config: ## Complete ETH setup (clean + deploy ETH network + genera
 	# Clean old data
 	@echo "$(YELLOW)Step 1/5: Cleaning old data...$(NC)"
 	@docker-compose down -v 2>/dev/null || true
-	@rm -rf bridge-config bridge-node 2>/dev/null || true
+	$(call safe_rm,bridge-config bridge-node)
 	@echo "$(GREEN)✓ Cleaned$(NC)"
 	@echo ""
-	# Build required binaries
-	@echo "$(YELLOW)Step 2/5: Building Rust binaries...$(NC)"
-	@cd .. && cargo build --bin starcoin-bridge --bin keygen --quiet
-	@echo "$(GREEN)✓ Binaries built$(NC)"
+	# Build keygen tool for config generation
+	@echo "$(YELLOW)Step 2/5: Building keygen tool...$(NC)"
+	@cargo build --bin keygen --quiet
+	@echo "$(GREEN)✓ Keygen built$(NC)"
 	@echo ""
 	# Deploy ETH network via docker-compose
 	@echo "$(YELLOW)Step 3/5: Starting ETH network...$(NC)"
 	@docker-compose up -d
 	@echo "   Waiting for ETH contracts deployment..."
 	@SUCCESS=0; \
-	for i in $$(seq 1 30); do \
-		if curl -sf http://localhost:8080/deployment.json > /dev/null 2>&1; then \
+	for i in $$(seq 1 60); do \
+		if curl -sf http://localhost:8080/deployment.json > /dev/null 2>&1 || \
+		   curl -sf http://localhost:8080/deployment.txt > /dev/null 2>&1; then \
 			SUCCESS=1; \
 			echo "   $(GREEN)✓ ETH contracts deployed (took $$((i*2))s)$(NC)"; \
 			break; \
 		fi; \
-		printf "   ⏳ %ds/%ds\r" "$$((i*2))" "60"; \
+		printf "   ⏳ %ds/%ds\r" "$$((i*2))" "120"; \
 		sleep 2; \
 	done; \
 	if [ $$SUCCESS -eq 0 ]; then \
-		echo "\n   $(RED)✗ Timeout after 60s$(NC)"; \
+		echo "\n   $(RED)✗ Timeout after 120s$(NC)"; \
 		echo "   $(YELLOW)Check: docker logs bridge-eth-deployer$(NC)"; \
 		exit 1; \
 	fi
@@ -248,21 +277,6 @@ check: ## Check if services are healthy
 # ============================================================
 # Starcoin Node Management
 # ============================================================
-
-start-starcoin-dev-node-clean: ## Start Starcoin dev node from scratch (removes dev data)
-	@echo "$(YELLOW)╔════════════════════════════════════════╗$(NC)"
-	@echo "$(YELLOW)║  Starting Starcoin Dev Node (Clean)   ║$(NC)"
-	@echo "$(YELLOW)╚════════════════════════════════════════╝$(NC)"
-	@echo ""
-	@echo "$(RED)Warning: This will remove existing dev data!$(NC)"
-	@echo "$(YELLOW)Dev directory: $(STARCOIN_DEV_DIR)$(NC)"
-	@echo ""
-	@rm -rf $(STARCOIN_DEV_DIR)
-	@echo "$(GREEN)✓ Cleaned dev data$(NC)"
-	@echo "$(YELLOW)Starting Starcoin console...$(NC)"
-	@echo "$(YELLOW)Using: $(STARCOIN_PATH)$(NC)"
-	@$(STARCOIN_PATH) -n dev -d $(STARCOIN_DEV_PARENT_DIR) console
-
 start-starcoin-dev-node: ## Start Starcoin dev node with existing data (resume mode)
 	@echo "$(YELLOW)╔════════════════════════════════════════╗$(NC)"
 	@echo "$(YELLOW)║  Starting Starcoin Dev Node            ║$(NC)"
@@ -330,16 +344,22 @@ deploy-starcoin-contracts: build-starcoin-contracts ## Deploy Move contracts + i
 	fi; \
 	echo "$(GREEN)✓ Default account: $$DEFAULT_ACCOUNT$(NC)"; \
 	echo ""; \
-	# Get test coins for gas (dev network only)
-	echo "$(YELLOW)Getting test coins for deployment...$(NC)"; \
-	echo "$(BLUE)Executing: RUST_LOG=info $(STARCOIN_PATH) -c $(STARCOIN_RPC) dev get-coin -v 1000000000$(NC)"; \
-	RUST_LOG=info $(STARCOIN_PATH) -c $(STARCOIN_RPC) dev get-coin -v 1000000000 && \
-	echo "$(GREEN)✓ Got 1000 STC for gas$(NC)" || \
-	echo "$(YELLOW)⚠ Failed to get coins (might already have enough)$(NC)"; \
+	echo "$(YELLOW)Initializing account on-chain...$(NC)"; \
+	echo "$(YELLOW)Getting test coins for deployment (this also initializes the account)...$(NC)"; \
+	echo "$(BLUE)Executing: $(STARCOIN_PATH) -c $(STARCOIN_RPC) dev get-coin -v 10000000$(NC)"; \
+	$(STARCOIN_PATH) -c $(STARCOIN_RPC) dev get-coin -v 10000000 2>&1 | grep -v "^[0-9].*INFO" && \
+	echo "$(GREEN)✓ Got 1000 STC for gas$(NC)" || { \
+		echo "$(RED)✗ Failed to get coins for account $$DEFAULT_ACCOUNT$(NC)"; \
+		echo "$(YELLOW)Trying without specifying account...$(NC)"; \
+		$(STARCOIN_PATH) -c $(STARCOIN_RPC) dev get-coin -v 10000000 2>&1 | grep -v "^[0-9].*INFO" && \
+		echo "$(GREEN)✓ Got coins$(NC)" || { \
+			echo "$(RED)✗ Failed to get coins$(NC)"; \
+			exit 1; \
+		}; \
+	}; \
 	echo ""; \
-	# Unlock account for transactions (300s validity)
 	echo "$(YELLOW)Unlocking account...$(NC)"; \
-	echo "" | RUST_LOG=info $(STARCOIN_PATH) -c $(STARCOIN_RPC) account unlock $$DEFAULT_ACCOUNT -d 300 && \
+	echo "" | $(STARCOIN_PATH) -c $(STARCOIN_RPC) account unlock $$DEFAULT_ACCOUNT -d 300 2>&1 | grep -v "^[0-9].*INFO" && \
 	echo "$(GREEN)✓ Account unlocked$(NC)" || \
 	echo "$(YELLOW)⚠ Failed to unlock (might already be unlocked)$(NC)"; \
 	echo ""; \
@@ -349,9 +369,6 @@ deploy-starcoin-contracts: build-starcoin-contracts ## Deploy Move contracts + i
 	echo "  Bridge Address: $(BRIDGE_ADDRESS)"; \
 	echo "  Using: $(STARCOIN_PATH)"; \
 	echo ""; \
-	# ============================================================
-	# Phase 2: Deploy Move package
-	# ============================================================
 	BLOB_FILE=$$(ls $(MOVE_CONTRACT_DIR)/release/*.blob | head -1); \
 	if [ -z "$$BLOB_FILE" ]; then \
 		echo "$(RED)✗ No blob file found$(NC)"; \
@@ -360,28 +377,30 @@ deploy-starcoin-contracts: build-starcoin-contracts ## Deploy Move contracts + i
 	echo "$(YELLOW)Deploying: $$BLOB_FILE$(NC)"; \
 	echo "$(YELLOW)This may take 10-30 seconds...$(NC)"; \
 	echo ""; \
-	echo "$(BLUE)Executing: RUST_LOG=info $(STARCOIN_PATH) -c $(STARCOIN_RPC) dev deploy $$BLOB_FILE -s $$DEFAULT_ACCOUNT -b$(NC)"; \
-	RUST_LOG=info $(STARCOIN_PATH) -c $(STARCOIN_RPC) dev deploy $$BLOB_FILE -s $$DEFAULT_ACCOUNT -b && \
-	echo "" && \
-	echo "$(GREEN)✓ Bridge contract deployed successfully$(NC)" && \
-	echo "" && \
-	echo "$(YELLOW)Contract Address: $(BRIDGE_ADDRESS)$(NC)" && \
-	echo "" && \
-	# ============================================================
-	# Phase 3: Initialize Bridge Committee (automated)
-	# ============================================================
+	echo "$(BLUE)Executing: $(STARCOIN_PATH) -c $(STARCOIN_RPC) dev deploy $$BLOB_FILE -s $$DEFAULT_ACCOUNT -b$(NC)"; \
+	if $(STARCOIN_PATH) -c $(STARCOIN_RPC) dev deploy $$BLOB_FILE -s $$DEFAULT_ACCOUNT -b 2>&1 | tee /tmp/deploy.log | grep -v "^[0-9].*INFO"; then \
+		echo ""; \
+		echo "$(GREEN)✓ Bridge contract deployed successfully$(NC)"; \
+		echo ""; \
+		echo "$(YELLOW)Contract Address: $(BRIDGE_ADDRESS)$(NC)"; \
+		echo ""; \
+	else \
+		echo ""; \
+		echo "$(RED)✗ Deployment failed$(NC)"; \
+		echo "$(YELLOW)Error details:$(NC)"; \
+		grep -i "error\|failed\|ERROR" /tmp/deploy.log | head -5; \
+		exit 1; \
+	fi; \
 	echo "$(YELLOW)╔════════════════════════════════════════╗$(NC)" && \
 	echo "$(YELLOW)║  Initializing Committee                ║$(NC)" && \
 	echo "$(YELLOW)╚════════════════════════════════════════╝$(NC)" && \
 	echo "" && \
 	echo "$(YELLOW)Step 1/2: Registering bridge authority...$(NC)" && \
-	# Read configuration from bridge-config/server-config.yaml
 	if [ ! -f bridge-config/server-config.yaml ]; then \
 		echo "$(RED)✗ Bridge config not found$(NC)"; \
 		echo "$(YELLOW)Please run: make setup-eth-and-config$(NC)"; \
 		exit 1; \
 	fi; \
-	# Extract bridge authority key path and ETH address
 	BRIDGE_KEY_PATH=$$(grep "bridge-authority-key-path:" bridge-config/server-config.yaml | awk '{print $$2}'); \
 	ETH_ADDRESS=$$(grep "Ethereum address:" bridge-config/server-config.yaml | awk '{print $$4}'); \
 	echo "  Bridge key: $$BRIDGE_KEY_PATH"; \
@@ -390,43 +409,72 @@ deploy-starcoin-contracts: build-starcoin-contracts ## Deploy Move contracts + i
 		echo "$(RED)✗ Bridge authority key not found: $$BRIDGE_KEY_PATH$(NC)"; \
 		exit 1; \
 	fi; \
-	# Extract public key from key file (ECDSA compressed pubkey, 33 bytes)
-	BRIDGE_PUBKEY=$$(cat "$$BRIDGE_KEY_PATH" | grep -o '"public_key":"[^"]*"' | cut -d'"' -f4); \
+	echo ""; \
+	echo "$(YELLOW)Extracting public key from key file...$(NC)"; \
+	if [ ! -f target/debug/keygen ]; then \
+		echo "$(YELLOW)Building keygen tool...$(NC)"; \
+		cargo build --bin keygen --quiet || { \
+			echo "$(RED)✗ Failed to build keygen$(NC)"; \
+			exit 1; \
+		}; \
+	fi; \
+	BRIDGE_PUBKEY=$$(target/debug/keygen examine "$$BRIDGE_KEY_PATH" 2>/dev/null | grep "Public key (hex):" | awk '{print $$NF}'); \
 	if [ -z "$$BRIDGE_PUBKEY" ]; then \
-		echo "$(RED)✗ Failed to extract public key$(NC)"; \
+		echo "$(RED)✗ Failed to extract public key from $$BRIDGE_KEY_PATH$(NC)"; \
+		echo "$(YELLOW)Try running: target/debug/keygen examine $$BRIDGE_KEY_PATH$(NC)"; \
 		exit 1; \
 	fi; \
-	echo "  Bridge pubkey: $$BRIDGE_PUBKEY"; \
-	echo "" && \
-	# Call Bridge::committee_registration to register validator pubkey
-	# Args: bridge_pubkey_bytes (hex), http_rest_url (hex encoded "https://127.0.0.1:9191")
-	echo "$(BLUE)Executing: starcoin account execute-function --function $(BRIDGE_ADDRESS)::Bridge::committee_registration$(NC)"; \
-	echo "" | RUST_LOG=info $(STARCOIN_PATH) -c $(STARCOIN_RPC) account execute-function \
+	echo "$(GREEN)✓ Public key: $$BRIDGE_PUBKEY$(NC)"; \
+	echo ""; \
+	echo "$(YELLOW)Step 2/2: Registering on Starcoin chain...$(NC)"; \
+	URL_HEX="68747470733a2f2f3132372e302e302e313a39313931"; \
+	echo "  Function: $(BRIDGE_ADDRESS)::Bridge::committee_registration"; \
+	echo "  Public key: $$BRIDGE_PUBKEY"; \
+	echo "  URL (hex): $$URL_HEX"; \
+	echo ""; \
+	echo "$(BLUE)Executing registration transaction...$(NC)"; \
+	if echo "" | $(STARCOIN_PATH) -c $(STARCOIN_RPC) account execute-function \
 		--function $(BRIDGE_ADDRESS)::Bridge::committee_registration \
 		--arg x"$$BRIDGE_PUBKEY" \
-		--arg x"68747470733a2f2f3132372e302e302e313a39313931" \
-		-s $$DEFAULT_ACCOUNT -b && \
-	echo "$(GREEN)✓ Bridge authority registered$(NC)" || \
-	(echo "$(RED)✗ Registration failed$(NC)" && exit 1); \
+		--arg x"$$URL_HEX" \
+		-s $$DEFAULT_ACCOUNT -b 2>&1 | tee /tmp/register.log | grep -v "^[0-9].*INFO"; then \
+		echo ""; \
+		echo "$(GREEN)✓ Bridge authority registered successfully$(NC)"; \
+	else \
+		echo ""; \
+		echo "$(RED)✗ Registration failed$(NC)"; \
+		echo "$(YELLOW)Error details:$(NC)"; \
+		grep -i "error\|failed\|ERROR" /tmp/register.log | head -5; \
+		exit 1; \
+	fi; \
 	echo "" && \
-	# Call Committee::try_create_next_committee to create committee
-	echo "$(YELLOW)Step 2/2: Creating committee...$(NC)" && \
-	echo "  Validator address: $$DEFAULT_ACCOUNT" && \
+	echo "$(YELLOW)╔════════════════════════════════════════╗$(NC)" && \
+	echo "$(YELLOW)║  Creating Committee                    ║$(NC)" && \
+	echo "$(YELLOW)╚════════════════════════════════════════╝$(NC)" && \
+	echo "" && \
+	echo "$(YELLOW)Validator Configuration:$(NC)" && \
+	echo "  Address: $$DEFAULT_ACCOUNT" && \
 	echo "  Voting power: 10000 (100%)" && \
-	echo "  Min stake participation: 50% (5000/10000)" && \
+	echo "  Min stake: 5000 (50%)" && \
 	echo "  Epoch: 0" && \
 	echo "" && \
-	echo "$(BLUE)Executing: starcoin account execute-function --function $(BRIDGE_ADDRESS)::Committee::try_create_next_committee$(NC)"; \
-	# Args: validator_addr, voting_power (10000=100%), min_stake_pct (5000=50%), epoch (0)
-	echo "" | RUST_LOG=info $(STARCOIN_PATH) -c $(STARCOIN_RPC) account execute-function \
+	echo "$(BLUE)Executing: $(STARCOIN_PATH) account execute-function --function $(BRIDGE_ADDRESS)::Committee::try_create_next_committee$(NC)"; \
+	if echo "" | $(STARCOIN_PATH) -c $(STARCOIN_RPC) account execute-function \
 		--function $(BRIDGE_ADDRESS)::Committee::try_create_next_committee \
 		--arg "$$DEFAULT_ACCOUNT" \
 		--arg 10000u64 \
 		--arg 5000u64 \
 		--arg 0u64 \
-		-s $$DEFAULT_ACCOUNT -b && \
-	echo "$(GREEN)✓ Committee created$(NC)" || \
-	(echo "$(RED)✗ Committee creation failed$(NC)" && exit 1); \
+		-s $$DEFAULT_ACCOUNT -b 2>&1 | tee /tmp/committee.log | grep -v "^[0-9].*INFO"; then \
+		echo ""; \
+		echo "$(GREEN)✓ Committee created successfully$(NC)"; \
+	else \
+		echo ""; \
+		echo "$(RED)✗ Committee creation failed$(NC)"; \
+		echo "$(YELLOW)Error details:$(NC)"; \
+		grep -i "error\|failed\|ERROR" /tmp/committee.log | head -5; \
+		exit 1; \
+	fi; \
 	echo "" && \
 	echo "$(GREEN)╔════════════════════════════════════════╗$(NC)" && \
 	echo "$(GREEN)║  ✅ Deployment Complete!               ║$(NC)" && \
@@ -461,9 +509,9 @@ run-bridge-server: ## Start bridge server (requires ETH network + Starcoin node 
 	fi
 	@echo "$(GREEN)✓ ETH node running$(NC)"
 	# Build bridge binary if not exists
-	@if [ ! -f ../target/debug/starcoin-bridge ]; then \
+	@if [ ! -f target/debug/starcoin-bridge ]; then \
 		echo "$(YELLOW)Building bridge binary...$(NC)"; \
-		cd .. && cargo build --bin starcoin-bridge --quiet; \
+		cargo build --bin starcoin-bridge --quiet; \
 		echo "$(GREEN)✓ Bridge binary built$(NC)"; \
 	else \
 		echo "$(GREEN)✓ Bridge binary exists$(NC)"; \
@@ -481,6 +529,6 @@ run-bridge-server: ## Start bridge server (requires ETH network + Starcoin node 
 	# Start bridge server with logging
 	@echo "$(GREEN)Starting bridge server...$(NC)"
 	@echo ""
-	@cd .. && RUST_LOG=info,starcoin_bridge=debug \
+	@RUST_LOG=info,starcoin_bridge=debug \
 		./target/debug/starcoin-bridge \
-		--config-path bridge/bridge-config/server-config.yaml
+		--config-path bridge-config/server-config.yaml
