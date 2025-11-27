@@ -408,6 +408,18 @@ mod tests {
 
     use super::*;
 
+    /// Helper to get the hex-encoded prefix
+    fn prefix_hex() -> String {
+        Hex::encode(BRIDGE_MESSAGE_PREFIX)
+    }
+
+    /// Helper to build expected bytes dynamically: prefix + payload_hex
+    fn expected_bytes(payload_hex: &str) -> Vec<u8> {
+        let mut bytes = BRIDGE_MESSAGE_PREFIX.to_vec();
+        bytes.extend_from_slice(&Hex::decode(payload_hex).unwrap());
+        bytes
+    }
+
     #[test]
     fn test_bridge_message_encoding() -> anyhow::Result<()> {
         telemetry_subscribers::init_for_testing();
@@ -472,11 +484,11 @@ mod tests {
 
         assert_eq!(combined_bytes, encoded_bytes);
 
-        // Assert fixed length
-        // TODO: for each action type add a test to assert the length
+        // Assert fixed length: prefix + message_type + version + nonce + source_chain + 
+        // starcoin_addr_len + starcoin_addr + dest_chain + eth_addr_len + eth_addr + token_id + amount
         assert_eq!(
             combined_bytes.len(),
-            18 + 1 + 1 + 8 + 1 + 1 + 16 + 1 + 20 + 1 + 1 + 8
+            BRIDGE_MESSAGE_PREFIX.len() + 1 + 1 + 8 + 1 + 1 + 16 + 1 + 1 + 20 + 1 + 8
         );
         Ok(())
     }
@@ -548,26 +560,16 @@ mod tests {
             members_to_update: vec![pub_key_bytes.clone()],
         });
         let bytes = blocklist_action.to_bytes().unwrap();
-        /*
-        5355495f4252494447455f4d455353414745: prefix
-        01: msg type
-        01: msg version
-        0000000000000081: nonce
-        03: chain id
-        00: blocklist type
-        01: length of updated members
-        [
-            68b43fd906c0b8f024a18c56e06744f7c6157c65
-        ]: blocklisted members abi-encoded
-        */
-        assert_eq!(bytes, Hex::decode("5355495f4252494447455f4d4553534147450101000000000000008102000168b43fd906c0b8f024a18c56e06744f7c6157c65").unwrap());
+        // prefix + msg_type(01) + version(01) + nonce(0000000000000081) + chain_id(02) + 
+        // blocklist_type(00) + members_len(01) + member(68b43fd906c0b8f024a18c56e06744f7c6157c65)
+        assert_eq!(bytes, expected_bytes("0101000000000000008102000168b43fd906c0b8f024a18c56e06744f7c6157c65"));
 
         let pub_key_bytes_2 = BridgeAuthorityPublicKeyBytes::from_bytes(
             &Hex::decode("027f1178ff417fc9f5b8290bd8876f0a157a505a6c52db100a8492203ddd1d4279")
                 .unwrap(),
         )
         .unwrap();
-        // its evem address: 0xacaef39832cb995c4e049437a3e2ec6a7bad1ab5
+        // its evm address: 0xacaef39832cb995c4e049437a3e2ec6a7bad1ab5
         let blocklist_action = BridgeAction::BlocklistCommitteeAction(BlocklistCommitteeAction {
             nonce: 68,
             chain_id: BridgeChainId::StarcoinCustom,
@@ -575,20 +577,9 @@ mod tests {
             members_to_update: vec![pub_key_bytes.clone(), pub_key_bytes_2.clone()],
         });
         let bytes = blocklist_action.to_bytes().unwrap();
-        /*
-        5355495f4252494447455f4d455353414745: prefix
-        01: msg type
-        01: msg version
-        0000000000000044: nonce
-        02: chain id
-        01: blocklist type
-        02: length of updated members
-        [
-            68b43fd906c0b8f024a18c56e06744f7c6157c65
-            acaef39832cb995c4e049437a3e2ec6a7bad1ab5
-        ]: blocklisted members abi-encoded
-        */
-        assert_eq!(bytes, Hex::decode("5355495f4252494447455f4d4553534147450101000000000000004402010268b43fd906c0b8f024a18c56e06744f7c6157c65acaef39832cb995c4e049437a3e2ec6a7bad1ab5").unwrap());
+        // prefix + msg_type(01) + version(01) + nonce(0000000000000044) + chain_id(02) + 
+        // blocklist_type(01) + members_len(02) + members
+        assert_eq!(bytes, expected_bytes("0101000000000000004402010268b43fd906c0b8f024a18c56e06744f7c6157c65acaef39832cb995c4e049437a3e2ec6a7bad1ab5"));
 
         let blocklist_action = BridgeAction::BlocklistCommitteeAction(BlocklistCommitteeAction {
             nonce: 49,
@@ -597,19 +588,9 @@ mod tests {
             members_to_update: vec![pub_key_bytes.clone()],
         });
         let bytes = blocklist_action.to_bytes().unwrap();
-        /*
-        5355495f4252494447455f4d455353414745: prefix
-        01: msg type
-        01: msg version
-        0000000000000031: nonce
-        0c: chain id
-        00: blocklist type
-        01: length of updated members
-        [
-            68b43fd906c0b8f024a18c56e06744f7c6157c65
-        ]: blocklisted members abi-encoded
-        */
-        assert_eq!(bytes, Hex::decode("5355495f4252494447455f4d455353414745010100000000000000310c000168b43fd906c0b8f024a18c56e06744f7c6157c65").unwrap());
+        // prefix + msg_type(01) + version(01) + nonce(0000000000000031) + chain_id(0c) + 
+        // blocklist_type(00) + members_len(01) + member
+        assert_eq!(bytes, expected_bytes("010100000000000000310c000168b43fd906c0b8f024a18c56e06744f7c6157c65"));
 
         let blocklist_action = BridgeAction::BlocklistCommitteeAction(BlocklistCommitteeAction {
             nonce: 94,
@@ -618,20 +599,9 @@ mod tests {
             members_to_update: vec![pub_key_bytes.clone(), pub_key_bytes_2.clone()],
         });
         let bytes = blocklist_action.to_bytes().unwrap();
-        /*
-        5355495f4252494447455f4d455353414745: prefix
-        01: msg type
-        01: msg version
-        000000000000005e: nonce
-        0b: chain id
-        01: blocklist type
-        02: length of updated members
-        [
-            00000000000000000000000068b43fd906c0b8f024a18c56e06744f7c6157c65
-            000000000000000000000000acaef39832cb995c4e049437a3e2ec6a7bad1ab5
-        ]: blocklisted members abi-encoded
-        */
-        assert_eq!(bytes, Hex::decode("5355495f4252494447455f4d4553534147450101000000000000005e0b010268b43fd906c0b8f024a18c56e06744f7c6157c65acaef39832cb995c4e049437a3e2ec6a7bad1ab5").unwrap());
+        // prefix + msg_type(01) + version(01) + nonce(000000000000005e) + chain_id(0b) + 
+        // blocklist_type(01) + members_len(02) + members
+        assert_eq!(bytes, expected_bytes("0101000000000000005e0b010268b43fd906c0b8f024a18c56e06744f7c6157c65acaef39832cb995c4e049437a3e2ec6a7bad1ab5"));
     }
 
     #[test]
@@ -642,18 +612,8 @@ mod tests {
             action_type: EmergencyActionType::Pause,
         });
         let bytes = action.to_bytes().unwrap();
-        /*
-        5355495f4252494447455f4d455353414745: prefix
-        02: msg type
-        01: msg version
-        0000000000000037: nonce
-        03: chain id
-        00: action type
-        */
-        assert_eq!(
-            bytes,
-            Hex::decode("5355495f4252494447455f4d455353414745020100000000000000370200").unwrap()
-        );
+        // prefix + msg_type(02) + version(01) + nonce(0000000000000037) + chain_id(02) + action_type(00)
+        assert_eq!(bytes, expected_bytes("020100000000000000370200"));
 
         let action = BridgeAction::EmergencyAction(EmergencyAction {
             nonce: 56,
@@ -661,18 +621,8 @@ mod tests {
             action_type: EmergencyActionType::Unpause,
         });
         let bytes = action.to_bytes().unwrap();
-        /*
-        5355495f4252494447455f4d455353414745: prefix
-        02: msg type
-        01: msg version
-        0000000000000038: nonce
-        0b: chain id
-        01: action type
-        */
-        assert_eq!(
-            bytes,
-            Hex::decode("5355495f4252494447455f4d455353414745020100000000000000380b01").unwrap()
-        );
+        // prefix + msg_type(02) + version(01) + nonce(0000000000000038) + chain_id(0b) + action_type(01)
+        assert_eq!(bytes, expected_bytes("020100000000000000380b01"));
     }
 
     #[test]
@@ -684,22 +634,9 @@ mod tests {
             new_usd_limit: 1_000_000 * USD_MULTIPLIER, // $1M USD
         });
         let bytes = action.to_bytes().unwrap();
-        /*
-        5355495f4252494447455f4d455353414745: prefix
-        03: msg type
-        01: msg version
-        000000000000000f: nonce
-        03: chain id
-        0c: sending chain id
-        00000002540be400: new usd limit
-        */
-        assert_eq!(
-            bytes,
-            Hex::decode(
-                "5355495f4252494447455f4d4553534147450301000000000000000f020c00000002540be400"
-            )
-            .unwrap()
-        );
+        // prefix + msg_type(03) + version(01) + nonce(000000000000000f) + chain_id(02) + 
+        // sending_chain_id(0c) + new_usd_limit(00000002540be400)
+        assert_eq!(bytes, expected_bytes("0301000000000000000f020c00000002540be400"));
     }
 
     #[test]
@@ -711,22 +648,9 @@ mod tests {
             new_usd_price: 100_000 * USD_MULTIPLIER, // $100k USD
         });
         let bytes = action.to_bytes().unwrap();
-        /*
-        5355495f4252494447455f4d455353414745: prefix
-        04: msg type
-        01: msg version
-        000000000000010a: nonce
-        03: chain id
-        01: token id
-        000000003b9aca00: new usd price
-        */
-        assert_eq!(
-            bytes,
-            Hex::decode(
-                "5355495f4252494447455f4d4553534147450401000000000000010a0201000000003b9aca00"
-            )
-            .unwrap()
-        );
+        // prefix + msg_type(04) + version(01) + nonce(000000000000010a) + chain_id(02) + 
+        // token_id(01) + new_usd_price(000000003b9aca00)
+        assert_eq!(bytes, expected_bytes("0401000000000000010a0201000000003b9aca00"));
     }
 
     #[test]
@@ -744,20 +668,9 @@ mod tests {
             new_impl_address: EthAddress::repeat_byte(9),
             call_data,
         });
-        /*
-        5355495f4252494447455f4d455353414745: prefix
-        05: msg type
-        01: msg version
-        000000000000007b: nonce
-        0c: chain id
-        0000000000000000000000000606060606060606060606060606060606060606: proxy address
-        0000000000000000000000000909090909090909090909090909090909090909: new impl address
-
-        0000000000000000000000000000000000000000000000000000000000000060
-        0000000000000000000000000000000000000000000000000000000000000004
-        5cd8a76b00000000000000000000000000000000000000000000000000000000: call data
-        */
-        assert_eq!(Hex::encode(action.to_bytes().unwrap().clone()), "5355495f4252494447455f4d4553534147450501000000000000007b0c00000000000000000000000006060606060606060606060606060606060606060000000000000000000000000909090909090909090909090909090909090909000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000045cd8a76b00000000000000000000000000000000000000000000000000000000");
+        // prefix + msg_type(05) + version(01) + nonce + chain_id + proxy_address + new_impl_address + call_data
+        let data = action.to_bytes().unwrap();
+        assert_eq!(Hex::encode(data.clone()), format!("{}0501000000000000007b0c00000000000000000000000006060606060606060606060606060606060606060000000000000000000000000909090909090909090909090909090909090909000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000045cd8a76b00000000000000000000000000000000000000000000000000000000", prefix_hex()));
 
         // Calldata with one parameter: `function newMockFunction(bool)`
         let function_signature = "newMockFunction(bool)";
@@ -775,21 +688,8 @@ mod tests {
             new_impl_address: EthAddress::repeat_byte(9),
             call_data,
         });
-        /*
-        5355495f4252494447455f4d455353414745: prefix
-        05: msg type
-        01: msg version
-        000000000000007b: nonce
-        0c: chain id
-        0000000000000000000000000606060606060606060606060606060606060606: proxy address
-        0000000000000000000000000909090909090909090909090909090909090909: new impl address
-
-        0000000000000000000000000000000000000000000000000000000000000060
-        0000000000000000000000000000000000000000000000000000000000000024
-        417795ef00000000000000000000000000000000000000000000000000000000
-        0000000100000000000000000000000000000000000000000000000000000000: call data
-        */
-        assert_eq!(Hex::encode(action.to_bytes().unwrap().clone()), "5355495f4252494447455f4d4553534147450501000000000000007b0c0000000000000000000000000606060606060606060606060606060606060606000000000000000000000000090909090909090909090909090909090909090900000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000024417795ef000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000");
+        // prefix + msg_type(05) + version(01) + nonce + chain_id + proxy_address + new_impl_address + call_data
+        assert_eq!(Hex::encode(action.to_bytes().unwrap().clone()), format!("{}0501000000000000007b0c0000000000000000000000000606060606060606060606060606060606060606000000000000000000000000090909090909090909090909090909090909090900000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000024417795ef000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000", prefix_hex()));
 
         // Calldata with two parameters: `function newerMockFunction(bool, uint8)`
         let function_signature = "newMockFunction(bool,uint8)";
@@ -810,24 +710,10 @@ mod tests {
             new_impl_address: EthAddress::repeat_byte(9),
             call_data,
         });
-        /*
-        5355495f4252494447455f4d455353414745: prefix
-        05: msg type
-        01: msg version
-        000000000000007b: nonce
-        0c: chain id
-        0000000000000000000000000606060606060606060606060606060606060606: proxy address
-        0000000000000000000000000909090909090909090909090909090909090909: new impl address
+        // prefix + msg_type(05) + version(01) + nonce + chain_id + proxy_address + new_impl_address + call_data
+        assert_eq!(Hex::encode(action.to_bytes().unwrap().clone()), format!("{}0501000000000000007b0c0000000000000000000000000606060606060606060606060606060606060606000000000000000000000000090909090909090909090909090909090909090900000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000044be8fc25d0000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000002a00000000000000000000000000000000000000000000000000000000", prefix_hex()));
 
-        0000000000000000000000000000000000000000000000000000000000000060
-        0000000000000000000000000000000000000000000000000000000000000044
-        be8fc25d00000000000000000000000000000000000000000000000000000000
-        0000000100000000000000000000000000000000000000000000000000000000
-        0000002a00000000000000000000000000000000000000000000000000000000: call data
-        */
-        assert_eq!(Hex::encode(action.to_bytes().unwrap().clone()), "5355495f4252494447455f4d4553534147450501000000000000007b0c0000000000000000000000000606060606060606060606060606060606060606000000000000000000000000090909090909090909090909090909090909090900000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000044be8fc25d0000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000002a00000000000000000000000000000000000000000000000000000000");
-
-        // Empty calldate
+        // Empty calldata
         let action = BridgeAction::EvmContractUpgradeAction(EvmContractUpgradeAction {
             nonce: 123,
             chain_id: BridgeChainId::EthCustom,
@@ -835,23 +721,12 @@ mod tests {
             new_impl_address: EthAddress::repeat_byte(9),
             call_data: vec![],
         });
-        /*
-        5355495f4252494447455f4d455353414745: prefix
-        05: msg type
-        01: msg version
-        000000000000007b: nonce
-        0c: chain id
-        0000000000000000000000000606060606060606060606060606060606060606: proxy address
-        0000000000000000000000000909090909090909090909090909090909090909: new impl address
-
-        0000000000000000000000000000000000000000000000000000000000000060
-        0000000000000000000000000000000000000000000000000000000000000000: call data
-        */
+        // prefix + msg_type(05) + version(01) + nonce + chain_id + proxy_address + new_impl_address + empty_call_data
         let data = action.to_bytes().unwrap();
-        assert_eq!(Hex::encode(data.clone()), "5355495f4252494447455f4d4553534147450501000000000000007b0c0000000000000000000000000606060606060606060606060606060606060606000000000000000000000000090909090909090909090909090909090909090900000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000");
+        assert_eq!(Hex::encode(data.clone()), format!("{}0501000000000000007b0c0000000000000000000000000606060606060606060606060606060606060606000000000000000000000000090909090909090909090909090909090909090900000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000", prefix_hex()));
         let types = vec![ParamType::Address, ParamType::Address, ParamType::Bytes];
-        // Ensure that the call data (start from bytes 29) can be decoded
-        ethers::abi::decode(&types, &data[29..]).unwrap();
+        // Ensure that the call data (start from bytes after prefix) can be decoded
+        ethers::abi::decode(&types, &data[BRIDGE_MESSAGE_PREFIX.len() + 11..]).unwrap();
     }
 
     #[test]
@@ -948,9 +823,10 @@ mod tests {
         });
         let encoded_bytes = action.to_bytes().unwrap();
 
+        // Verify the encoded bytes start with the correct prefix and payload
         assert_eq!(
             Hex::encode(encoded_bytes),
-            "5355495f4252494447455f4d455353414745070100000000000000000c0103636465036b175474e89094c44da98b954eedeac495271d0fae7ab96520de3a18e5e111b5eaab095312d7fe84c18360217d8f7ab5e7c516566761ea12ce7f9d720305060703000000003b9aca00000000007735940000000000b2d05e00",
+            format!("{}070100000000000000000c0103636465036b175474e89094c44da98b954eedeac495271d0fae7ab96520de3a18e5e111b5eaab095312d7fe84c18360217d8f7ab5e7c516566761ea12ce7f9d720305060703000000003b9aca00000000007735940000000000b2d05e00", prefix_hex()),
         );
         // To generate regression test for sol contracts
         let keys = get_bridge_encoding_regression_test_keys();
