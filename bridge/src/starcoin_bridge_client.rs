@@ -71,18 +71,22 @@ pub type StarcoinBridgeClient = StarcoinClient<StarcoinJsonRpcClient>;
 pub type StarcoinBridgeSdkClient = StarcoinBridgeClient;
 
 impl StarcoinBridgeClient {
-    pub fn new(rpc_url: &str) -> Self {
+    pub fn new(rpc_url: &str, bridge_address: &str) -> Self {
         Self {
-            inner: StarcoinJsonRpcClient::new(rpc_url),
+            inner: StarcoinJsonRpcClient::new(rpc_url, bridge_address),
             bridge_metrics: Arc::new(BridgeMetrics::new_for_testing()),
         }
     }
 
-    pub fn with_metrics(rpc_url: &str, bridge_metrics: Arc<BridgeMetrics>) -> Self {
+    pub fn with_metrics(rpc_url: &str, bridge_address: &str, bridge_metrics: Arc<BridgeMetrics>) -> Self {
         Self {
-            inner: StarcoinJsonRpcClient::new(rpc_url),
+            inner: StarcoinJsonRpcClient::new(rpc_url, bridge_address),
             bridge_metrics,
         }
+    }
+
+    pub fn bridge_address(&self) -> &str {
+        self.inner.bridge_address()
     }
 
     pub fn starcoin_bridge_client(&self) -> &StarcoinJsonRpcClient {

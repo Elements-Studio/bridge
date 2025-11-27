@@ -12,6 +12,7 @@ pub struct SimpleStarcoinRpcClient {
     http_client: reqwest::Client,
     rpc_url: String,
     request_id: std::sync::Arc<AtomicU64>,
+    bridge_address: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -39,12 +40,18 @@ struct JsonRpcError {
 }
 
 impl SimpleStarcoinRpcClient {
-    pub fn new(rpc_url: impl Into<String>) -> Self {
+    pub fn new(rpc_url: impl Into<String>, bridge_address: impl Into<String>) -> Self {
         Self {
             http_client: reqwest::Client::new(),
             rpc_url: rpc_url.into(),
             request_id: std::sync::Arc::new(AtomicU64::new(1)),
+            bridge_address: bridge_address.into(),
         }
+    }
+
+    /// Get the bridge contract address
+    pub fn bridge_address(&self) -> &str {
+        &self.bridge_address
     }
 
     async fn call(&self, method: &str, params: Vec<Value>) -> Result<Value> {
@@ -177,9 +184,18 @@ impl SimpleStarcoinRpcClient {
         Ok(1)
     }
 
-    // Get latest bridge summary
+    /// Get the Bridge resource from chain state
+    /// Uses state.get_resource RPC to read the Bridge struct directly
     pub async fn get_latest_bridge(&self) -> Result<Value> {
-        self.call("bridge.get_latest_bridge", vec![]).await
+        // Resource type: {bridge_address}::Bridge::Bridge
+        let resource_type = format!("{}::Bridge::Bridge", self.bridge_address);
+        
+        // Call state.get_resource to read the Bridge struct
+        self.call("state.get_resource", vec![
+            json!(&self.bridge_address),
+            json!(resource_type),
+            json!({"decode": true})
+        ]).await
     }
 
     /// Call a Move contract function (read-only)
@@ -233,7 +249,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_chain_info() {
-        let client = SimpleStarcoinRpcClient::new("http://127.0.0.1:9850");
+        let client = SimpleStarcoinRpcClient::new(
+            "http://127.0.0.1:9850",
+            "0x0000000000000000000000000000dead", // dummy address for test
+        );
         let result = client.chain_info().await;
         println!("{:?}", result);
     }

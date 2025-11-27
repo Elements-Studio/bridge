@@ -344,6 +344,21 @@ build-starcoin-contracts: ## Build Starcoin Move contracts using mpm
 		echo "$(RED)✗ Move contract directory not found: $(MOVE_CONTRACT_DIR)$(NC)"; \
 		exit 1; \
 	fi
+	# Auto-detect default account and update Move.toml Bridge address
+	@echo "$(YELLOW)Getting default account for Bridge address...$(NC)"
+	@DEFAULT_ACCOUNT=$$($(STARCOIN_PATH) -c $(STARCOIN_RPC) account list 2>/dev/null | grep -B 1 '"is_default": true' | grep '"address"' | head -1 | sed 's/.*"\(0x[a-fA-F0-9]*\)".*/\1/'); \
+	if [ -z "$$DEFAULT_ACCOUNT" ]; then \
+		DEFAULT_ACCOUNT=$$($(STARCOIN_PATH) -c $(STARCOIN_RPC) account list 2>/dev/null | grep '"address"' | head -1 | sed 's/.*"\(0x[a-fA-F0-9]*\)".*/\1/'); \
+	fi; \
+	if [ -z "$$DEFAULT_ACCOUNT" ]; then \
+		echo "$(RED)✗ No account found. Is Starcoin node running?$(NC)"; \
+		exit 1; \
+	fi; \
+	echo "$(GREEN)✓ Bridge address: $$DEFAULT_ACCOUNT$(NC)"; \
+	echo "$(YELLOW)Updating Move.toml...$(NC)"; \
+	sed -i.bak "s/^Bridge = \"0x[a-fA-F0-9]*\"/Bridge = \"$$DEFAULT_ACCOUNT\"/" $(MOVE_CONTRACT_DIR)/Move.toml; \
+	rm -f $(MOVE_CONTRACT_DIR)/Move.toml.bak; \
+	echo "$(GREEN)✓ Move.toml updated$(NC)"
 	@cd $(MOVE_CONTRACT_DIR) && $(MPM_PATH) release
 	@echo "$(GREEN)✓ Move package built$(NC)"
 	@echo ""
@@ -403,7 +418,7 @@ deploy-starcoin-contracts: build-starcoin-contracts ## Deploy Move contracts + i
 	echo "$(YELLOW)Deployment Configuration:$(NC)"; \
 	echo "  RPC URL: $(STARCOIN_RPC)"; \
 	echo "  Account: $$DEFAULT_ACCOUNT"; \
-	echo "  Bridge Address: $(BRIDGE_ADDRESS)"; \
+	echo "  Bridge Address: $$DEFAULT_ACCOUNT"; \
 	echo "  Using: $(STARCOIN_PATH)"; \
 	echo ""; \
 	BLOB_FILE=$$(ls $(MOVE_CONTRACT_DIR)/release/*.blob | head -1); \
@@ -419,7 +434,7 @@ deploy-starcoin-contracts: build-starcoin-contracts ## Deploy Move contracts + i
 		echo ""; \
 		echo "$(GREEN)✓ Bridge contract deployed successfully$(NC)"; \
 		echo ""; \
-		echo "$(YELLOW)Contract Address: $(BRIDGE_ADDRESS)$(NC)"; \
+		echo "$(YELLOW)Contract Address: $$DEFAULT_ACCOUNT$(NC)"; \
 		echo ""; \
 	else \
 		echo ""; \
@@ -429,10 +444,28 @@ deploy-starcoin-contracts: build-starcoin-contracts ## Deploy Move contracts + i
 		exit 1; \
 	fi; \
 	echo "$(YELLOW)╔════════════════════════════════════════╗$(NC)" && \
-	echo "$(YELLOW)║  Initializing Committee                ║$(NC)" && \
+	echo "$(YELLOW)║  Initializing Bridge                   ║$(NC)" && \
 	echo "$(YELLOW)╚════════════════════════════════════════╝$(NC)" && \
 	echo "" && \
-	echo "$(YELLOW)Step 1/2: Registering bridge authority...$(NC)" && \
+	echo "$(YELLOW)Step 1/3: Initializing Bridge resource...$(NC)" && \
+	echo "  Function: $$DEFAULT_ACCOUNT::Bridge::initialize_bridge"; \
+	echo "  Chain ID: 254 (devnet)"; \
+	echo ""; \
+	if echo "" | $(STARCOIN_PATH) -c $(STARCOIN_RPC) account execute-function \
+		--function $$DEFAULT_ACCOUNT::Bridge::initialize_bridge \
+		--arg 254u8 \
+		-s $$DEFAULT_ACCOUNT -b 2>&1 | tee /tmp/init_bridge.log | grep -v "^[0-9].*INFO"; then \
+		echo ""; \
+		echo "$(GREEN)✓ Bridge initialized successfully$(NC)"; \
+	else \
+		echo ""; \
+		echo "$(RED)✗ Bridge initialization failed$(NC)"; \
+		echo "$(YELLOW)Error details:$(NC)"; \
+		grep -i "error\|failed\|ERROR" /tmp/init_bridge.log | head -5; \
+		exit 1; \
+	fi; \
+	echo "" && \
+	echo "$(YELLOW)Step 2/3: Registering bridge authority...$(NC)" && \
 	if [ ! -f bridge-config/server-config.yaml ]; then \
 		echo "$(RED)✗ Bridge config not found$(NC)"; \
 		echo "$(YELLOW)Please run: make setup-eth-and-config$(NC)"; \
@@ -463,17 +496,17 @@ deploy-starcoin-contracts: build-starcoin-contracts ## Deploy Move contracts + i
 	fi; \
 	echo "$(GREEN)✓ Public key: $$BRIDGE_PUBKEY$(NC)"; \
 	echo ""; \
-	echo "$(YELLOW)Step 2/2: Registering on Starcoin chain...$(NC)"; \
+	echo "$(YELLOW)Step 3/3: Registering on Starcoin chain...$(NC)"; \
 	URL_HEX="68747470733a2f2f3132372e302e302e313a39313931"; \
-	echo "  Function: $(BRIDGE_ADDRESS)::Bridge::committee_registration"; \
+	echo "  Function: $$DEFAULT_ACCOUNT::Bridge::register_committee_member"; \
 	echo "  Public key: $$BRIDGE_PUBKEY"; \
 	echo "  URL (hex): $$URL_HEX"; \
 	echo ""; \
 	echo "$(BLUE)Executing registration transaction...$(NC)"; \
 	if echo "" | $(STARCOIN_PATH) -c $(STARCOIN_RPC) account execute-function \
-		--function $(BRIDGE_ADDRESS)::Bridge::committee_registration \
-		--arg x"$$BRIDGE_PUBKEY" \
-		--arg x"$$URL_HEX" \
+		--function $$DEFAULT_ACCOUNT::Bridge::register_committee_member \
+		--arg 0x$$BRIDGE_PUBKEY \
+		--arg 0x$$URL_HEX \
 		-s $$DEFAULT_ACCOUNT -b 2>&1 | tee /tmp/register.log | grep -v "^[0-9].*INFO"; then \
 		echo ""; \
 		echo "$(GREEN)✓ Bridge authority registered successfully$(NC)"; \
@@ -495,10 +528,10 @@ deploy-starcoin-contracts: build-starcoin-contracts ## Deploy Move contracts + i
 	echo "  Min stake: 5000 (50%)" && \
 	echo "  Epoch: 0" && \
 	echo "" && \
-	echo "$(BLUE)Executing: $(STARCOIN_PATH) account execute-function --function $(BRIDGE_ADDRESS)::Committee::try_create_next_committee$(NC)"; \
+	echo "$(BLUE)Executing: $(STARCOIN_PATH) account execute-function --function $$DEFAULT_ACCOUNT::Bridge::create_committee$(NC)"; \
 	if echo "" | $(STARCOIN_PATH) -c $(STARCOIN_RPC) account execute-function \
-		--function $(BRIDGE_ADDRESS)::Committee::try_create_next_committee \
-		--arg "$$DEFAULT_ACCOUNT" \
+		--function $$DEFAULT_ACCOUNT::Bridge::create_committee \
+		--arg $$DEFAULT_ACCOUNT \
 		--arg 10000u64 \
 		--arg 5000u64 \
 		--arg 0u64 \
@@ -513,12 +546,21 @@ deploy-starcoin-contracts: build-starcoin-contracts ## Deploy Move contracts + i
 		exit 1; \
 	fi; \
 	echo "" && \
+	echo "$(YELLOW)Updating server-config.yaml with bridge address...$(NC)" && \
+	if [ -f bridge-config/server-config.yaml ]; then \
+		sed -i.bak "s|^starcoin-bridge-proxy-address:.*|starcoin-bridge-proxy-address: $$DEFAULT_ACCOUNT|" bridge-config/server-config.yaml; \
+		rm -f bridge-config/server-config.yaml.bak; \
+		echo "$(GREEN)✓ Config updated with bridge address: $$DEFAULT_ACCOUNT$(NC)"; \
+	else \
+		echo "$(YELLOW)⚠ server-config.yaml not found, skipping update$(NC)"; \
+	fi && \
+	echo "" && \
 	echo "$(GREEN)╔════════════════════════════════════════╗$(NC)" && \
 	echo "$(GREEN)║  ✅ Deployment Complete!               ║$(NC)" && \
 	echo "$(GREEN)╚════════════════════════════════════════╝$(NC)" && \
 	echo "" && \
 	echo "$(YELLOW)Summary:$(NC)" && \
-	echo "  • Bridge contract: $(BRIDGE_ADDRESS)" && \
+	echo "  • Bridge contract: $$DEFAULT_ACCOUNT" && \
 	echo "  • Committee member: $$DEFAULT_ACCOUNT (voting power: 100%)" && \
 	echo "  • Bridge authority: $$ETH_ADDRESS" && \
 	echo "" && \

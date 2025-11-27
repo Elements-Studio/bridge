@@ -31,3 +31,4 @@ eth:
 starcoin:
   starcoin-bridge-rpc-url: http://127.0.0.1:9850
   starcoin-bridge-chain-id: 2
+  starcoin-bridge-proxy-address: 0x4d2519a71529c475197dcfb835c82db9

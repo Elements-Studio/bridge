@@ -19,8 +19,6 @@ use starcoin_bridge_types::transaction::{ObjectArg, Transaction};
 
 use crate::types::BridgeActionStatus;
 
-/// Bridge module address on Starcoin
-const BRIDGE_ADDRESS: &str = "0x246b237c16c761e9478783dd83f7004a";
 /// Bridge module name
 const BRIDGE_MODULE: &str = "Bridge";
 
@@ -36,10 +34,15 @@ pub struct StarcoinJsonRpcClient {
 }
 
 impl StarcoinJsonRpcClient {
-    pub fn new(rpc_url: &str) -> Self {
+    pub fn new(rpc_url: &str, bridge_address: &str) -> Self {
         Self {
-            rpc: SimpleStarcoinRpcClient::new(rpc_url),
+            rpc: SimpleStarcoinRpcClient::new(rpc_url, bridge_address),
         }
+    }
+
+    /// Get the bridge contract address
+    pub fn bridge_address(&self) -> &str {
+        self.rpc.bridge_address()
     }
 
     /// Call a Move view function on the Bridge module
@@ -49,7 +52,7 @@ impl StarcoinJsonRpcClient {
         type_args: Vec<String>,
         args: Vec<String>,
     ) -> Result<serde_json::Value, JsonRpcError> {
-        let function_id = format!("{}::{}::{}", BRIDGE_ADDRESS, BRIDGE_MODULE, function_name);
+        let function_id = format!("{}::{}::{}", self.bridge_address(), BRIDGE_MODULE, function_name);
         self.rpc.call_contract(&function_id, type_args, args).await.map_err(JsonRpcError::from)
     }
 
@@ -107,64 +110,155 @@ impl StarcoinJsonRpcClient {
         };
         use starcoin_bridge_types::base_types::StarcoinAddress;
 
+        // The RPC response has structure: { "json": { "inner": { ... } }, "raw": "..." }
+        // Extract the inner bridge data
+        let inner = rpc_response
+            .get("json")
+            .and_then(|j| j.get("inner"))
+            .unwrap_or(rpc_response);
+
+        // Parse bridge version and chain id
+        let bridge_version = inner.get("bridge_version")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(1);
+        let message_version = inner.get("message_version")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(1) as u8;
+        let chain_id = inner.get("chain_id")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(1) as u8;
+        let is_frozen = inner.get("paused")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+
         // Parse committee
-        let committee = rpc_response.get("committee").unwrap_or(&serde_json::Value::Null);
+        // Structure: { "committee": { "members": { "data": [ { "key": "...", "value": { ... } } ] } } }
+        let committee = inner.get("committee").unwrap_or(&serde_json::Value::Null);
         let mut committee_members = vec![];
-        
-        if let Some(members) = committee.get("members").and_then(|v| v.as_array()) {
-            for member in members {
-                let pubkey_hex = member.get("public_key").and_then(|v| v.as_str()).unwrap_or("");
-                let voting_power = member.get("stake").and_then(|v| v.as_u64()).unwrap_or(0);
-                let address_hex = member.get("address").and_then(|v| v.as_str()).unwrap_or("");
-                
-                if let Ok(pubkey_bytes) = hex::decode(pubkey_hex) {
+
+        if let Some(members_data) = committee
+            .get("members")
+            .and_then(|m| m.get("data"))
+            .and_then(|d| d.as_array())
+        {
+            for entry in members_data {
+                let key = entry.get("key").and_then(|k| k.as_str()).unwrap_or("");
+                let value = entry.get("value").unwrap_or(&serde_json::Value::Null);
+
+                let pubkey_hex = value.get("bridge_pubkey_bytes")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or(key);
+                let voting_power = value.get("voting_power")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0);
+                let address_hex = value.get("starcoin_address")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+                let blocklisted = value.get("blocklisted")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false);
+                let http_rest_url_hex = value.get("http_rest_url")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+
+                // Decode pubkey (strip 0x prefix if present)
+                let pubkey_clean = pubkey_hex.trim_start_matches("0x");
+                if let Ok(pubkey_bytes) = hex::decode(pubkey_clean) {
                     let starcoin_addr = StarcoinAddress::from_hex_literal(address_hex)
                         .unwrap_or(StarcoinAddress::ZERO);
+                    
+                    // Decode http_rest_url from hex to bytes
+                    let url_clean = http_rest_url_hex.trim_start_matches("0x");
+                    let http_rest_url = hex::decode(url_clean).unwrap_or_default();
+
                     committee_members.push((pubkey_bytes.clone(), MoveTypeCommitteeMember {
                         starcoin_bridge_address: starcoin_addr,
                         bridge_pubkey_bytes: pubkey_bytes,
                         voting_power,
-                        http_rest_url: vec![],
-                        blocklisted: false,
+                        http_rest_url,
+                        blocklisted,
                     }));
                 }
             }
         }
 
+        let last_committee_update_epoch = committee.get("last_committee_update_epoch")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0);
+
         let committee_summary = BridgeCommitteeSummary {
             members: committee_members,
             member_registration: vec![],
-            last_committee_update_epoch: 0,
+            last_committee_update_epoch,
         };
 
         // Parse treasury
-        let treasury = rpc_response.get("treasury").unwrap_or(&serde_json::Value::Null);
+        // Structure: { "treasury": { "supported_tokens": { "data": [...] }, "id_token_type_map": { "data": [...] } } }
+        let treasury = inner.get("treasury").unwrap_or(&serde_json::Value::Null);
         let mut supported_tokens = vec![];
-        
-        if let Some(tokens) = treasury.get("tokens").and_then(|v| v.as_array()) {
-            for token in tokens {
-                let token_type = token.get("token_type").and_then(|v| v.as_str()).unwrap_or("");
+        let mut id_token_type_map = vec![];
+
+        if let Some(tokens_data) = treasury
+            .get("supported_tokens")
+            .and_then(|t| t.get("data"))
+            .and_then(|d| d.as_array())
+        {
+            for entry in tokens_data {
+                let token_type = entry.get("key")
+                    .and_then(|k| k.as_str())
+                    .unwrap_or("");
                 supported_tokens.push((token_type.to_string(), BridgeTokenMetadata::default()));
+            }
+        }
+
+        if let Some(map_data) = treasury
+            .get("id_token_type_map")
+            .and_then(|t| t.get("data"))
+            .and_then(|d| d.as_array())
+        {
+            for entry in map_data {
+                let id = entry.get("key")
+                    .and_then(|k| k.as_u64())
+                    .unwrap_or(0) as u8;
+                let token_type = entry.get("value")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                id_token_type_map.push((id, token_type));
             }
         }
 
         let treasury_summary = BridgeTreasurySummary {
             supported_tokens,
-            id_token_type_map: vec![],
+            id_token_type_map,
         };
 
-        // Parse config
-        let config = rpc_response.get("config").unwrap_or(&serde_json::Value::Null);
-        let is_frozen = !config.get("enabled").and_then(|v| v.as_bool()).unwrap_or(true);
+        // Parse sequence_nums
+        let mut sequence_nums = vec![];
+        if let Some(seq_data) = inner
+            .get("sequence_nums")
+            .and_then(|s| s.get("data"))
+            .and_then(|d| d.as_array())
+        {
+            for entry in seq_data {
+                let chain_id = entry.get("key")
+                    .and_then(|k| k.as_u64())
+                    .unwrap_or(0) as u8;
+                let seq_num = entry.get("value")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0);
+                sequence_nums.push((chain_id, seq_num));
+            }
+        }
 
         Ok(BridgeSummary {
-            bridge_version: 1,
-            message_version: 1,
-            chain_id: 1, // TODO: Get from chain info
-            sequence_nums: vec![],
+            bridge_version,
+            message_version,
+            chain_id,
+            sequence_nums,
             committee: committee_summary,
             treasury: treasury_summary,
-            bridge_records_id: [0u8; 32], // Default to zero, will be queried from chain
+            bridge_records_id: [0u8; 32], // Default to zero
             limiter: BridgeLimiterSummary::default(),
             is_frozen,
         })

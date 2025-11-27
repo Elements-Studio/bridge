@@ -120,8 +120,10 @@ eth-contracts-start-block-fallback: 0
 eth-contracts-start-block-override: 0
 
 # Sui configuration
-starcoin-bridge-rpc-url: http://127.0.0.1:9000
-starcoin-bridge-chain-id: 0
+starcoin-bridge-rpc-url: http://127.0.0.1:9850
+starcoin-bridge-chain-id: 2
+# Bridge contract address on Starcoin (will be set during deploy-starcoin-contracts)
+starcoin-bridge-proxy-address: ""
 # Will be set after deploying Sui Bridge contracts
 # starcoin-bridge-module-last-processed-event-id-override:
 

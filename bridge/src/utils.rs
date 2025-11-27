@@ -211,6 +211,7 @@ pub fn generate_bridge_node_config_and_write_to_file(
         bridge_authority_key_path: PathBuf::from("/path/to/your/bridge_authority_key"),
         starcoin: StarcoinConfig {
             starcoin_bridge_rpc_url: "your_starcoin_bridge_rpc_url".to_string(),
+            starcoin_bridge_proxy_address: "0x0000000000000000000000000000000000000000".to_string(),
             starcoin_bridge_chain_id: BridgeChainId::StarcoinTestnet as u8,
             bridge_client_key_path: None,
             bridge_client_gas_object: None,

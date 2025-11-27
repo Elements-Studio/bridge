@@ -67,6 +67,8 @@ pub struct EthConfig {
 pub struct StarcoinConfig {
     // Rpc url for Starcoin fullnode, used for query stuff and submit transactions.
     pub starcoin_bridge_rpc_url: String,
+    // The Bridge contract address on Starcoin (deployed Move module address)
+    pub starcoin_bridge_proxy_address: String,
     // The expected BridgeChainId on Starcoin side.
     pub starcoin_bridge_chain_id: u8,
     // Path of the file where bridge client key (any StarcoinKeyPair) is stored.
@@ -194,7 +196,11 @@ impl BridgeNodeConfig {
         tracing::info!("Creating JSON-RPC Starcoin client");
         
         let starcoin_bridge_client = Arc::new(
-            StarcoinBridgeClient::with_metrics(&self.starcoin.starcoin_bridge_rpc_url, metrics.clone())
+            StarcoinBridgeClient::with_metrics(
+                &self.starcoin.starcoin_bridge_rpc_url,
+                &self.starcoin.starcoin_bridge_proxy_address,
+                metrics.clone(),
+            )
         );
 
         let (eth_client, eth_contracts) = self.prepare_for_eth(metrics.clone()).await?;
