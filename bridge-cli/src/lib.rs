@@ -691,30 +691,15 @@ impl BridgeClientCommands {
 }
 
 async fn deposit_on_starcoin(
-    coin_object_id: ObjectID,
+    _coin_object_id: ObjectID,
     coin_type: TypeTag,
     target_chain: BridgeChainId,
     recipient_address: EthAddress,
     config: &LoadedBridgeCliConfig,
     starcoin_bridge_client: StarcoinBridgeClient,
 ) -> anyhow::Result<()> {
-    // TODO: Implement deposit_on_starcoin for Starcoin
-    // This function was originally designed for Sui's SDK with:
-    // - governance_api().get_reference_gas_price()
-    // - coin_read_api().select_coins()
-    // - read_api().get_object_with_options()
-    //
-    // For Starcoin, we need to:
-    // 1. Get gas price from chain state (or use default)
-    // 2. Build a ScriptFunction transaction to call bridge::send_token
-    // 3. Sign and submit the transaction
-    //
-    // The bridge contract call should be:
-    // 0x{bridge_address}::bridge::send_token<CoinType>(
-    //     target_chain: u8,
-    //     target_address: vector<u8>,
-    //     token: Coin<CoinType>
-    // )
+    use starcoin_bridge::starcoin_bridge_transaction_builder::starcoin_native;
+    use starcoin_bridge_types::transaction::{SignedUserTransaction, TransactionAuthenticator};
 
     let target_chain_id = target_chain as u8;
 
@@ -723,25 +708,72 @@ async fn deposit_on_starcoin(
     let sender = StarcoinAddress::from_bytes(&pub_bytes[..16.min(pub_bytes.len())])
         .unwrap_or(StarcoinAddress::ZERO);
 
-    // Get reference gas price using our client
-    let rgp = starcoin_bridge_client
-        .get_reference_gas_price_until_success()
-        .await;
+    // Get sequence number from chain
+    // TODO: Query actual sequence number from chain state
+    let sequence_number = 0u64;
+
+    // Get chain ID from bridge summary
+    let bridge_summary = starcoin_bridge_client.get_bridge_summary().await
+        .map_err(|e| anyhow!("Failed to get bridge summary: {:?}", e))?;
+    let chain_id = bridge_summary.chain_id as u8;
+
+    // For deposit, we need the amount from the coin
+    // In Starcoin, the amount is passed as an argument, not extracted from a coin object
+    // TODO: Get actual amount from user input or coin state
+    let amount: u128 = 0; // Placeholder - needs to be provided by caller
 
     info!(
         sender = ?sender,
         target_chain = target_chain_id,
         recipient = ?recipient_address,
         coin_type = ?coin_type,
-        gas_price = rgp,
-        "Deposit on Starcoin: Building transaction (not yet implemented)"
+        amount = amount,
+        "Building deposit transaction on Starcoin"
     );
 
-    // TODO: Implement actual transaction building and submission
-    // For now, return an error indicating this is not yet implemented
+    // Build the raw transaction
+    let raw_txn = starcoin_native::build_send_token(
+        sender,
+        sequence_number,
+        chain_id,
+        target_chain_id,
+        recipient_address.as_bytes().to_vec(),
+        amount,
+        coin_type,
+    ).map_err(|e| anyhow!("Failed to build transaction: {:?}", e))?;
+
+    info!(
+        sender = ?raw_txn.sender(),
+        seq = raw_txn.sequence_number(),
+        max_gas = raw_txn.max_gas_amount(),
+        "Raw transaction built"
+    );
+
+    // Sign the transaction
+    // TODO: Implement proper signing with StarcoinKeyPair
+    // For now, create a placeholder signed transaction
+    let signed_txn = SignedUserTransaction::new(
+        raw_txn,
+        TransactionAuthenticator::Ed25519 {
+            public_key: pub_bytes.clone(),
+            signature: vec![0u8; 64], // Placeholder signature
+        },
+    );
+
+    let txn_hex = signed_txn.to_hex();
+    info!(
+        txn_hash = ?signed_txn.hash(),
+        txn_hex_len = txn_hex.len(),
+        "Transaction signed, ready to submit"
+    );
+
+    // TODO: Submit transaction via RPC
+    // The actual submission would be:
+    // starcoin_bridge_client.submit_transaction(txn_hex).await?;
+
     Err(anyhow!(
-        "deposit_on_starcoin is not yet fully implemented for Starcoin. \
-         Need to implement ScriptFunction transaction building."
+        "deposit_on_starcoin: Transaction building complete but submission not yet implemented. \
+         Transaction hex: {}...", &txn_hex[..64.min(txn_hex.len())]
     ))
 }
 

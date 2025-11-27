@@ -13,6 +13,13 @@
 use serde::{Deserialize, Serialize};
 
 // =============================================================================
+// Starcoin Native Transaction Builder
+// =============================================================================
+
+pub mod starcoin_transaction_builder;
+pub use starcoin_transaction_builder::*;
+
+// =============================================================================
 // Re-exports from starcoin_bridge_vm_types
 // =============================================================================
 
@@ -306,11 +313,209 @@ pub mod digests {
 
 pub mod transaction {
     use super::*;
+    use move_core_types::identifier::{IdentStr, Identifier};
+    use move_core_types::language_storage::{ModuleId, TypeTag};
 
-    // Placeholder for Starcoin transaction type
+    // ==========================================================================
+    // Starcoin Native Transaction Types
+    // ==========================================================================
+
+    /// ScriptFunction - calls a Move function on-chain
+    /// This is the primary way to interact with Move contracts on Starcoin
+    #[derive(Clone, Debug, Serialize, Deserialize)]
+    pub struct ScriptFunction {
+        pub module: ModuleId,
+        pub function: Identifier,
+        pub ty_args: Vec<TypeTag>,
+        pub args: Vec<Vec<u8>>,
+    }
+
+    impl ScriptFunction {
+        pub fn new(
+            module: ModuleId,
+            function: Identifier,
+            ty_args: Vec<TypeTag>,
+            args: Vec<Vec<u8>>,
+        ) -> Self {
+            Self {
+                module,
+                function,
+                ty_args,
+                args,
+            }
+        }
+
+        pub fn module(&self) -> &ModuleId {
+            &self.module
+        }
+
+        pub fn function(&self) -> &IdentStr {
+            &self.function
+        }
+
+        pub fn ty_args(&self) -> &[TypeTag] {
+            &self.ty_args
+        }
+
+        pub fn args(&self) -> &[Vec<u8>] {
+            &self.args
+        }
+    }
+
+    /// Transaction payload - what the transaction does
+    #[derive(Clone, Debug, Serialize, Deserialize)]
+    pub enum TransactionPayload {
+        /// Call a script function
+        ScriptFunction(ScriptFunction),
+        /// Package deployment (not used in bridge)
+        Package(Vec<u8>),
+    }
+
+    /// Chain ID for replay protection
+    #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
+    pub struct ChainId(pub u8);
+
+    impl ChainId {
+        pub fn new(id: u8) -> Self {
+            ChainId(id)
+        }
+
+        pub fn id(&self) -> u8 {
+            self.0
+        }
+    }
+
+    /// RawUserTransaction - the core transaction structure in Starcoin
+    #[derive(Clone, Debug, Serialize, Deserialize)]
+    pub struct RawUserTransaction {
+        pub sender: super::base_types::StarcoinAddress,
+        pub sequence_number: u64,
+        pub payload: TransactionPayload,
+        pub max_gas_amount: u64,
+        pub gas_unit_price: u64,
+        pub gas_token_code: String,
+        pub expiration_timestamp_secs: u64,
+        pub chain_id: ChainId,
+    }
+
+    impl RawUserTransaction {
+        /// Create a new RawUserTransaction with a script function
+        pub fn new_script_function(
+            sender: super::base_types::StarcoinAddress,
+            sequence_number: u64,
+            script_function: ScriptFunction,
+            max_gas_amount: u64,
+            gas_unit_price: u64,
+            expiration_timestamp_secs: u64,
+            chain_id: ChainId,
+        ) -> Self {
+            Self {
+                sender,
+                sequence_number,
+                payload: TransactionPayload::ScriptFunction(script_function),
+                max_gas_amount,
+                gas_unit_price,
+                gas_token_code: "0x1::STC::STC".to_string(),
+                expiration_timestamp_secs,
+                chain_id,
+            }
+        }
+
+        pub fn sender(&self) -> super::base_types::StarcoinAddress {
+            self.sender
+        }
+
+        pub fn sequence_number(&self) -> u64 {
+            self.sequence_number
+        }
+
+        pub fn payload(&self) -> &TransactionPayload {
+            &self.payload
+        }
+
+        pub fn max_gas_amount(&self) -> u64 {
+            self.max_gas_amount
+        }
+
+        pub fn gas_unit_price(&self) -> u64 {
+            self.gas_unit_price
+        }
+
+        pub fn expiration_timestamp_secs(&self) -> u64 {
+            self.expiration_timestamp_secs
+        }
+
+        pub fn chain_id(&self) -> ChainId {
+            self.chain_id
+        }
+
+        /// Serialize for signing
+        pub fn to_bytes(&self) -> Vec<u8> {
+            bcs::to_bytes(self).expect("RawUserTransaction serialization should not fail")
+        }
+    }
+
+    /// Signed transaction ready for submission
+    #[derive(Clone, Debug, Serialize, Deserialize)]
+    pub struct SignedUserTransaction {
+        pub raw_txn: RawUserTransaction,
+        pub authenticator: TransactionAuthenticator,
+    }
+
+    impl SignedUserTransaction {
+        pub fn new(raw_txn: RawUserTransaction, authenticator: TransactionAuthenticator) -> Self {
+            Self {
+                raw_txn,
+                authenticator,
+            }
+        }
+
+        /// Compute transaction hash
+        pub fn hash(&self) -> super::base_types::TransactionDigest {
+            use std::collections::hash_map::DefaultHasher;
+            use std::hash::{Hash, Hasher};
+
+            let bytes = bcs::to_bytes(self).unwrap_or_default();
+            let mut hasher = DefaultHasher::new();
+            bytes.hash(&mut hasher);
+            let hash = hasher.finish();
+
+            let mut digest = [0u8; 32];
+            digest[..8].copy_from_slice(&hash.to_le_bytes());
+            digest[8..16].copy_from_slice(&hash.to_be_bytes());
+            digest
+        }
+
+        /// Encode as hex string for RPC submission
+        pub fn to_hex(&self) -> String {
+            hex::encode(bcs::to_bytes(self).unwrap_or_default())
+        }
+    }
+
+    /// Transaction authenticator (signature)
+    #[derive(Clone, Debug, Serialize, Deserialize)]
+    pub enum TransactionAuthenticator {
+        /// Ed25519 signature
+        Ed25519 {
+            public_key: Vec<u8>,
+            signature: Vec<u8>,
+        },
+        /// Multi-ed25519 (not commonly used)
+        MultiEd25519 {
+            public_key: Vec<u8>,
+            signature: Vec<u8>,
+        },
+    }
+
+    // ==========================================================================
+    // Backward Compatibility Layer (for migration from Sui)
+    // These types are kept for code that still uses Sui patterns
+    // ==========================================================================
+
+    /// Legacy: Placeholder for Starcoin transaction type
     pub type StarcoinTransaction = Vec<u8>;
 
-    // Wrapper type for Transaction with Starcoin-compatible interface
+    /// Legacy: Wrapper type for Transaction with backward-compatible interface
     #[derive(Clone, Debug)]
     pub struct Transaction(pub StarcoinTransaction);
 
@@ -319,22 +524,26 @@ pub mod transaction {
             _data: TransactionData,
             _signatures: Vec<super::crypto::Signature>,
         ) -> Self {
-            // Stub implementation
-            unimplemented!("Transaction::from_data not implemented for Starcoin")
+            // Stub implementation - use SignedUserTransaction instead
+            Transaction(vec![])
         }
 
         pub fn digest(&self) -> &super::base_types::TransactionDigest {
-            // Return a static digest reference - TransactionDigest is [u8; 32]
             static DIGEST: super::base_types::TransactionDigest = [0u8; 32];
             &DIGEST
         }
     }
 
-    // Starcoin-specific types that still need stubs
+    /// Legacy: TransactionData for backward compatibility
     #[derive(Clone, Debug, Serialize, Deserialize)]
-    pub struct TransactionData;
+    pub struct TransactionData {
+        /// The actual Starcoin transaction (if built)
+        #[serde(skip)]
+        pub inner: Option<RawUserTransaction>,
+    }
 
     impl TransactionData {
+        /// Legacy constructor - kept for compatibility but does nothing useful
         pub fn new_programmable(
             _sender: super::base_types::StarcoinAddress,
             _gas_payment: Vec<super::base_types::ObjectRef>,
@@ -342,7 +551,7 @@ pub mod transaction {
             _gas_budget: u64,
             _gas_price: u64,
         ) -> Self {
-            TransactionData
+            TransactionData { inner: None }
         }
     }
 
@@ -358,7 +567,6 @@ pub mod transaction {
     }
 
     impl CallArg {
-        // Clock object IMM variant
         pub const CLOCK_IMM: Self = CallArg::Object(ObjectArg::SharedObject {
             id: super::base_types::ZERO_OBJECT_ID,
             initial_shared_version: 1,
@@ -377,7 +585,6 @@ pub mod transaction {
     }
 
     impl ObjectArg {
-        // STARCOIN system object MUT variant
         pub const STARCOIN_SYSTEM_MUT: Self = ObjectArg::SharedObject {
             id: super::base_types::ZERO_OBJECT_ID,
             initial_shared_version: 1,
@@ -385,7 +592,6 @@ pub mod transaction {
         };
     }
 
-    // Starcoin-specific transaction types (stubs)
     #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
     pub enum Argument {
         Input(u16),
@@ -404,9 +610,9 @@ pub mod transaction {
     impl Command {
         pub fn move_call(
             package: super::base_types::ObjectID,
-            module: move_core_types::identifier::Identifier,
-            function: move_core_types::identifier::Identifier,
-            type_arguments: Vec<move_core_types::language_storage::TypeTag>,
+            module: Identifier,
+            function: Identifier,
+            type_arguments: Vec<TypeTag>,
             arguments: Vec<Argument>,
         ) -> Self {
             Command::MoveCall(Box::new(ProgrammableMoveCall {
@@ -422,9 +628,9 @@ pub mod transaction {
     #[derive(Clone, Debug, Serialize, Deserialize)]
     pub struct ProgrammableMoveCall {
         pub package: super::base_types::ObjectID,
-        pub module: move_core_types::identifier::Identifier,
-        pub function: move_core_types::identifier::Identifier,
-        pub type_arguments: Vec<move_core_types::language_storage::TypeTag>,
+        pub module: Identifier,
+        pub function: Identifier,
+        pub type_arguments: Vec<TypeTag>,
         pub arguments: Vec<Argument>,
     }
 

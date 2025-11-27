@@ -76,11 +76,10 @@ pub struct StarcoinConfig {
     // If `run_client` is true, and this is None, then use `bridge_authority_key_path` as client key.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bridge_client_key_path: Option<PathBuf>,
-    // The gas object to use for paying for gas fees for the client. It needs to
-    // be owned by the address associated with bridge client key. If not set
-    // and `run_client` is true, it will query and use the gas object with highest
-    // amount for the account.
+    // DEPRECATED: Starcoin uses account model - gas is paid from account balance, not from a gas object.
+    // This field is kept for backward compatibility but is ignored.
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[deprecated(note = "Starcoin uses account balance for gas, not gas objects")]
     pub bridge_client_gas_object: Option<ObjectID>,
     // Override the last processed EventID for bridge module `bridge`.
     // When set, StarcoinSyncer will start from this cursor (exclusively) instead of the one in storage.
