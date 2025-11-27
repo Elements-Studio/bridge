@@ -49,6 +49,15 @@ echo "   ✅ ETH Proxy Address: $ETH_PROXY_ADDRESS"
 # 3. Generate server-config.yaml
 echo "📝 Generating server-config.yaml..."
 mkdir -p "$BRIDGE_ROOT/bridge-config"
+
+# Get Starcoin bridge address from Move.toml if available
+STARCOIN_BRIDGE_ADDRESS=""
+MOVE_TOML_PATH="$STARCOIN_ROOT/stc-bridge-move/Move.toml"
+if [ -f "$MOVE_TOML_PATH" ]; then
+    STARCOIN_BRIDGE_ADDRESS=$(grep "^Bridge = " "$MOVE_TOML_PATH" | sed 's/Bridge = "\(.*\)"/\1/')
+    echo "   📍 Starcoin Bridge Address: $STARCOIN_BRIDGE_ADDRESS"
+fi
+
 cat > "$BRIDGE_ROOT/bridge-config/server-config.yaml" <<EOF
 # Starcoin Bridge Server Configuration
 # Auto-generated at: $(date)
@@ -81,8 +90,9 @@ eth:
 
 # Starcoin configuration
 starcoin:
-  starcoin-bridge-rpc-url: ws://127.0.0.1:9870
+  starcoin-bridge-rpc-url: http://127.0.0.1:9850
   starcoin-bridge-chain-id: 2
+  starcoin-bridge-proxy-address: "$STARCOIN_BRIDGE_ADDRESS"
 EOF
 
 echo "   ✅ Configuration generated: $BRIDGE_ROOT/bridge-config/server-config.yaml"

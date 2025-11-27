@@ -78,9 +78,16 @@ impl SimpleStarcoinRpcClient {
             ));
         }
 
-        let rpc_response: JsonRpcResponse = response.json().await?;
+        let response_text = response.text().await?;
+        let rpc_response: JsonRpcResponse = serde_json::from_str(&response_text)?;
 
         if let Some(error) = rpc_response.error {
+            // Log request and response only on error
+            tracing::warn!(
+                "RPC error - Request: {} | Response: {}",
+                serde_json::to_string(&request).unwrap_or_default(),
+                &response_text
+            );
             return Err(anyhow!(
                 "RPC error {}: {}",
                 error.code,
@@ -142,19 +149,21 @@ impl SimpleStarcoinRpcClient {
         }
     }
 
-    // Query events
+    // Query events by transaction hash
     pub async fn get_events_by_txn_hash(&self, txn_hash: &str) -> Result<Vec<Value>> {
         let result = self
-            .call("chain.get_events_by_txn_hash", vec![json!(txn_hash), Value::Null])
+            .call("chain.get_events_by_txn_hash", vec![json!(txn_hash)])
             .await?;
         
         Ok(serde_json::from_value(result)?)
     }
 
     // Query events with filter
+    // Starcoin RPC format: chain.get_events(filter)
+    // filter: { from_block, to_block, event_keys, addrs, type_tags, limit }
     pub async fn get_events(&self, filter: Value) -> Result<Vec<Value>> {
         let result = self
-            .call("chain.get_events", vec![filter, Value::Null])
+            .call("chain.get_events", vec![filter])
             .await?;
         
         Ok(serde_json::from_value(result)?)

@@ -379,6 +379,8 @@ pub struct BridgeCliConfig {
     pub starcoin_bridge_rpc_url: String,
     // Rpc url for Eth fullnode, used for query stuff.
     pub eth_rpc_url: String,
+    // Proxy address for Bridge deployed on Starcoin (Move contract address)
+    pub starcoin_bridge_proxy_address: String,
     // Proxy address for StarcoinBridge deployed on Eth
     pub eth_bridge_proxy_address: EthAddress,
     // Path of the file where private key is stored. The content could be any of the following:
@@ -399,6 +401,8 @@ pub struct LoadedBridgeCliConfig {
     pub starcoin_bridge_rpc_url: String,
     // Rpc url for Eth fullnode, used for query stuff.
     pub eth_rpc_url: String,
+    // Proxy address for Bridge deployed on Starcoin (Move contract address)
+    pub starcoin_bridge_proxy_address: String,
     // Proxy address for StarcoinBridge deployed on Eth
     pub eth_bridge_proxy_address: EthAddress,
     // Proxy address for BridgeCommittee deployed on Eth
@@ -519,6 +523,7 @@ impl LoadedBridgeCliConfig {
         Ok(Self {
             starcoin_bridge_rpc_url: cli_config.starcoin_bridge_rpc_url,
             eth_rpc_url: cli_config.eth_rpc_url,
+            starcoin_bridge_proxy_address: cli_config.starcoin_bridge_proxy_address,
             eth_bridge_proxy_address: cli_config.eth_bridge_proxy_address,
             eth_bridge_committee_proxy_address,
             eth_bridge_limiter_proxy_address,
@@ -639,11 +644,13 @@ impl BridgeClientCommands {
                 let int_wei = U256::from(int_part) * U256::exp10(18);
                 let frac_wei = U256::from((frac_part * 1_000_000_000_000_000_000f64) as u64);
                 let amount = int_wei + frac_wei;
+                // Starcoin address is 16 bytes, but Solidity contract expects 32 bytes
+                // Left-pad with zeros to make it 32 bytes
+                let addr_bytes = starcoin_bridge_recipient_address.to_vec();
+                let mut padded_addr = vec![0u8; 32 - addr_bytes.len()];
+                padded_addr.extend(addr_bytes);
                 let eth_tx = eth_starcoin_bridge
-                    .bridge_eth(
-                        starcoin_bridge_recipient_address.to_vec().into(),
-                        target_chain,
-                    )
+                    .bridge_eth(padded_addr.into(), target_chain)
                     .value(amount);
                 let pending_tx = eth_tx.send().await.unwrap();
                 let tx_receipt = pending_tx.await.unwrap().unwrap();
@@ -700,7 +707,10 @@ async fn deposit_on_starcoin(
     let sender_hex = format!("0x{}", Hex::encode(sender.as_ref()));
 
     // Create RPC client for sequence number query
-    let rpc_client = SimpleStarcoinRpcClient::new(&config.starcoin_bridge_rpc_url);
+    let rpc_client = SimpleStarcoinRpcClient::new(
+        &config.starcoin_bridge_rpc_url,
+        &config.starcoin_bridge_proxy_address,
+    );
 
     // Get sequence number from chain
     let sequence_number = rpc_client.get_sequence_number(&sender_hex).await

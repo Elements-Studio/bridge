@@ -587,14 +587,10 @@ run-bridge-server: ## Start bridge server (requires ETH network + Starcoin node 
 		exit 1; \
 	fi
 	@echo "$(GREEN)✓ ETH node running$(NC)"
-	# Build bridge binary if not exists
-	@if [ ! -f target/debug/starcoin-bridge ]; then \
-		echo "$(YELLOW)Building bridge binary...$(NC)"; \
-		cargo build --bin starcoin-bridge --quiet; \
-		echo "$(GREEN)✓ Bridge binary built$(NC)"; \
-	else \
-		echo "$(GREEN)✓ Bridge binary exists$(NC)"; \
-	fi
+	# Always rebuild bridge binary to use latest code
+	@echo "$(YELLOW)Building bridge binary...$(NC)"
+	@cargo build --bin starcoin-bridge --quiet
+	@echo "$(GREEN)✓ Bridge binary built$(NC)"
 	@echo ""
 	# Show configuration summary
 	@echo "$(YELLOW)Bridge Configuration:$(NC)"
@@ -608,6 +604,6 @@ run-bridge-server: ## Start bridge server (requires ETH network + Starcoin node 
 	# Start bridge server with logging
 	@echo "$(GREEN)Starting bridge server...$(NC)"
 	@echo ""
-	@RUST_LOG=info,starcoin_bridge=debug \
+	@NO_PROXY=localhost,127.0.0.1 RUST_LOG=info,starcoin_bridge=debug \
 		./target/debug/starcoin-bridge \
 		--config-path bridge-config/server-config.yaml

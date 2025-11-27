@@ -25,7 +25,8 @@ contract SuiBridge is ISuiBridge, CommitteeUpgradeable, PausableUpgradeable {
     IBridgeVault public vault;
     IBridgeLimiter public limiter;
 
-    uint8 constant SUI_ADDRESS_LENGTH = 32;
+    // Starcoin uses 16-byte addresses (Move AccountAddress)
+    uint8 constant SUI_ADDRESS_LENGTH = 16;
 
     /* ========== INITIALIZER ========== */
 

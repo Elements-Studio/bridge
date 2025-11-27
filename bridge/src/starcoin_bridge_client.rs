@@ -165,22 +165,33 @@ where
         // cursor is exclusive
         cursor: Option<EventID>,
     ) -> BridgeResult<Page<StarcoinEvent>> {
-        // Construct type tag pattern: "0x{address}::{module}::*"
-        let package_hex = hex::encode(package);
-        let type_tag_prefix = format!("0x{}::{}::", package_hex, module);
+        // Starcoin uses 16-byte addresses, extract from last 16 bytes of ObjectID
+        // ObjectID is 32 bytes: [16 zero padding bytes][16 byte Starcoin address]
+        let starcoin_addr = &package[16..32]; // Take last 16 bytes
+        
+        // Starcoin's chain.get_events doesn't support wildcard type_tags
+        // We query all events and filter by module on client side
         let filter = EventFilter {
-            type_tags: Some(vec![type_tag_prefix]),
+            // Don't filter by type_tags - we'll filter in code
             ..Default::default()
         };
         let events = self.inner.query_events(filter.clone(), cursor).await?;
 
-        // Safeguard check that all events are emitted from requested package and module
-        assert!(events
+        // Filter events to only include those from the requested package and module
+        let filtered_data: Vec<_> = events
             .data
-            .iter()
-            .all(|event| event.type_.address.as_ref() == package.as_ref()
-                && event.type_.module == module));
-        Ok(events)
+            .into_iter()
+            .filter(|event| {
+                event.type_.address.as_ref() == starcoin_addr
+                    && event.type_.module == module
+            })
+            .collect();
+
+        Ok(Page {
+            data: filtered_data,
+            next_cursor: events.next_cursor,
+            has_next_page: events.has_next_page,
+        })
     }
 
     // Returns BridgeAction from a Starcoin Transaction with transaction hash

@@ -192,11 +192,29 @@ pub struct EthToStarcoinTokenBridgeV1 {
 impl TryFrom<&TokensDepositedFilter> for EthToStarcoinTokenBridgeV1 {
     type Error = BridgeError;
     fn try_from(event: &TokensDepositedFilter) -> BridgeResult<Self> {
+        // Solidity contract pads Starcoin address (16 bytes) to 32 bytes with leading zeros
+        // We need to extract the last 16 bytes
+        let recipient = event.recipient_address.as_ref();
+        let starcoin_bridge_address = if recipient.len() == 32 {
+            // 32-byte padded address: take last 16 bytes
+            let addr_bytes: [u8; 16] = recipient[16..32]
+                .try_into()
+                .map_err(|_| BridgeError::Generic("Invalid padded address length".to_string()))?;
+            StarcoinAddress::new(addr_bytes)
+        } else if recipient.len() == 16 {
+            // Direct 16-byte address
+            StarcoinAddress::from_bytes(recipient)?
+        } else {
+            return Err(BridgeError::Generic(format!(
+                "Invalid recipient address length: expected 16 or 32, got {}",
+                recipient.len()
+            )));
+        };
         Ok(Self {
             nonce: event.nonce,
             starcoin_bridge_chain_id: BridgeChainId::try_from(event.destination_chain_id)?,
             eth_chain_id: BridgeChainId::try_from(event.source_chain_id)?,
-            starcoin_bridge_address: StarcoinAddress::from_bytes(event.recipient_address.as_ref())?,
+            starcoin_bridge_address,
             eth_address: event.sender_address,
             token_id: event.token_id,
             starcoin_bridge_adjusted_amount: event.starcoin_adjusted_amount,

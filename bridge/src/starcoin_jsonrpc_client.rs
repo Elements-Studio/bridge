@@ -281,6 +281,9 @@ impl From<serde_json::Error> for JsonRpcError {
     }
 }
 
+/// Maximum block range allowed by Starcoin RPC for event queries
+const MAX_BLOCK_RANGE: u64 = 32;
+
 #[async_trait]
 impl StarcoinClientInner for StarcoinJsonRpcClient {
     type Error = JsonRpcError;
@@ -290,18 +293,58 @@ impl StarcoinClientInner for StarcoinJsonRpcClient {
         query: EventFilter,
         cursor: Option<EventID>,
     ) -> Result<EventPage, Self::Error> {
+        // Get current block height from chain
+        let chain_info = self.rpc.chain_info().await?;
+        let current_block = chain_info
+            .get("head")
+            .and_then(|h| h.get("number"))
+            .and_then(|v| v.as_str())
+            .and_then(|s| s.parse::<u64>().ok())
+            .unwrap_or(0);
+
         // Apply cursor as from_block if provided
         // EventID is (block_number, event_index) tuple
         let mut filter = query.clone();
-        if let Some((block_num, _event_idx)) = cursor {
-            filter.from_block = Some(block_num);
+        let from_block = if let Some((block_num, _event_idx)) = cursor {
+            // Start from the next block after cursor (cursor is exclusive)
+            block_num.saturating_add(1)
+        } else {
+            filter.from_block.unwrap_or(0)
+        };
+
+        // Ensure from_block doesn't exceed current block
+        if from_block > current_block {
+            // No new blocks to query
+            return Ok(EventPage {
+                data: vec![],
+                next_cursor: cursor,
+                has_next_page: false,
+            });
         }
+
+        // Set to_block with max range limit (Starcoin limits to 32 blocks)
+        let to_block = std::cmp::min(from_block.saturating_add(MAX_BLOCK_RANGE - 1), current_block);
+        
+        filter.from_block = Some(from_block);
+        filter.to_block = Some(to_block);
+        
+        // Set a reasonable limit
+        if filter.limit.is_none() {
+            filter.limit = Some(100);
+        }
+
+        tracing::debug!(
+            from_block = from_block,
+            to_block = to_block,
+            current_block = current_block,
+            "Querying Starcoin events"
+        );
 
         let raw_events = self.rpc.get_events(filter.to_rpc_filter()).await?;
         
         // Parse events
         let mut events = Vec::new();
-        let mut last_block_num = 0u64;
+        let mut last_block_num = from_block;
         for (_idx, event_value) in raw_events.iter().enumerate() {
             // Extract tx_hash for event ID
             let tx_hash = event_value
@@ -316,9 +359,16 @@ impl StarcoinClientInner for StarcoinJsonRpcClient {
                 })
                 .unwrap_or([0u8; 32]);
 
-            // Extract block number for cursor
-            if let Some(block_num) = event_value.get("block_number").and_then(|v| v.as_u64()) {
-                last_block_num = block_num;
+            // Extract block number for cursor - handle both string and number formats
+            if let Some(block_num) = event_value.get("block_number") {
+                let parsed_block = if let Some(s) = block_num.as_str() {
+                    s.parse::<u64>().ok()
+                } else {
+                    block_num.as_u64()
+                };
+                if let Some(bn) = parsed_block {
+                    last_block_num = bn;
+                }
             }
 
             if let Ok(event) = StarcoinEvent::try_from_rpc_event(event_value, tx_hash) {
@@ -326,14 +376,11 @@ impl StarcoinClientInner for StarcoinJsonRpcClient {
             }
         }
 
-        // Determine if there are more pages
-        let has_next_page = !raw_events.is_empty() && raw_events.len() >= filter.limit.unwrap_or(1000);
-        // Cursor is (block_number, event_count) for next query
-        let next_cursor: Option<EventID> = if has_next_page {
-            Some((last_block_num, events.len() as u64))
-        } else {
-            None
-        };
+        // Determine if there are more blocks to query
+        let has_next_page = to_block < current_block;
+        
+        // Next cursor: use last queried block for next iteration
+        let next_cursor: Option<EventID> = Some((to_block, 0));
 
         Ok(EventPage {
             data: events,
