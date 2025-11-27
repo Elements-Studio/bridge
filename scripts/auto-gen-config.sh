@@ -6,25 +6,50 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BRIDGE_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 STARCOIN_ROOT="$(cd "$BRIDGE_ROOT/.." && pwd)"
 
+# Parse arguments
+SKIP_KEYGEN=false
+for arg in "$@"; do
+    case $arg in
+        --skip-keygen)
+            SKIP_KEYGEN=true
+            shift
+            ;;
+    esac
+done
+
 echo "🔧 Auto-generating bridge configuration..."
 
-# 1. Generate bridge authority key
-echo "📝 Generating bridge authority key..."
-mkdir -p "$BRIDGE_ROOT/bridge-node/server-config"
-
-if [ ! -f "$BRIDGE_ROOT/target/debug/keygen" ]; then
-    echo "   Building keygen tool..."
-    cd "$BRIDGE_ROOT"
-    cargo build --bin keygen --quiet
-fi
-
+# 1. Generate bridge authority key (skip if already exists and --skip-keygen is set)
 AUTHORITY_KEY_PATH="$BRIDGE_ROOT/bridge-node/server-config/bridge_authority.key"
-"$BRIDGE_ROOT/target/debug/keygen" authority --output "$AUTHORITY_KEY_PATH" > /tmp/keygen_output.txt 2>&1
 
-# Extract Ethereum address from keygen output
-ETH_ADDRESS=$(grep "Ethereum address:" /tmp/keygen_output.txt | awk '{print $3}')
-echo "   ✅ Bridge authority key generated"
-echo "   📍 Ethereum address: $ETH_ADDRESS"
+if [ "$SKIP_KEYGEN" = true ] && [ -f "$AUTHORITY_KEY_PATH" ]; then
+    echo "📝 Using existing bridge authority key..."
+    # Extract ETH address from existing key - run keygen to show info
+    "$BRIDGE_ROOT/target/debug/keygen" authority --output "$AUTHORITY_KEY_PATH" > /tmp/keygen_output.txt 2>&1 || true
+    ETH_ADDRESS=$(grep "Ethereum address:" /tmp/keygen_output.txt | awk '{print $3}')
+    if [ -z "$ETH_ADDRESS" ]; then
+        # Try to extract from key file directly
+        ETH_ADDRESS="(existing key)"
+    fi
+    echo "   ✅ Bridge authority key exists"
+    echo "   📍 Ethereum address: $ETH_ADDRESS"
+else
+    echo "📝 Generating bridge authority key..."
+    mkdir -p "$BRIDGE_ROOT/bridge-node/server-config"
+
+    if [ ! -f "$BRIDGE_ROOT/target/debug/keygen" ]; then
+        echo "   Building keygen tool..."
+        cd "$BRIDGE_ROOT"
+        cargo build --bin keygen --quiet
+    fi
+
+    "$BRIDGE_ROOT/target/debug/keygen" authority --output "$AUTHORITY_KEY_PATH" > /tmp/keygen_output.txt 2>&1
+
+    # Extract Ethereum address from keygen output
+    ETH_ADDRESS=$(grep "Ethereum address:" /tmp/keygen_output.txt | awk '{print $3}')
+    echo "   ✅ Bridge authority key generated"
+    echo "   📍 Ethereum address: $ETH_ADDRESS"
+fi
 
 # 2. Get ETH deployment info
 echo "📝 Reading ETH deployment info..."

@@ -173,18 +173,44 @@ setup-eth-and-config: ## Complete ETH setup (clean + deploy ETH network + genera
 	@echo "$(YELLOW)╚════════════════════════════════════════╝$(NC)"
 	@echo ""
 	# Clean old data
-	@echo "$(YELLOW)Step 1/5: Cleaning old data...$(NC)"
+	@echo "$(YELLOW)Step 1/6: Cleaning old data...$(NC)"
 	@docker-compose down -v 2>/dev/null || true
 	$(call safe_rm,bridge-config bridge-node)
 	@echo "$(GREEN)✓ Cleaned$(NC)"
 	@echo ""
 	# Build keygen tool for config generation
-	@echo "$(YELLOW)Step 2/5: Building keygen tool...$(NC)"
-	@cargo build --bin keygen --quiet
-	@echo "$(GREEN)✓ Keygen built$(NC)"
+	@echo "$(YELLOW)Step 2/6: Building keygen and CLI tools...$(NC)"
+	@cargo build --bin keygen --bin starcoin-bridge-cli --quiet
+	@echo "$(GREEN)✓ Tools built$(NC)"
 	@echo ""
-	# Deploy ETH network via docker-compose
-	@echo "$(YELLOW)Step 3/5: Starting ETH network...$(NC)"
+	# Generate bridge authority key BEFORE deploying ETH contracts
+	@echo "$(YELLOW)Step 3/6: Generating bridge authority key...$(NC)"
+	@mkdir -p bridge-node/server-config
+	@./target/debug/keygen authority --output bridge-node/server-config/bridge_authority.key > /tmp/keygen_output.txt 2>&1
+	@ETH_ADDRESS=$$(grep "Ethereum address:" /tmp/keygen_output.txt | awk '{print $$3}'); \
+	if [ -z "$$ETH_ADDRESS" ]; then \
+		echo "$(RED)✗ Failed to generate bridge authority key$(NC)"; \
+		exit 1; \
+	fi; \
+	echo "$(GREEN)✓ Bridge authority key generated$(NC)"; \
+	echo "   📍 Ethereum address: $$ETH_ADDRESS"
+	@echo ""
+	# Generate Starcoin client key (Ed25519)
+	@echo "$(YELLOW)Step 4/6: Generating Starcoin client key (Ed25519)...$(NC)"
+	@./target/debug/starcoin-bridge-cli create-bridge-client-key bridge-node/server-config/starcoin_client.key > /tmp/starcoin_key_output.txt 2>&1
+	@STARCOIN_CLIENT_ADDRESS=$$(grep "Starcoin address:" /tmp/starcoin_key_output.txt | awk '{print $$NF}'); \
+	echo "$(GREEN)✓ Starcoin client key generated$(NC)"; \
+	echo "   📍 Starcoin address: $$STARCOIN_CLIENT_ADDRESS"
+	@echo ""
+	# Update ETH deploy config with the generated committee member address, then deploy
+	@echo "$(YELLOW)Step 5/6: Updating ETH config and deploying...$(NC)"
+	@ETH_ADDRESS=$$(grep "Ethereum address:" /tmp/keygen_output.txt | awk '{print $$3}'); \
+	ETH_ADDRESS_LOWER=$$(echo "$$ETH_ADDRESS" | tr '[:upper:]' '[:lower:]'); \
+	CONFIG_FILE="contracts/evm/deploy_configs/31337.json"; \
+	echo "   Updating $$CONFIG_FILE with committee: $$ETH_ADDRESS_LOWER"; \
+	jq --arg addr "$$ETH_ADDRESS_LOWER" '.committeeMembers = [$$addr] | .committeeMemberStake = [10000]' "$$CONFIG_FILE" > /tmp/31337_new.json && \
+	mv /tmp/31337_new.json "$$CONFIG_FILE"
+	@echo "   Starting ETH network..."
 	@docker-compose up -d
 	@echo "   Waiting for ETH contracts deployment..."
 	@SUCCESS=0; \
@@ -204,12 +230,11 @@ setup-eth-and-config: ## Complete ETH setup (clean + deploy ETH network + genera
 		exit 1; \
 	fi
 	@echo ""
-	# Generate bridge configuration files
-	@echo "$(YELLOW)Step 4/5: Auto-generating bridge configuration...$(NC)"
-	@./scripts/auto-gen-config.sh
+	# Generate bridge configuration files (skip key generation since we already did it)
+	@echo "$(YELLOW)Step 6/6: Auto-generating bridge configuration...$(NC)"
+	@./scripts/auto-gen-config.sh --skip-keygen
 	@echo ""
 	# Verify configuration
-	@echo "$(YELLOW)Step 5/5: Verifying setup...$(NC)"
 	@if [ -f bridge-config/server-config.yaml ]; then \
 		echo "$(GREEN)✓ Configuration file ready$(NC)"; \
 	else \

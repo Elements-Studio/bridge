@@ -84,6 +84,7 @@ async fn main() -> anyhow::Result<()> {
             let metrics = Arc::new(BridgeMetrics::new_for_testing());
             let starcoin_bridge_client = StarcoinBridgeClient::with_metrics(
                 &config.starcoin_bridge_rpc_url,
+                &config.starcoin_bridge_proxy_address,
                 metrics.clone(),
             );
 
@@ -290,7 +291,7 @@ async fn main() -> anyhow::Result<()> {
         } => {
             let metrics = Arc::new(BridgeMetrics::new_for_testing());
             let starcoin_bridge_client =
-                StarcoinBridgeClient::with_metrics(&starcoin_bridge_rpc_url, metrics);
+                StarcoinBridgeClient::with_metrics(&starcoin_bridge_rpc_url, "", metrics);
             let bridge_summary = starcoin_bridge_client
                 .get_bridge_summary()
                 .await
@@ -382,7 +383,7 @@ async fn main() -> anyhow::Result<()> {
         } => {
             let metrics = Arc::new(BridgeMetrics::new_for_testing());
             let starcoin_bridge_client =
-                StarcoinBridgeClient::with_metrics(&starcoin_bridge_rpc_url, metrics);
+                StarcoinBridgeClient::with_metrics(&starcoin_bridge_rpc_url, "", metrics);
             let bridge_summary = starcoin_bridge_client
                 .get_bridge_summary()
                 .await
@@ -534,7 +535,7 @@ async fn main() -> anyhow::Result<()> {
             let config = LoadedBridgeCliConfig::load(config).await?;
             let metrics = Arc::new(BridgeMetrics::new_for_testing());
             let starcoin_bridge_client =
-                StarcoinBridgeClient::with_metrics(&config.starcoin_bridge_rpc_url, metrics);
+                StarcoinBridgeClient::with_metrics(&config.starcoin_bridge_rpc_url, &config.starcoin_bridge_proxy_address, metrics);
             cmd.handle(&config, starcoin_bridge_client).await?;
             return Ok(());
         }
