@@ -214,18 +214,18 @@ setup-eth-and-config: ## Complete ETH setup (clean + deploy ETH network + genera
 	@docker-compose up -d
 	@echo "   Waiting for ETH contracts deployment..."
 	@SUCCESS=0; \
-	for i in $$(seq 1 60); do \
+	for i in $$(seq 1 120); do \
 		if curl -sf http://localhost:8080/deployment.json > /dev/null 2>&1 || \
 		   curl -sf http://localhost:8080/deployment.txt > /dev/null 2>&1; then \
 			SUCCESS=1; \
 			echo "   $(GREEN)✓ ETH contracts deployed (took $$((i*2))s)$(NC)"; \
 			break; \
 		fi; \
-		printf "   ⏳ %ds/%ds\r" "$$((i*2))" "120"; \
+		printf "   ⏳ %ds/%ds\r" "$$((i*2))" "240"; \
 		sleep 2; \
 	done; \
 	if [ $$SUCCESS -eq 0 ]; then \
-		echo "\n   $(RED)✗ Timeout after 120s$(NC)"; \
+		echo "\n   $(RED)✗ Timeout after 240s$(NC)"; \
 		echo "   $(YELLOW)Check: docker logs bridge-eth-deployer$(NC)"; \
 		exit 1; \
 	fi
@@ -573,7 +573,7 @@ deploy-starcoin-contracts: build-starcoin-contracts ## Deploy Move contracts + i
 	echo "" && \
 	echo "$(YELLOW)Updating server-config.yaml with bridge address...$(NC)" && \
 	if [ -f bridge-config/server-config.yaml ]; then \
-		sed -i.bak "s|^starcoin-bridge-proxy-address:.*|starcoin-bridge-proxy-address: $$DEFAULT_ACCOUNT|" bridge-config/server-config.yaml; \
+		sed -i.bak "s|starcoin-bridge-proxy-address:.*|starcoin-bridge-proxy-address: \"$$DEFAULT_ACCOUNT\"|" bridge-config/server-config.yaml; \
 		rm -f bridge-config/server-config.yaml.bak; \
 		echo "$(GREEN)✓ Config updated with bridge address: $$DEFAULT_ACCOUNT$(NC)"; \
 	else \
