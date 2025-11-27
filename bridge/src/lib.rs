@@ -31,9 +31,6 @@ pub mod utils;
 #[cfg(any(feature = "test-utils", test))]
 pub(crate) mod eth_mock_provider;
 
-#[cfg(test)]
-pub(crate) mod eth_mock_provider_internal;
-
 pub mod starcoin_bridge_mock_client;
 
 #[cfg(any(feature = "test-utils", test))]

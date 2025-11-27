@@ -108,7 +108,7 @@ impl BridgeRequestHandlerTrait for BridgeRequestMockHandler {
             if !preset.contains_key(&(tx_digest, event_idx)) {
                 // Ok to panic in test
                 panic!(
-                    "No preset handle_starcoin_bridge_tx_digest result for tx_digest: {}, event_idx: {}",
+                    "No preset handle_starcoin_bridge_tx_digest result for tx_digest: {:?}, event_idx: {}",
                     tx_digest, event_idx
                 );
             }
