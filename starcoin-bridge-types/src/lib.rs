@@ -1,22 +1,34 @@
-// Stub for starcoin-bridge-types - Remaining types that haven't been migrated to starcoin_bridge_vm_types
+// Starcoin Bridge Types
+// Copyright (c) The Starcoin Core Contributors
+// SPDX-License-Identifier: Apache-2.0
+
+//! Bridge type definitions for Starcoin.
+//!
+//! This crate provides type definitions that bridge between the Sui-originated
+//! bridge code and Starcoin's native types. It maintains backward compatibility
+//! while adapting to Starcoin's account-based model.
+
 #![allow(dead_code, unused_variables)]
 
 use serde::{Deserialize, Serialize};
 
-// Re-export types that have been migrated to starcoin_bridge_vm_types
+// =============================================================================
+// Re-exports from starcoin_bridge_vm_types
+// =============================================================================
+
 pub mod base_types {
     pub use starcoin_bridge_vm_types::bridge::base_types::*;
 
-    // Type aliases for compatibility
-    pub type TransactionDigest = [u8; 32];
+    // Re-export the ZERO constant
+    pub use starcoin_bridge_vm_types::bridge::base_types::ZERO_OBJECT_ID;
 
-    // STARCOIN_ADDRESS_LENGTH constant (if needed)
-    pub const STARCOIN_ADDRESS_LENGTH: usize = 32;
+    // STARCOIN_ADDRESS_LENGTH - Starcoin uses 16-byte addresses
+    pub const STARCOIN_ADDRESS_LENGTH: usize = 16;
 
-    // ZERO ObjectID constant
-    pub const ZERO_OBJECT_ID: ObjectID = [0u8; 32];
+    // For compatibility, also define a 32-byte length
+    pub const OBJECT_ID_LENGTH: usize = 32;
 
-    // Helper function for testing
+    /// Create a random ObjectRef for testing
     pub fn random_object_ref() -> ObjectRef {
         use rand::{RngCore, SeedableRng};
         let mut rng = rand::rngs::StdRng::from_entropy();
@@ -28,7 +40,7 @@ pub mod base_types {
         (id, version, digest)
     }
 
-    // Extension trait for concise display of numeric types
+    /// Extension trait for concise display
     pub trait ConciseDisplay {
         fn concise(&self) -> String;
     }
@@ -39,28 +51,28 @@ pub mod base_types {
         }
     }
 
-    // Extension trait for hex display of byte arrays
-    pub trait ToHex {
-        fn to_hex(&self) -> String;
-    }
-
-    impl ToHex for [u8; 32] {
-        fn to_hex(&self) -> String {
-            hex::encode(self)
+    impl ConciseDisplay for u64 {
+        fn concise(&self) -> String {
+            self.to_string()
         }
     }
 
-    // Helper functions for conversion (cannot implement From due to orphan rules)
+    // ==========================================================================
+    // Backward compatibility functions (for migration from Sui)
+    // ==========================================================================
+
+    /// Convert a 32-byte array to StarcoinAddress (takes last 16 bytes)
+    /// This is for backward compatibility with code that uses 32-byte identifiers
+    #[inline]
     pub fn starcoin_bridge_address_from_bytes(bytes: [u8; 32]) -> StarcoinAddress {
-        use move_core_types::account_address::AccountAddress;
-        // AccountAddress in Move is 16 bytes, take first 16
-        AccountAddress::from_bytes(&bytes[..16]).unwrap_or(AccountAddress::ZERO)
+        bytes32_to_starcoin_address(&bytes)
     }
 
+    /// Convert StarcoinAddress to a 32-byte array (left-padded with zeros)
+    /// This is for backward compatibility with code that expects 32-byte identifiers
+    #[inline]
     pub fn starcoin_bridge_address_to_bytes(addr: StarcoinAddress) -> [u8; 32] {
-        let mut bytes = [0u8; 32];
-        bytes[..16].copy_from_slice(addr.as_ref());
-        bytes
+        starcoin_address_to_bytes32(&addr)
     }
 }
 
@@ -73,7 +85,6 @@ pub mod committee {
 }
 
 pub mod crypto {
-    // Re-export what we have in starcoin_bridge_vm_types
     pub use starcoin_bridge_vm_types::bridge::crypto::*;
 
     use fastcrypto::{

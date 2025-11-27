@@ -4,8 +4,8 @@
 //! A mock implementation of Starcoin JSON-RPC client.
 
 use crate::error::{BridgeError, BridgeResult};
-use crate::test_utils::DUMMY_MUTALBE_BRIDGE_OBJECT_ARG;
 use async_trait::async_trait;
+use once_cell::sync::Lazy;
 use starcoin_bridge_json_rpc_types::StarcoinTransactionBlockResponse;
 use starcoin_bridge_json_rpc_types::{EventFilter, EventPage, StarcoinEvent};
 use starcoin_bridge_types::base_types::{ObjectID, ObjectRef, TransactionDigest};
@@ -23,6 +23,15 @@ use std::sync::{Arc, Mutex};
 
 use crate::starcoin_bridge_client::StarcoinClientInner;
 use crate::types::{BridgeAction, BridgeActionStatus, IsBridgePaused};
+
+// Dummy bridge object arg function
+pub fn dummy_bridge_object_arg() -> ObjectArg {
+    ObjectArg::ImmOrOwnedObject((
+        [0u8; 32],
+        0,
+        [0u8; 32],
+    ))
+}
 
 // Mock client used in test environments.
 #[allow(clippy::type_complexity)]
@@ -218,7 +227,7 @@ impl StarcoinClientInner for StarcoinMockClient {
     }
 
     async fn get_mutable_bridge_object_arg(&self) -> Result<ObjectArg, Self::Error> {
-        Ok(DUMMY_MUTALBE_BRIDGE_OBJECT_ARG)
+        Ok(dummy_bridge_object_arg())
     }
 
     async fn get_reference_gas_price(&self) -> Result<u64, Self::Error> {

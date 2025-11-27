@@ -43,6 +43,7 @@ use crate::error::{BridgeError, BridgeResult};
 use crate::events::StarcoinBridgeEvent;
 use crate::metrics::BridgeMetrics;
 use crate::retry_with_max_elapsed_time;
+use crate::starcoin_jsonrpc_client::StarcoinJsonRpcClient;
 use crate::types::BridgeActionStatus;
 use crate::types::ParsedTokenTransferMessage;
 use crate::types::{BridgeAction, BridgeAuthority, BridgeCommittee};
@@ -52,9 +53,35 @@ pub struct StarcoinClient<P> {
     bridge_metrics: Arc<BridgeMetrics>,
 }
 
-pub type StarcoinBridgeClient = StarcoinClient<StarcoinSdkClient>;
+// JSON-RPC based client (default, no runtime conflicts)
+pub type StarcoinBridgeClient = StarcoinClient<StarcoinJsonRpcClient>;
+
+// Legacy type alias for backward compatibility
+pub type StarcoinBridgeSdkClient = StarcoinBridgeClient;
 
 impl StarcoinBridgeClient {
+    pub fn new(rpc_url: &str) -> Self {
+        Self {
+            inner: StarcoinJsonRpcClient::new(rpc_url),
+            bridge_metrics: Arc::new(BridgeMetrics::new_for_testing()),
+        }
+    }
+
+    pub fn with_metrics(rpc_url: &str, bridge_metrics: Arc<BridgeMetrics>) -> Self {
+        Self {
+            inner: StarcoinJsonRpcClient::new(rpc_url),
+            bridge_metrics,
+        }
+    }
+
+    pub fn starcoin_bridge_client(&self) -> &StarcoinJsonRpcClient {
+        &self.inner
+    }
+}
+
+// SDK-based client (only for tests)
+#[cfg(test)]
+impl StarcoinClient<StarcoinSdkClient> {
     pub async fn new(rpc_url: &str, bridge_metrics: Arc<BridgeMetrics>) -> anyhow::Result<Self> {
         let inner = StarcoinClientBuilder::default()
             .url(rpc_url)

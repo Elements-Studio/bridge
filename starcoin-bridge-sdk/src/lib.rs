@@ -447,6 +447,28 @@ impl StarcoinClientBuilder {
         let url = self.url.ok_or_else(|| anyhow::anyhow!("URL not set"))?;
         Self::build_from_url(&url)
     }
+
+    // Async build method that properly handles blocking operations
+    pub async fn build_async(self) -> Result<StarcoinClient> {
+        let url = self.url.ok_or_else(|| anyhow::anyhow!("URL not set"))?;
+        // Use Arc<Mutex<Option<Result>>> for thread-safe result sharing
+        let result_holder = std::sync::Arc::new(std::sync::Mutex::new(None));
+        let result_clone = result_holder.clone();
+        
+        std::thread::spawn(move || {
+            let result = Self::build_from_url(&url);
+            *result_clone.lock().unwrap() = Some(result);
+        });
+        
+        // Poll with small delay until result is ready
+        loop {
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            let mut guard = result_holder.lock().unwrap();
+            if let Some(result) = guard.take() {
+                return result;
+            }
+        }
+    }
 }
 
 impl Default for StarcoinClientBuilder {

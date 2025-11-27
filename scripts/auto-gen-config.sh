@@ -80,7 +80,7 @@ eth:
   eth-contracts-start-block-override: 0
 
 # Starcoin configuration
-sui:
+starcoin:
   starcoin-bridge-rpc-url: ws://127.0.0.1:9870
   starcoin-bridge-chain-id: 2
 EOF

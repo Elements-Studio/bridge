@@ -48,31 +48,39 @@ use crate::types::ParsedTokenTransferMessage;
 use crate::types::{BridgeAction, BridgeAuthority, BridgeCommittee};
 
 pub struct StarcoinClient<P> {
-    inner: P,
+    inner: OnceCell<P>,
+    rpc_url: String,
     bridge_metrics: Arc<BridgeMetrics>,
 }
 
 pub type StarcoinBridgeClient = StarcoinClient<StarcoinSdkClient>;
 
 impl StarcoinBridgeClient {
+    // Create a lazy client that connects on first use
     pub async fn new(rpc_url: &str, bridge_metrics: Arc<BridgeMetrics>) -> anyhow::Result<Self> {
-        let inner = StarcoinClientBuilder::default()
-            .url(rpc_url)
-            .build()
-            .await
-            .map_err(|e| {
-                anyhow!("Can't establish connection with Starcoin Rpc {rpc_url}. Error: {e}")
-            })?;
-        let self_ = Self {
-            inner,
+        Ok(Self {
+            inner: OnceCell::new(),
+            rpc_url: rpc_url.to_string(),
             bridge_metrics,
-        };
-        self_.describe().await?;
-        Ok(self_)
+        })
     }
 
-    pub fn starcoin_bridge_client(&self) -> &StarcoinSdkClient {
-        &self.inner
+    // Initialize the connection if not already done
+    async fn ensure_connected(&self) -> anyhow::Result<&StarcoinSdkClient> {
+        self.inner.get_or_try_init(|| async {
+            let client = StarcoinClientBuilder::default()
+                .url(&self.rpc_url)
+                .build_async()
+                .await
+                .map_err(|e| {
+                    anyhow!("Can't establish connection with Starcoin Rpc {}. Error: {}", self.rpc_url, e)
+                })?;
+            Ok(client)
+        }).await
+    }
+
+    pub async fn starcoin_bridge_client(&self) -> anyhow::Result<&StarcoinSdkClient> {
+        self.ensure_connected().await
     }
 }
 
@@ -81,16 +89,24 @@ where
     P: StarcoinClientInner,
 {
     pub fn new_for_testing(inner: P) -> Self {
+        let cell = OnceCell::new();
+        let _ = cell.set(inner);
         Self {
-            inner,
+            inner: cell,
+            rpc_url: "test://localhost".to_string(),
             bridge_metrics: Arc::new(BridgeMetrics::new_for_testing()),
         }
+    }
+    
+    async fn ensure_inner(&self) -> anyhow::Result<&P> {
+        self.inner.get().ok_or_else(|| anyhow!("Client not initialized"))
     }
 
     // TODO assert chain identifier
     async fn describe(&self) -> anyhow::Result<()> {
-        let chain_id = self.inner.get_chain_identifier().await?;
-        let block_number = self.inner.get_latest_checkpoint_sequence_number().await?;
+        let inner = self.ensure_inner().await?;
+        let chain_id = inner.get_chain_identifier().await?;
+        let block_number = inner.get_latest_checkpoint_sequence_number().await?;
         tracing::info!(
             "StarcoinClient is connected to chain {chain_id}, current block number: {block_number}"
         );
@@ -104,8 +120,9 @@ where
     pub async fn get_mutable_bridge_object_arg_must_succeed(&self) -> ObjectArg {
         static ARG: OnceCell<ObjectArg> = OnceCell::const_new();
         ARG.get_or_init(|| async move {
+            let inner = self.ensure_inner().await.expect("Client not initialized");
             let Ok(Ok(bridge_object_arg)) = retry_with_max_elapsed_time!(
-                self.inner.get_mutable_bridge_object_arg(),
+                inner.get_mutable_bridge_object_arg(),
                 Duration::from_secs(30)
             ) else {
                 panic!("Failed to get bridge object arg after retries");

@@ -13,6 +13,7 @@ members = [
     "starcoin-bridge-data-ingestion-core",
     "bridge",
     "bridge-cli",
+    "starcoin-rpc-proxy",
     "fastcrypto",
     "fastcrypto-derive",
     "shared-crypto",

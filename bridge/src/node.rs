@@ -102,17 +102,22 @@ pub async fn run_bridge_node(
 
     // Update voting right metrics
     // Before reconfiguration happens we only set it once when the node starts
-    let starcoin_bridge_system = server_config
-        .starcoin_bridge_client
-        .starcoin_bridge_client()
-        .governance_api()
-        .get_latest_starcoin_bridge_system_state()
-        .await?;
+    // TODO: Implement get_latest_starcoin_bridge_system_state via JSON-RPC
+    // For now skip this metric initialization
+    let starcoin_bridge_system: Option<starcoin_bridge_json_rpc_types::StarcoinSystemStateSummary> = None;
 
     // Start Client
     if let Some(client_config) = client_config {
-        let committee_keys_to_names =
-            Arc::new(get_validator_names_by_pub_keys(&committee, &starcoin_bridge_system).await);
+        let committee_keys_to_names = if let Some(ref system_state) = starcoin_bridge_system {
+            Arc::new(get_validator_names_by_pub_keys(&committee, system_state).await)
+        } else {
+            // Use base URL as fallback when system state is not available
+            Arc::new(
+                committee.members().iter().map(|(name, validator)| {
+                    (name.clone(), validator.base_url.clone())
+                }).collect()
+            )
+        };
         let client_components = start_client_components(
             client_config,
             committee.clone(),
@@ -123,13 +128,15 @@ pub async fn run_bridge_node(
         handles.extend(client_components);
     }
 
-    let committee_name_mapping =
-        get_committee_voting_power_by_name(&committee, &starcoin_bridge_system).await;
-    for (name, voting_power) in committee_name_mapping.into_iter() {
-        metrics
-            .current_bridge_voting_rights
-            .with_label_values(&[name.as_str()])
-            .set(voting_power as i64);
+    if let Some(ref system_state) = starcoin_bridge_system {
+        let committee_name_mapping =
+            get_committee_voting_power_by_name(&committee, system_state).await;
+        for (name, voting_power) in committee_name_mapping.into_iter() {
+            metrics
+                .current_bridge_voting_rights
+                .with_label_values(&[name.as_str()])
+                .set(voting_power as i64);
+        }
     }
 
     // Start Server
@@ -242,16 +249,18 @@ async fn start_watchdog(
         observables.push(Box::new(balance));
     }
 
-    if let Some(watchdog_config) = watchdog_config {
-        if !watchdog_config.total_supplies.is_empty() {
-            let total_supplies = TotalSupplies::new(
-                Arc::new(starcoin_bridge_client.starcoin_bridge_client().clone()),
-                watchdog_config.total_supplies,
-                watchdog_metrics.total_supplies.clone(),
-            );
-            observables.push(Box::new(total_supplies));
-        }
-    }
+    // TODO: Re-enable TotalSupplies when JSON-RPC client implements coin_read_api
+    // if let Some(watchdog_config) = watchdog_config {
+    //     if !watchdog_config.total_supplies.is_empty() {
+    //         let total_supplies = TotalSupplies::new(
+    //             starcoin_bridge_client.clone(),
+    //             watchdog_config.total_supplies,
+    //             watchdog_metrics.total_supplies.clone(),
+    //         );
+    //         observables.push(Box::new(total_supplies));
+    //     }
+    // }
+    let _ = watchdog_config; // Silence unused warning
 
     BridgeWatchDog::new(observables).run().await
 }

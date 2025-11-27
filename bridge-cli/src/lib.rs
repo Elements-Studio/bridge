@@ -698,74 +698,51 @@ async fn deposit_on_starcoin(
     config: &LoadedBridgeCliConfig,
     starcoin_bridge_client: StarcoinBridgeClient,
 ) -> anyhow::Result<()> {
-    let target_chain = target_chain as u8;
-    let bridge_object_arg = starcoin_bridge_client
-        .get_mutable_bridge_object_arg_must_succeed()
-        .await;
-    let inner_client = starcoin_bridge_client.starcoin_bridge_client();
-    let rgp = inner_client
-        .governance_api()
-        .get_reference_gas_price()
-        .await
-        .unwrap();
-    // Convert Vec<u8> to StarcoinAddress (AccountAddress = 16 bytes)
+    // TODO: Implement deposit_on_starcoin for Starcoin
+    // This function was originally designed for Sui's SDK with:
+    // - governance_api().get_reference_gas_price()
+    // - coin_read_api().select_coins()
+    // - read_api().get_object_with_options()
+    //
+    // For Starcoin, we need to:
+    // 1. Get gas price from chain state (or use default)
+    // 2. Build a ScriptFunction transaction to call bridge::send_token
+    // 3. Sign and submit the transaction
+    //
+    // The bridge contract call should be:
+    // 0x{bridge_address}::bridge::send_token<CoinType>(
+    //     target_chain: u8,
+    //     target_address: vector<u8>,
+    //     token: Coin<CoinType>
+    // )
+
+    let target_chain_id = target_chain as u8;
+
+    // Get sender address from the key
     let pub_bytes = config.starcoin_bridge_key.public();
     let sender = StarcoinAddress::from_bytes(&pub_bytes[..16.min(pub_bytes.len())])
         .unwrap_or(StarcoinAddress::ZERO);
-    let sender_bytes = starcoin_bridge_types::base_types::starcoin_bridge_address_to_bytes(sender);
-    let gas_obj_ref = inner_client
-        .coin_read_api()
-        .select_coins(sender_bytes, None, 1_000_000_000, vec![])
-        .await?
-        .first()
-        .ok_or(anyhow!("No coin found for address {}", sender))?
-        .object_ref();
-    let coin_obj_ref = inner_client
-        .read_api()
-        .get_object_with_options(coin_object_id, StarcoinObjectDataOptions::default())
-        .await?
-        .data
-        .unwrap()
-        .object_ref();
 
-    let mut builder = ProgrammableTransactionBuilder::new();
-    let arg_target_chain = builder.pure(target_chain).unwrap();
-    let arg_target_address = builder.pure(recipient_address.as_bytes()).unwrap();
-    let arg_token = builder
-        .obj(ObjectArg::ImmOrOwnedObject(coin_obj_ref))
-        .unwrap();
-    let arg_bridge = builder.obj(bridge_object_arg).unwrap();
+    // Get reference gas price using our client
+    let rgp = starcoin_bridge_client
+        .get_reference_gas_price_until_success()
+        .await;
 
-    builder.programmable_move_call(
-        BRIDGE_PACKAGE_ID,
-        BRIDGE_MODULE_NAME.to_owned(),
-        ident_str!("send_token").to_owned(),
-        vec![coin_type],
-        vec![arg_bridge, arg_target_chain, arg_target_address, arg_token],
-    );
-    let pt = builder.finish();
-    let tx_data =
-        TransactionData::new_programmable(sender, vec![gas_obj_ref], pt, 500_000_000, rgp);
-    let sig = Signature::new_secure(
-        &IntentMessage::new(Intent::starcoin_bridge_transaction(), tx_data.clone()),
-        &config.starcoin_bridge_key,
-    );
-    let signed_tx = Transaction::from_data(tx_data, vec![sig]);
-    let tx_digest = *signed_tx.digest();
-    info!(?tx_digest, "Sending deposit transction to Starcoin.");
-    let resp = starcoin_bridge_client
-        .execute_transaction_block_with_effects(signed_tx)
-        .await
-        .expect("Failed to execute transaction block");
-    if !resp.status_ok().unwrap() {
-        return Err(anyhow!("Transaction {:?} failed: {:?}", tx_digest, resp));
-    }
-    let events = resp.events.unwrap();
     info!(
-        ?tx_digest,
-        "Deposit transaction succeeded. Events: {:?}", events
+        sender = ?sender,
+        target_chain = target_chain_id,
+        recipient = ?recipient_address,
+        coin_type = ?coin_type,
+        gas_price = rgp,
+        "Deposit on Starcoin: Building transaction (not yet implemented)"
     );
-    Ok(())
+
+    // TODO: Implement actual transaction building and submission
+    // For now, return an error indicating this is not yet implemented
+    Err(anyhow!(
+        "deposit_on_starcoin is not yet fully implemented for Starcoin. \
+         Need to implement ScriptFunction transaction building."
+    ))
 }
 
 async fn claim_on_eth(

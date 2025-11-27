@@ -10296,6 +10296,7 @@ dependencies = [
  "telemetry-subscribers",
  "tempfile",
  "test-cluster",
+ "thiserror 1.0.69",
  "tokio",
  "tracing",
  "typed-store",
@@ -10412,6 +10413,7 @@ dependencies = [
  "starcoin-rpc-client",
  "starcoin-types",
  "thiserror 1.0.69",
+ "tokio",
  "url 2.5.7",
 ]
 
@@ -10821,6 +10823,22 @@ dependencies = [
  "starcoin-vm-types",
  "thiserror 1.0.69",
  "tokio",
+]
+
+[[package]]
+name = "starcoin-rpc-proxy"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "serde",
+ "serde_json",
+ "starcoin-bridge-sdk",
+ "starcoin-bridge-types",
+ "starcoin-bridge-vm-types",
+ "starcoin-rpc-client",
+ "starcoin-types",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

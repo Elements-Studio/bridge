@@ -31,23 +31,25 @@ struct Args {
 async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
     let config = BridgeNodeConfig::load(&args.config_path).unwrap();
-
-    // Init metrics server
+    
+    // JSON-RPC client is fully async compatible - no runtime conflicts!
+    
     let metrics_address =
         SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), config.metrics_port);
     let registry_service = start_prometheus_server(metrics_address);
     let prometheus_registry = registry_service.default_registry();
+    
     mysten_metrics::init_metrics(&prometheus_registry);
     info!("Metrics server started at port {}", config.metrics_port);
 
     // Init logging
-    let (_guard, _filter_handle) = telemetry_subscribers::TelemetryConfig::new()
+    let (_log_guard, _filter_handle) = telemetry_subscribers::TelemetryConfig::new()
         .with_env()
         .with_prom_registry(&prometheus_registry)
         .init();
 
     let metadata = BridgeNodePublicMetadata::new(VERSION, config.metrics_key_pair.public().clone());
-
+    
     // Metrics push functionality disabled due to rustls/subtle version conflicts with starcoin
     /*
     if let Some(metrics_config) = &config.metrics {
@@ -60,7 +62,6 @@ async fn main() -> anyhow::Result<()> {
     }
     */
 
-    Ok(run_bridge_node(config, metadata, prometheus_registry)
-        .await?
-        .await?)
+    let handle = run_bridge_node(config, metadata, prometheus_registry).await?;
+    handle.await.map_err(|e| anyhow::anyhow!("Task join error: {}", e))
 }

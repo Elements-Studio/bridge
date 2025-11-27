@@ -12,7 +12,7 @@ use starcoin_bridge::client::bridge_authority_aggregator::BridgeAuthorityAggrega
 use starcoin_bridge::crypto::{BridgeAuthorityPublicKey, BridgeAuthorityPublicKeyBytes};
 use starcoin_bridge::eth_transaction_builder::build_eth_transaction;
 use starcoin_bridge::metrics::BridgeMetrics;
-use starcoin_bridge::starcoin_bridge_client::StarcoinClient;
+use starcoin_bridge::starcoin_bridge_client::{StarcoinBridgeClient, StarcoinClient};
 use starcoin_bridge::starcoin_bridge_transaction_builder::build_starcoin_bridge_transaction;
 use starcoin_bridge::types::BridgeActionType;
 use starcoin_bridge::utils::{
@@ -25,8 +25,6 @@ use starcoin_bridge_cli::{
     LoadedBridgeCliConfig, Network, SEPOLIA_BRIDGE_PROXY_ADDR,
 };
 use starcoin_bridge_config::Config;
-use starcoin_bridge_sdk::StarcoinClient as StarcoinSdkClient;
-use starcoin_bridge_sdk::StarcoinClientBuilder;
 use starcoin_bridge_types::crypto::Signature;
 use starcoin_bridge_types::transaction::Transaction;
 use starcoin_bridge_vm_types::bridge::base_types::StarcoinAddress;
@@ -84,11 +82,10 @@ async fn main() -> anyhow::Result<()> {
             let config = BridgeCliConfig::load(config_path).expect("Couldn't load BridgeCliConfig");
             let config = LoadedBridgeCliConfig::load(config).await?;
             let metrics = Arc::new(BridgeMetrics::new_for_testing());
-            let starcoin_bridge_client = StarcoinClient::<StarcoinSdkClient>::new(
+            let starcoin_bridge_client = StarcoinBridgeClient::with_metrics(
                 &config.starcoin_bridge_rpc_url,
                 metrics.clone(),
-            )
-            .await?;
+            );
 
             let (starcoin_bridge_key, starcoin_bridge_address, gas_object_ref) = config
                 .get_starcoin_bridge_account_info()
@@ -293,37 +290,27 @@ async fn main() -> anyhow::Result<()> {
         } => {
             let metrics = Arc::new(BridgeMetrics::new_for_testing());
             let starcoin_bridge_client =
-                StarcoinClient::<StarcoinSdkClient>::new(&starcoin_bridge_rpc_url, metrics).await?;
+                StarcoinBridgeClient::with_metrics(&starcoin_bridge_rpc_url, metrics);
             let bridge_summary = starcoin_bridge_client
                 .get_bridge_summary()
                 .await
                 .map_err(|e| anyhow::anyhow!("Failed to get bridge summary: {:?}", e))?;
             let move_type_bridge_committee = bridge_summary.committee;
-            let starcoin_bridge_client = StarcoinClientBuilder::default()
-                .url(starcoin_bridge_rpc_url)
-                .build()?;
-            let stakes = starcoin_bridge_client
-                .governance_api()
-                .get_committee_info(None)
-                .await?
-                .validators
-                .into_iter()
-                .collect::<HashMap<_, _>>();
-            let names = starcoin_bridge_client
-                .governance_api()
-                .get_latest_starcoin_bridge_system_state()
-                .await?
-                .active_validators
-                .into_iter()
-                .map(|summary| {
-                    let protocol_key: AuthorityPublicKeyBytes =
-                        summary.protocol_pubkey_bytes.try_into().unwrap();
+            
+            // TODO: The stake and name lookups require Starcoin-specific APIs
+            // For now, create empty maps as placeholders
+            let stakes: HashMap<StarcoinAddress, u64> = HashMap::new();
+            let names: HashMap<StarcoinAddress, String> = move_type_bridge_committee
+                .member_registration
+                .iter()
+                .map(|(addr, entry)| {
                     (
-                        summary.starcoin_bridge_address,
-                        (protocol_key, summary.name),
+                        *addr,
+                        String::from_utf8_lossy(&entry.http_rest_url).to_string(),
                     )
                 })
-                .collect::<HashMap<_, _>>();
+                .collect();
+
             let mut authorities = vec![];
             let mut output_wrapper = Output::<OutputStarcoinBridgeRegistration>::default();
             for (_, member) in move_type_bridge_committee.member_registration {
@@ -349,12 +336,12 @@ async fn main() -> anyhow::Result<()> {
                 };
                 let url = url.to_string();
 
-                let starcoin_bridge_addr_bytes: [u8; 32] = starcoin_bridge_address
-                    .to_vec()
-                    .try_into()
-                    .expect("StarcoinAddress should be 32 bytes");
-                let (protocol_key, name) = names.get(&starcoin_bridge_addr_bytes).unwrap();
-                let stake = stakes.get(protocol_key).unwrap();
+                // Get name from names map, or use URL as fallback
+                let name = names
+                    .get(&starcoin_bridge_address)
+                    .cloned()
+                    .unwrap_or_else(|| url.clone());
+                let stake = stakes.get(&starcoin_bridge_address).copied().unwrap_or(0);
                 authorities.push((
                     name,
                     starcoin_bridge_address,
@@ -366,7 +353,7 @@ async fn main() -> anyhow::Result<()> {
             }
             let total_stake = authorities
                 .iter()
-                .map(|(_, _, _, _, _, stake)| **stake)
+                .map(|(_, _, _, _, _, stake)| *stake)
                 .sum::<u64>();
             let mut output = OutputStarcoinBridgeRegistration {
                 total_registered_stake: total_stake as f32 / TOTAL_VOTING_POWER as f32 * 100.0,
@@ -379,7 +366,7 @@ async fn main() -> anyhow::Result<()> {
                     eth_address,
                     pubkey: Hex::encode(pubkey.as_bytes()),
                     url,
-                    stake: *stake,
+                    stake,
                     blocklisted: None,
                     status: None,
                 });
@@ -395,30 +382,17 @@ async fn main() -> anyhow::Result<()> {
         } => {
             let metrics = Arc::new(BridgeMetrics::new_for_testing());
             let starcoin_bridge_client =
-                StarcoinClient::<StarcoinSdkClient>::new(&starcoin_bridge_rpc_url, metrics).await?;
+                StarcoinBridgeClient::with_metrics(&starcoin_bridge_rpc_url, metrics);
             let bridge_summary = starcoin_bridge_client
                 .get_bridge_summary()
                 .await
                 .map_err(|e| anyhow::anyhow!("Failed to get bridge summary: {:?}", e))?;
             let move_type_bridge_committee = bridge_summary.committee;
-            let starcoin_bridge_client = StarcoinClientBuilder::default()
-                .url(starcoin_bridge_rpc_url)
-                .build()?;
-            let names = starcoin_bridge_client
-                .governance_api()
-                .get_latest_starcoin_bridge_system_state()
-                .await?
-                .active_validators
-                .into_iter()
-                .map(|summary| {
-                    let protocol_key: AuthorityPublicKeyBytes =
-                        summary.protocol_pubkey_bytes.try_into().unwrap();
-                    (
-                        summary.starcoin_bridge_address,
-                        (protocol_key, summary.name),
-                    )
-                })
-                .collect::<HashMap<_, _>>();
+
+            // TODO: Name lookups require Starcoin-specific validator APIs
+            // For now, create empty map as placeholder
+            let names: HashMap<StarcoinAddress, (AuthorityPublicKeyBytes, String)> = HashMap::new();
+
             let mut authorities = vec![];
             let mut ping_tasks = vec![];
             let client = reqwest::Client::builder()
@@ -452,11 +426,8 @@ async fn main() -> anyhow::Result<()> {
                 };
                 let url = url.to_string();
 
-                let starcoin_bridge_addr_bytes: [u8; 32] = starcoin_bridge_address
-                    .to_vec()
-                    .try_into()
-                    .expect("StarcoinAddress should be 32 bytes");
-                let name = if let Some((_, n)) = names.get(&starcoin_bridge_addr_bytes) {
+                // Use the address directly since names is HashMap<StarcoinAddress, ...>
+                let name = if let Some((_, n)) = names.get(&starcoin_bridge_address) {
                     n.clone()
                 } else {
                     url.clone()
@@ -563,8 +534,7 @@ async fn main() -> anyhow::Result<()> {
             let config = LoadedBridgeCliConfig::load(config).await?;
             let metrics = Arc::new(BridgeMetrics::new_for_testing());
             let starcoin_bridge_client =
-                StarcoinClient::<StarcoinSdkClient>::new(&config.starcoin_bridge_rpc_url, metrics)
-                    .await?;
+                StarcoinBridgeClient::with_metrics(&config.starcoin_bridge_rpc_url, metrics);
             cmd.handle(&config, starcoin_bridge_client).await?;
             return Ok(());
         }

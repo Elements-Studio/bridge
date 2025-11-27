@@ -18,6 +18,8 @@ pub mod monitor;
 pub mod node;
 pub mod orchestrator;
 pub mod server;
+pub mod simple_starcoin_rpc;
+pub mod starcoin_jsonrpc_client;
 pub mod starcoin_bridge_client;
 pub mod starcoin_bridge_syncer;
 pub mod starcoin_bridge_transaction_builder;
@@ -30,7 +32,9 @@ pub mod utils;
 pub(crate) mod eth_mock_provider;
 
 #[cfg(test)]
-pub(crate) mod starcoin_bridge_mock_client;
+pub(crate) mod eth_mock_provider_internal;
+
+pub mod starcoin_bridge_mock_client;
 
 #[cfg(any(feature = "test-utils", test))]
 pub mod test_utils;
