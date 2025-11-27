@@ -181,6 +181,50 @@ impl SimpleStarcoinRpcClient {
     pub async fn get_latest_bridge(&self) -> Result<Value> {
         self.call("bridge.get_latest_bridge", vec![]).await
     }
+
+    /// Call a Move contract function (read-only)
+    /// function_id format: "0xADDRESS::MODULE::FUNCTION"
+    /// type_args: vector of type tag strings like "0x1::STC::STC"
+    /// args: vector of TransactionArgument hex strings
+    pub async fn call_contract(
+        &self,
+        function_id: &str,
+        type_args: Vec<String>,
+        args: Vec<String>,
+    ) -> Result<Value> {
+        let contract_call = json!({
+            "function_id": function_id,
+            "type_args": type_args,
+            "args": args
+        });
+        self.call("contract.call_v2", vec![contract_call]).await
+    }
+
+    /// Execute transaction and return the result
+    pub async fn submit_and_wait_transaction(&self, signed_txn_hex: &str) -> Result<Value> {
+        // Submit transaction
+        let txn_hash = self.submit_transaction(signed_txn_hex).await?;
+        let txn_hash_str = txn_hash.as_str()
+            .ok_or_else(|| anyhow!("Invalid transaction hash response"))?;
+        
+        // Poll for transaction info (simple polling with retries)
+        for _ in 0..30 {
+            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+            if let Ok(txn_info) = self.get_transaction_info(txn_hash_str).await {
+                if !txn_info.is_null() {
+                    return Ok(txn_info);
+                }
+            }
+        }
+        
+        Err(anyhow!("Transaction not confirmed after timeout"))
+    }
+
+    /// Get transaction info
+    pub async fn get_transaction_info(&self, txn_hash: &str) -> Result<Value> {
+        self.call("chain.get_transaction_info", vec![json!(txn_hash)])
+            .await
+    }
 }
 
 #[cfg(test)]

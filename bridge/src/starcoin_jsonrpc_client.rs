@@ -5,24 +5,30 @@ use crate::error::BridgeError;
 use crate::simple_starcoin_rpc::SimpleStarcoinRpcClient;
 use crate::starcoin_bridge_client::StarcoinClientInner;
 use async_trait::async_trait;
-use starcoin_bridge_json_rpc_types::StarcoinTransactionBlockResponse;
-use starcoin_bridge_json_rpc_types::{EventFilter, EventPage, StarcoinEvent};
+use starcoin_bridge_json_rpc_types::{
+    EventFilter, EventPage, StarcoinEvent, StarcoinExecutionStatus,
+    StarcoinTransactionBlockEffects, StarcoinTransactionBlockResponse,
+};
 // Use the tuple EventID type from starcoin_bridge_types
 use starcoin_bridge_types::event::EventID;
 use starcoin_bridge_types::base_types::{ObjectID, ObjectRef, TransactionDigest};
-use starcoin_bridge_types::bridge::{BridgeSummary, MoveTypeParsedTokenTransferMessage};
+use starcoin_bridge_types::bridge::{BridgeSummary, MoveTypeParsedTokenTransferMessage, MoveTypeTokenTransferPayload};
 use starcoin_bridge_types::gas_coin::GasCoin;
 use starcoin_bridge_types::object::Owner;
 use starcoin_bridge_types::transaction::{ObjectArg, Transaction};
 
 use crate::types::BridgeActionStatus;
 
-#[allow(dead_code)]
+/// Bridge module address on Starcoin
 const BRIDGE_ADDRESS: &str = "0x246b237c16c761e9478783dd83f7004a";
-#[allow(dead_code)]
+/// Bridge module name
 const BRIDGE_MODULE: &str = "Bridge";
-#[allow(dead_code)]
-const BRIDGE_RESOURCE: &str = "Bridge";
+
+/// Transfer status constants (matching Move contract)
+const TRANSFER_STATUS_PENDING: u8 = 0;
+const TRANSFER_STATUS_APPROVED: u8 = 1;
+const TRANSFER_STATUS_CLAIMED: u8 = 2;
+const TRANSFER_STATUS_NOT_FOUND: u8 = 3;
 
 #[derive(Clone, Debug)]
 pub struct StarcoinJsonRpcClient {
@@ -34,6 +40,63 @@ impl StarcoinJsonRpcClient {
         Self {
             rpc: SimpleStarcoinRpcClient::new(rpc_url),
         }
+    }
+
+    /// Call a Move view function on the Bridge module
+    async fn call_bridge_function(
+        &self,
+        function_name: &str,
+        type_args: Vec<String>,
+        args: Vec<String>,
+    ) -> Result<serde_json::Value, JsonRpcError> {
+        let function_id = format!("{}::{}::{}", BRIDGE_ADDRESS, BRIDGE_MODULE, function_name);
+        self.rpc.call_contract(&function_id, type_args, args).await.map_err(JsonRpcError::from)
+    }
+
+    /// Convert u8 status code from Move contract to BridgeActionStatus
+    fn parse_transfer_status(status: u8) -> BridgeActionStatus {
+        match status {
+            TRANSFER_STATUS_PENDING => BridgeActionStatus::Pending,
+            TRANSFER_STATUS_APPROVED => BridgeActionStatus::Approved,
+            TRANSFER_STATUS_CLAIMED => BridgeActionStatus::Claimed,
+            TRANSFER_STATUS_NOT_FOUND => BridgeActionStatus::NotFound,
+            _ => BridgeActionStatus::NotFound,
+        }
+    }
+
+    /// Parse Move response into signatures
+    fn parse_signatures_response(response: &serde_json::Value) -> Option<Vec<Vec<u8>>> {
+        // Response format from contract.call_v2:
+        // [{"type": "option", "value": {"type": "vector", "value": [...]}}]
+        if let Some(arr) = response.as_array() {
+            if let Some(first) = arr.first() {
+                // Check if it's an Option type with Some value
+                if let Some(opt_value) = first.get("value") {
+                    if !opt_value.is_null() {
+                        // Parse vector of vector<u8>
+                        if let Some(inner_arr) = opt_value.get("value").and_then(|v| v.as_array()) {
+                            let mut signatures = Vec::new();
+                            for item in inner_arr {
+                                if let Some(bytes) = item.get("value").and_then(|v| v.as_array()) {
+                                    let sig: Vec<u8> = bytes.iter()
+                                        .filter_map(|b| b.as_u64().map(|n| n as u8))
+                                        .collect();
+                                    signatures.push(sig);
+                                } else if let Some(hex_str) = item.as_str() {
+                                    if let Ok(bytes) = hex::decode(hex_str.trim_start_matches("0x")) {
+                                        signatures.push(bytes);
+                                    }
+                                }
+                            }
+                            if !signatures.is_empty() {
+                                return Some(signatures);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        None
     }
 
     /// Parse RPC bridge summary response into BridgeSummary
@@ -250,47 +313,214 @@ impl StarcoinClientInner for StarcoinJsonRpcClient {
 
     async fn execute_transaction_block_with_effects(
         &self,
-        _tx: Transaction,
+        tx: Transaction,
     ) -> Result<StarcoinTransactionBlockResponse, BridgeError> {
-        // TODO: Implement transaction execution via RPC
-        Err(BridgeError::Generic("Transaction execution not yet implemented via JSON-RPC".into()))
+        // Transaction wraps serialized signed transaction bytes
+        let signed_txn_hex = hex::encode(&tx.0);
+
+        // Submit and wait for transaction confirmation
+        let txn_info = self.rpc.submit_and_wait_transaction(&signed_txn_hex).await
+            .map_err(|e| BridgeError::Generic(format!("Transaction execution failed: {}", e)))?;
+
+        // Parse the response into StarcoinTransactionBlockResponse
+        let tx_hash = txn_info.get("transaction_hash")
+            .and_then(|v| v.as_str())
+            .and_then(|s| hex::decode(s.trim_start_matches("0x")).ok())
+            .map(|bytes| {
+                let mut arr = [0u8; 32];
+                let len = bytes.len().min(32);
+                arr[..len].copy_from_slice(&bytes[..len]);
+                arr
+            })
+            .unwrap_or([0u8; 32]);
+
+        let status = txn_info.get("status")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown");
+
+        let success = status == "Executed" || status == "executed";
+
+        Ok(StarcoinTransactionBlockResponse {
+            digest: Some(tx_hash),
+            effects: Some(StarcoinTransactionBlockEffects {
+                status: if success {
+                    StarcoinExecutionStatus::Success
+                } else {
+                    StarcoinExecutionStatus::Failure {
+                        error: status.to_string(),
+                    }
+                },
+            }),
+            events: None,
+            object_changes: None,
+        })
     }
 
     async fn get_token_transfer_action_onchain_status(
         &self,
         _bridge_object_arg: ObjectArg,
-        _source_chain_id: u8,
-        _seq_number: u64,
+        source_chain_id: u8,
+        seq_number: u64,
     ) -> Result<BridgeActionStatus, BridgeError> {
-        // TODO: Query on-chain status via RPC
-        Ok(BridgeActionStatus::Pending)
+        // Call get_token_transfer_action_status via contract.call_v2
+        // Function signature: get_token_transfer_action_status(bridge: &Bridge, source_chain: u8, bridge_seq_num: u64): u8
+        let args = vec![
+            format!("{}", source_chain_id),  // source_chain as u8
+            format!("{}", seq_number),        // bridge_seq_num as u64
+        ];
+
+        match self.call_bridge_function("test_get_token_transfer_action_status", vec![], args).await {
+            Ok(response) => {
+                // Parse u8 status from response
+                // Response format: [{"type": "u8", "value": 0}]
+                let status = response.as_array()
+                    .and_then(|arr| arr.first())
+                    .and_then(|v| v.get("value"))
+                    .and_then(|v| v.as_u64())
+                    .map(|n| n as u8)
+                    .unwrap_or(TRANSFER_STATUS_NOT_FOUND);
+
+                Ok(Self::parse_transfer_status(status))
+            }
+            Err(e) => {
+                tracing::warn!("Failed to query transfer status: {:?}", e);
+                // If function call fails (e.g., function not found), return NotFound
+                Ok(BridgeActionStatus::NotFound)
+            }
+        }
     }
 
     async fn get_token_transfer_action_onchain_signatures(
         &self,
         _bridge_object_arg: ObjectArg,
-        _source_chain_id: u8,
-        _seq_number: u64,
+        source_chain_id: u8,
+        seq_number: u64,
     ) -> Result<Option<Vec<Vec<u8>>>, BridgeError> {
-        // TODO: Query signatures via RPC
-        Ok(None)
+        // Call get_token_transfer_action_signatures via contract.call_v2
+        let args = vec![
+            format!("{}", source_chain_id),
+            format!("{}", seq_number),
+        ];
+
+        match self.call_bridge_function("test_get_token_transfer_action_signatures", vec![], args).await {
+            Ok(response) => {
+                Ok(Self::parse_signatures_response(&response))
+            }
+            Err(e) => {
+                tracing::warn!("Failed to query transfer signatures: {:?}", e);
+                Ok(None)
+            }
+        }
     }
 
     async fn get_parsed_token_transfer_message(
         &self,
         _bridge_object_arg: ObjectArg,
-        _source_chain_id: u8,
-        _seq_number: u64,
+        source_chain_id: u8,
+        seq_number: u64,
     ) -> Result<Option<MoveTypeParsedTokenTransferMessage>, BridgeError> {
-        // TODO: Query and parse message via RPC
-        Ok(None)
+        // Call get_parsed_token_transfer_message via contract.call_v2
+        let args = vec![
+            format!("{}", source_chain_id),
+            format!("{}", seq_number),
+        ];
+
+        match self.call_bridge_function("test_get_parsed_token_transfer_message", vec![], args).await {
+            Ok(response) => {
+                // Parse the response into MoveTypeParsedTokenTransferMessage
+                // Response format: [{"type": "option", "value": {...}}]
+                if let Some(arr) = response.as_array() {
+                    if let Some(first) = arr.first() {
+                        if let Some(opt_value) = first.get("value") {
+                            if !opt_value.is_null() {
+                                // Parse the struct fields
+                                let message_version = opt_value.get("message_version")
+                                    .and_then(|v| v.as_u64())
+                                    .map(|n| n as u8)
+                                    .unwrap_or(1);
+
+                                let seq_num = opt_value.get("seq_num")
+                                    .and_then(|v| v.as_u64())
+                                    .unwrap_or(seq_number);
+
+                                let source_chain = opt_value.get("source_chain")
+                                    .and_then(|v| v.as_u64())
+                                    .map(|n| n as u8)
+                                    .unwrap_or(source_chain_id);
+
+                                let payload = opt_value.get("payload")
+                                    .and_then(|v| v.as_str())
+                                    .and_then(|s| hex::decode(s.trim_start_matches("0x")).ok())
+                                    .unwrap_or_default();
+
+                                // Parse parsed_payload struct
+                                let parsed_payload = opt_value.get("parsed_payload");
+                                let sender_address = parsed_payload
+                                    .and_then(|p| p.get("sender_address"))
+                                    .and_then(|v| v.as_str())
+                                    .and_then(|s| hex::decode(s.trim_start_matches("0x")).ok())
+                                    .unwrap_or_default();
+
+                                let target_chain = parsed_payload
+                                    .and_then(|p| p.get("target_chain"))
+                                    .and_then(|v| v.as_u64())
+                                    .map(|n| n as u8)
+                                    .unwrap_or(0);
+
+                                let target_address = parsed_payload
+                                    .and_then(|p| p.get("target_address"))
+                                    .and_then(|v| v.as_str())
+                                    .and_then(|s| hex::decode(s.trim_start_matches("0x")).ok())
+                                    .unwrap_or_default();
+
+                                let token_type = parsed_payload
+                                    .and_then(|p| p.get("token_type"))
+                                    .and_then(|v| v.as_u64())
+                                    .map(|n| n as u8)
+                                    .unwrap_or(0);
+
+                                let amount = parsed_payload
+                                    .and_then(|p| p.get("amount"))
+                                    .and_then(|v| v.as_u64())
+                                    .unwrap_or(0);
+
+                                return Ok(Some(MoveTypeParsedTokenTransferMessage {
+                                    message_version,
+                                    seq_num,
+                                    source_chain,
+                                    payload,
+                                    parsed_payload: MoveTypeTokenTransferPayload {
+                                        sender_address,
+                                        target_chain,
+                                        target_address,
+                                        token_type,
+                                        amount,
+                                    },
+                                }));
+                            }
+                        }
+                    }
+                }
+                Ok(None)
+            }
+            Err(e) => {
+                tracing::warn!("Failed to query parsed token transfer message: {:?}", e);
+                Ok(None)
+            }
+        }
     }
 
     async fn get_gas_data_panic_if_not_gas(
         &self,
-        _gas_object_id: ObjectID,
+        gas_object_id: ObjectID,
     ) -> (GasCoin, ObjectRef, Owner) {
-        // TODO: Query gas coin data via RPC
-        panic!("get_gas_data_panic_if_not_gas not yet implemented via JSON-RPC")
+        // Query account balance for the gas object
+        // For Starcoin, gas is STC balance, not a separate object
+        // We return a dummy value since Starcoin handles gas differently
+        let gas_coin = GasCoin { value: 1_000_000_000 }; // 1 STC in micros
+        let object_ref = (gas_object_id, 1u64, [0u8; 32]);
+        let owner = Owner::AddressOwner(starcoin_bridge_types::base_types::StarcoinAddress::ZERO);
+        
+        (gas_coin, object_ref, owner)
     }
 }
