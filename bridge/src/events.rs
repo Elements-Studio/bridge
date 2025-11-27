@@ -22,7 +22,7 @@ use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 use starcoin_bridge_json_rpc_types::StarcoinEvent;
 use starcoin_bridge_types::base_types::TransactionDigest;
-use starcoin_bridge_types::base_types::{StarcoinAddress, ToHex};
+use starcoin_bridge_types::base_types::StarcoinAddress;
 use starcoin_bridge_types::bridge::BridgeChainId;
 use starcoin_bridge_types::bridge::MoveTypeBridgeMessageKey;
 use starcoin_bridge_types::bridge::MoveTypeCommitteeMember;

@@ -17,7 +17,7 @@ use starcoin_bridge_authority_aggregation::ReduceOutput;
 use starcoin_bridge_authority_aggregation::{
     quorum_map_then_reduce_with_timeout_and_prefs, SigRequestPrefs,
 };
-use starcoin_bridge_types::base_types::{ConciseDisplay, ConciseableName};
+use starcoin_bridge_types::base_types::ConciseableName;
 use starcoin_bridge_types::committee::{StakeUnit, TOTAL_VOTING_POWER};
 use std::collections::btree_map::Entry;
 use std::collections::BTreeMap;

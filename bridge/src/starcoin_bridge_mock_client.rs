@@ -5,7 +5,6 @@
 
 use crate::error::{BridgeError, BridgeResult};
 use async_trait::async_trait;
-use once_cell::sync::Lazy;
 use starcoin_bridge_json_rpc_types::StarcoinTransactionBlockResponse;
 use starcoin_bridge_json_rpc_types::{EventFilter, EventPage, StarcoinEvent};
 use starcoin_bridge_types::base_types::{ObjectID, ObjectRef, TransactionDigest};

@@ -653,8 +653,6 @@ pub mod transaction {
 }
 
 pub mod event {
-    use super::*;
-
     // Use a simple tuple for EventID (checkpoint_sequence, event_index)
     pub type EventID = (u64, u64);
 

@@ -2,7 +2,7 @@
 #![allow(dead_code, unused_variables)]
 
 use anyhow::Result;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Serialize};
 use std::path::Path;
 
 // Config trait compatible with Starcoin's interface

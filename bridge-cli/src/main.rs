@@ -12,7 +12,7 @@ use starcoin_bridge::client::bridge_authority_aggregator::BridgeAuthorityAggrega
 use starcoin_bridge::crypto::{BridgeAuthorityPublicKey, BridgeAuthorityPublicKeyBytes};
 use starcoin_bridge::eth_transaction_builder::build_eth_transaction;
 use starcoin_bridge::metrics::BridgeMetrics;
-use starcoin_bridge::starcoin_bridge_client::{StarcoinBridgeClient, StarcoinClient};
+use starcoin_bridge::starcoin_bridge_client::StarcoinBridgeClient;
 use starcoin_bridge::starcoin_bridge_transaction_builder::build_starcoin_bridge_transaction;
 use starcoin_bridge::types::BridgeActionType;
 use starcoin_bridge::utils::{

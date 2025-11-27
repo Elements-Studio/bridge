@@ -9,7 +9,6 @@ use crate::starcoin_bridge_watchdog::eth_bridge_status::EthBridgeStatus;
 use crate::starcoin_bridge_watchdog::eth_vault_balance::{EthereumVaultBalance, VaultAsset};
 use crate::starcoin_bridge_watchdog::metrics::WatchdogMetrics;
 use crate::starcoin_bridge_watchdog::starcoin_bridge_status::StarcoinBridgeStatus;
-use crate::starcoin_bridge_watchdog::total_supplies::TotalSupplies;
 use crate::starcoin_bridge_watchdog::{BridgeWatchDog, Observable};
 use crate::types::BridgeCommittee;
 use crate::utils::{

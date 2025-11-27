@@ -10,7 +10,7 @@ use arc_swap::ArcSwap;
 use mysten_metrics::spawn_logged_monitored_task;
 use shared_crypto::intent::{Intent, IntentMessage};
 use starcoin_bridge_json_rpc_types::{
-    StarcoinExecutionStatus, StarcoinTransactionBlockEffectsAPI, StarcoinTransactionBlockResponse,
+    StarcoinExecutionStatus, StarcoinTransactionBlockResponse,
 };
 use starcoin_bridge_types::base_types::{ObjectID, ObjectRef, StarcoinAddress, TransactionDigest};
 use starcoin_bridge_types::crypto::{Signature, StarcoinKeyPair};

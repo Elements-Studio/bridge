@@ -12,7 +12,7 @@ pub mod keygen {
     use anyhow::{anyhow, Result};
     use fastcrypto::{
         secp256k1::Secp256k1KeyPair,
-        traits::{EncodeDecodeBase64, KeyPair},
+        traits::EncodeDecodeBase64,
     };
     use std::path::PathBuf;
 
@@ -69,8 +69,6 @@ pub mod keygen {
         use_ecdsa: bool,
     ) -> Result<()> {
         use fastcrypto::ed25519::Ed25519KeyPair;
-        use fastcrypto::traits::KeyPair as _;
-
         use fastcrypto::traits::{KeyPair as _, ToFromBytes};
 
         let kp = if use_ecdsa {

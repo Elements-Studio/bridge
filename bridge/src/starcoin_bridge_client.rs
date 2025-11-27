@@ -1,21 +1,35 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::anyhow;
 use async_trait::async_trait;
 use core::panic;
 use fastcrypto::traits::ToFromBytes;
-use serde::de::DeserializeOwned;
-use starcoin_bridge_json_rpc_api::BridgeReadApiClient;
-use starcoin_bridge_json_rpc_types::DevInspectResults;
 use starcoin_bridge_json_rpc_types::{EventFilter, Page, StarcoinEvent};
 use starcoin_bridge_json_rpc_types::{
-    EventPage, StarcoinObjectDataOptions, StarcoinTransactionBlockResponse,
-    StarcoinTransactionBlockResponseOptions,
+    EventPage, StarcoinTransactionBlockResponse,
 };
+#[cfg(test)]
+use serde::de::DeserializeOwned;
+#[cfg(test)]
+use starcoin_bridge_json_rpc_api::BridgeReadApiClient;
+#[cfg(test)]
+use starcoin_bridge_json_rpc_types::DevInspectResults;
+#[cfg(test)]
+use starcoin_bridge_json_rpc_types::{StarcoinObjectDataOptions, StarcoinTransactionBlockResponseOptions};
+#[cfg(test)]
 use starcoin_bridge_sdk::{StarcoinClient as StarcoinSdkClient, StarcoinClientBuilder};
-use starcoin_bridge_types::base_types::{ObjectID, StarcoinAddress, TransactionDigest};
-use starcoin_bridge_types::base_types::{ObjectRef, SequenceNumber};
+#[cfg(test)]
+use anyhow::anyhow;
+#[cfg(test)]
+use starcoin_bridge_types::base_types::StarcoinAddress;
+#[cfg(test)]
+use starcoin_bridge_types::transaction::{
+    Argument, CallArg, Command, ProgrammableTransaction, TransactionKind,
+};
+#[cfg(test)]
+use starcoin_bridge_types::STARCOIN_BRIDGE_OBJECT_ID;
+use starcoin_bridge_types::base_types::{ObjectID, TransactionDigest};
+use starcoin_bridge_types::base_types::ObjectRef;
 use starcoin_bridge_types::bridge::{
     BridgeSummary, BridgeTreasurySummary, MoveTypeCommitteeMember,
     MoveTypeParsedTokenTransferMessage,
@@ -24,13 +38,10 @@ use starcoin_bridge_types::event::EventID;
 use starcoin_bridge_types::gas_coin::GasCoin;
 use starcoin_bridge_types::object::Owner;
 use starcoin_bridge_types::parse_starcoin_bridge_type_tag;
-use starcoin_bridge_types::transaction::{
-    Argument, CallArg, Command, ObjectArg, ProgrammableTransaction, Transaction, TransactionKind,
-};
+use starcoin_bridge_types::transaction::{ObjectArg, Transaction};
 use starcoin_bridge_types::Identifier;
 use starcoin_bridge_types::TypeTag;
 use starcoin_bridge_types::BRIDGE_PACKAGE_ID;
-use starcoin_bridge_types::STARCOIN_BRIDGE_OBJECT_ID;
 use std::collections::HashMap;
 use std::str::from_utf8;
 use std::sync::Arc;
@@ -460,6 +471,8 @@ pub trait StarcoinClientInner: Send + Sync {
     ) -> (GasCoin, ObjectRef, Owner);
 }
 
+// SDK-based implementation (only for tests)
+#[cfg(test)]
 #[async_trait]
 impl StarcoinClientInner for StarcoinSdkClient {
     type Error = starcoin_bridge_sdk::error::Error;
@@ -679,6 +692,8 @@ impl StarcoinClientInner for StarcoinSdkClient {
     }
 }
 
+// SDK-based helper function (only for tests)
+#[cfg(test)]
 // Helper function to dev-inspect `bridge::{function_name}` function
 // with bridge object arg, source chain id, seq number as param
 // and parse the return value as `T`.

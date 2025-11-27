@@ -10,7 +10,7 @@
 
 use crate::base_types::StarcoinAddress;
 use crate::transaction::{ChainId, RawUserTransaction, ScriptFunction, SignedUserTransaction, TransactionAuthenticator};
-use crate::{BRIDGE_PACKAGE_ID, Identifier, TypeTag};
+use crate::{Identifier, TypeTag};
 use move_core_types::language_storage::ModuleId;
 
 /// Bridge package address as StarcoinAddress (16 bytes)

@@ -1,7 +1,7 @@
 // StarcoinClientInner implementation using simple JSON-RPC
 // This completely replaces the starcoin-rpc-client SDK
 
-use crate::error::{BridgeError, BridgeResult};
+use crate::error::BridgeError;
 use crate::simple_starcoin_rpc::SimpleStarcoinRpcClient;
 use crate::starcoin_bridge_client::StarcoinClientInner;
 use async_trait::async_trait;
@@ -13,7 +13,6 @@ use starcoin_bridge_types::event::EventID;
 use starcoin_bridge_types::gas_coin::GasCoin;
 use starcoin_bridge_types::object::Owner;
 use starcoin_bridge_types::transaction::{ObjectArg, Transaction};
-use std::str::FromStr;
 
 use crate::types::BridgeActionStatus;
 
