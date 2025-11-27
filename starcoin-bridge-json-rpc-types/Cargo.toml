@@ -10,3 +10,5 @@ starcoin-rpc-api = { git = "https://github.com/starcoinorg/starcoin.git", branch
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 move-core-types = { git = "https://github.com/starcoinorg/move", rev = "babf994a38cda17b84186c7992f92fb3554347f0" }
+anyhow = "1.0"
+hex = "0.4"

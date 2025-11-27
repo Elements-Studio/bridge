@@ -138,7 +138,16 @@ impl SimpleStarcoinRpcClient {
     // Query events
     pub async fn get_events_by_txn_hash(&self, txn_hash: &str) -> Result<Vec<Value>> {
         let result = self
-            .call("chain.get_events_by_txn_hash", vec![json!(txn_hash)])
+            .call("chain.get_events_by_txn_hash", vec![json!(txn_hash), Value::Null])
+            .await?;
+        
+        Ok(serde_json::from_value(result)?)
+    }
+
+    // Query events with filter
+    pub async fn get_events(&self, filter: Value) -> Result<Vec<Value>> {
+        let result = self
+            .call("chain.get_events", vec![filter, Value::Null])
             .await?;
         
         Ok(serde_json::from_value(result)?)
@@ -166,6 +175,11 @@ impl SimpleStarcoinRpcClient {
     pub async fn get_gas_price(&self) -> Result<u64> {
         // Starcoin doesn't have dynamic gas price, return default
         Ok(1)
+    }
+
+    // Get latest bridge summary
+    pub async fn get_latest_bridge(&self) -> Result<Value> {
+        self.call("bridge.get_latest_bridge", vec![]).await
     }
 }
 

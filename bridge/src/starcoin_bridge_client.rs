@@ -161,9 +161,12 @@ where
         // cursor is exclusive
         cursor: Option<EventID>,
     ) -> BridgeResult<Page<StarcoinEvent>> {
-        let filter = EventFilter::MoveEventModule {
-            package,
-            module: module.to_string(),
+        // Construct type tag pattern: "0x{address}::{module}::*"
+        let package_hex = hex::encode(package);
+        let type_tag_prefix = format!("0x{}::{}::", package_hex, module);
+        let filter = EventFilter {
+            type_tags: Some(vec![type_tag_prefix]),
+            ..Default::default()
         };
         let events = self.inner.query_events(filter.clone(), cursor).await?;
 

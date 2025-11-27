@@ -10373,6 +10373,8 @@ dependencies = [
 name = "starcoin-bridge-json-rpc-types"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
+ "hex",
  "move-core-types 0.0.4 (git+https://github.com/starcoinorg/move?rev=babf994a38cda17b84186c7992f92fb3554347f0)",
  "serde",
  "serde_json",

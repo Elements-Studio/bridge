@@ -178,23 +178,44 @@ impl StarcoinClientInner for StarcoinMockClient {
         cursor: Option<EventID>,
     ) -> Result<EventPage, Self::Error> {
         let events = self.events.lock().unwrap();
-        match query {
-            EventFilter::MoveEventModule { package, module } => {
-                let module_id = Identifier::new(module.as_str()).unwrap();
-                let key = (package, module_id, cursor);
-                self.past_event_query_params
-                    .lock()
-                    .unwrap()
-                    .push_back(key.clone());
-                Ok(events.get(&key).cloned().unwrap_or_else(|| {
-                    panic!(
-                        "No preset events found for package: {:?}, module: {:?}, cursor: {:?}",
-                        package, module, cursor
-                    )
-                }))
+        
+        // EventFilter is now a struct with type_tags field
+        // Extract module info from type_tags if available
+        if let Some(type_tags) = &query.type_tags {
+            if let Some(first_tag) = type_tags.first() {
+                // Parse module and package from type tag string
+                // Format: "0x{address}::{module}::{struct}"
+                let parts: Vec<&str> = first_tag.split("::").collect();
+                if parts.len() >= 2 {
+                    let package_hex = parts[0].trim_start_matches("0x");
+                    let mut package = [0u8; 32];
+                    if let Ok(bytes) = hex::decode(package_hex) {
+                        let len = bytes.len().min(32);
+                        package[32 - len..].copy_from_slice(&bytes[..len]);
+                    }
+                    let module = parts[1].to_string();
+                    let module_id = Identifier::new(module.as_str()).unwrap();
+                    let key = (package, module_id, cursor);
+                    self.past_event_query_params
+                        .lock()
+                        .unwrap()
+                        .push_back(key.clone());
+                    return Ok(events.get(&key).cloned().unwrap_or_else(|| {
+                        panic!(
+                            "No preset events found for type_tag: {:?}, cursor: {:?}",
+                            first_tag, cursor
+                        )
+                    }));
+                }
             }
-            _ => unimplemented!(),
         }
+        
+        // Default: return empty page
+        Ok(EventPage {
+            data: vec![],
+            next_cursor: None,
+            has_next_page: false,
+        })
     }
 
     async fn get_events_by_tx_digest(

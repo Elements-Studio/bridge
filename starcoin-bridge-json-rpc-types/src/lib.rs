@@ -8,7 +8,8 @@ pub use starcoin_rpc_api::types::*;
 
 // Add Starcoin-specific types that Bridge needs
 
-// Placeholder for Starcoin event
+/// Bridge-compatible Starcoin event structure
+/// Constructed from Starcoin RPC's TransactionEventView
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StarcoinEvent {
     pub id: EventID,
@@ -16,7 +17,46 @@ pub struct StarcoinEvent {
     pub bcs: Vec<u8>,
 }
 
-// Event ID contains transaction digest and event sequence
+impl StarcoinEvent {
+    /// Create StarcoinEvent from TransactionEventView returned by RPC
+    pub fn try_from_rpc_event(
+        event_view: &serde_json::Value,
+        tx_digest: [u8; 32],
+    ) -> anyhow::Result<Self> {
+        use std::str::FromStr;
+
+        // Extract type_tag string (e.g., "0x246b237c16c761e9478783dd83f7004a::bridge::TokenDepositedEvent")
+        let type_tag_str = event_view
+            .get("type_tag")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| anyhow::anyhow!("Missing type_tag in event"))?;
+
+        // Parse StructTag from string
+        let struct_tag = move_core_types::language_storage::StructTag::from_str(type_tag_str)?;
+
+        // Extract event data (BCS encoded bytes, hex string)
+        let data_hex = event_view
+            .get("data")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| anyhow::anyhow!("Missing data in event"))?;
+        let data = hex::decode(data_hex.trim_start_matches("0x"))?;
+
+        // Extract event sequence number
+        let event_seq = event_view
+            .get("event_seq_number")
+            .and_then(|v| v.as_str())
+            .and_then(|s| s.parse::<u64>().ok())
+            .unwrap_or(0);
+
+        Ok(Self {
+            id: EventID { tx_digest, event_seq },
+            type_: struct_tag,
+            bcs: data,
+        })
+    }
+}
+
+/// Event ID contains transaction digest and event sequence
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EventID {
     pub tx_digest: [u8; 32],
@@ -129,24 +169,58 @@ impl StarcoinTransactionBlockResponseOptions {
     }
 }
 
-// Placeholder for event filter
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum EventFilter {
-    MoveEventModule { package: [u8; 32], module: String },
-    MoveEventType(String),
-    Transaction([u8; 32]),
+/// Event filter for querying Starcoin events
+/// Compatible with Starcoin RPC's EventFilter structure
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct EventFilter {
+    /// From block number
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub from_block: Option<u64>,
+    /// To block number
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub to_block: Option<u64>,
+    /// Type tags to filter events (e.g., "0x1::bridge::TokenDepositedEvent")
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub type_tags: Option<Vec<String>>,
+    /// Maximum number of events to return
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub limit: Option<usize>,
+}
+
+impl EventFilter {
+    /// Create a filter for events of a specific type
+    pub fn move_event_type(type_tag: &str) -> Self {
+        Self {
+            type_tags: Some(vec![type_tag.to_string()]),
+            ..Default::default()
+        }
+    }
+
+    /// Create a filter with block range
+    pub fn block_range(from_block: u64, to_block: u64) -> Self {
+        Self {
+            from_block: Some(from_block),
+            to_block: Some(to_block),
+            ..Default::default()
+        }
+    }
+
+    /// Convert to JSON Value for RPC call
+    pub fn to_rpc_filter(&self) -> serde_json::Value {
+        serde_json::to_value(self).unwrap_or(serde_json::Value::Null)
+    }
 }
 
 // Placeholder for generic page
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Page<T> {
+pub struct Page<T, C = (u64, u64)> {
     pub data: Vec<T>,
-    pub next_cursor: Option<String>,
+    pub next_cursor: Option<C>,
     pub has_next_page: bool,
 }
 
-// EventPage is an alias for Page<StarcoinEvent>
-pub type EventPage = Page<StarcoinEvent>;
+// EventPage with (u64, u64) tuple as cursor (block_num, event_idx)
+pub type EventPage = Page<StarcoinEvent, (u64, u64)>;
 
 // Placeholder for StarcoinObjectDataOptions
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
