@@ -7,6 +7,7 @@
 use crate::retry_with_max_elapsed_time;
 use crate::types::IsBridgePaused;
 use arc_swap::ArcSwap;
+use fastcrypto::traits::ToFromBytes;
 use mysten_metrics::spawn_logged_monitored_task;
 use shared_crypto::intent::{Intent, IntentMessage};
 use starcoin_bridge_json_rpc_types::{
@@ -29,7 +30,7 @@ use crate::{
     client::bridge_authority_aggregator::BridgeAuthorityAggregator,
     error::BridgeError,
     starcoin_bridge_client::{StarcoinClient, StarcoinClientInner},
-    starcoin_bridge_transaction_builder::build_starcoin_bridge_transaction,
+    starcoin_bridge_transaction_builder::{build_starcoin_bridge_transaction, StarcoinBridgeTransactionBuilder},
     storage::BridgeOrchestratorTables,
     types::{BridgeAction, BridgeActionStatus, VerifiedCertifiedBridgeAction},
 };
@@ -446,7 +447,7 @@ where
         starcoin_bridge_client: &Arc<StarcoinClient<C>>,
         starcoin_bridge_key: &StarcoinKeyPair,
         starcoin_bridge_address: &StarcoinAddress,
-        gas_object_id: ObjectID,
+        _gas_object_id: ObjectID,  // Not used in Starcoin - gas comes from account balance
         store: &Arc<BridgeOrchestratorTables>,
         execution_queue_sender: &mysten_metrics::metered_channel::Sender<
             CertifiedBridgeActionExecutionWrapper,
@@ -464,15 +465,9 @@ where
 
         info!("Received certified action for execution: {:?}", action);
 
-        // Get gas coin and record balance in metrics
-        // Monitor gas_coin_balance metric for low balance alerts
-        let (gas_coin, gas_object_ref) = Self::get_gas_data_assert_ownership(
-            *starcoin_bridge_address,
-            gas_object_id,
-            starcoin_bridge_client,
-        )
-        .await;
-        metrics.gas_coin_balance.set(gas_coin.value() as i64);
+        // Starcoin uses account balance for gas, no need to check gas object
+        // Just log that we're proceeding with execution
+        info!("Starcoin execution: gas will be paid from account balance");
 
         let ceriticate_clone = certificate.clone();
 
@@ -490,90 +485,106 @@ where
         }
 
         info!("Building Starcoin transaction");
-        let rgp = starcoin_bridge_client
-            .get_reference_gas_price_until_success()
-            .await;
-        let tx_data = match build_starcoin_bridge_transaction(
+        
+        // Build Starcoin native transaction using the new builder
+        let (bridge_action, sigs) = ceriticate_clone.into_inner().into_data_and_sig();
+        
+        // Collect signatures
+        let mut sig_bytes: Vec<Vec<u8>> = vec![];
+        for (_, sig) in sigs.signatures {
+            sig_bytes.push(sig.as_bytes().to_vec());
+        }
+        
+        // Build the message bytes from the action
+        let message_bytes = match &bridge_action {
+            BridgeAction::EthToStarcoinBridgeAction(a) => {
+                let event = &a.eth_bridge_event;
+                // Create token bridge message
+                crate::starcoin_bridge_transaction_builder::create_token_bridge_message_bytes(
+                    event.eth_chain_id as u8,
+                    event.nonce,
+                    event.eth_address.to_fixed_bytes().to_vec(),
+                    event.starcoin_bridge_chain_id as u8,
+                    event.starcoin_bridge_address.to_vec(),
+                    event.token_id,
+                    event.starcoin_bridge_adjusted_amount,
+                )
+            }
+            BridgeAction::StarcoinToEthBridgeAction(a) => {
+                let event = &a.starcoin_bridge_event;
+                crate::starcoin_bridge_transaction_builder::create_token_bridge_message_bytes(
+                    event.starcoin_bridge_chain_id as u8,
+                    event.nonce,
+                    event.starcoin_bridge_address.to_vec(),
+                    event.eth_chain_id as u8,
+                    event.eth_address.to_fixed_bytes().to_vec(),
+                    event.token_id,
+                    event.amount_starcoin_bridge_adjusted,
+                )
+            }
+            _ => {
+                error!("Unsupported action type for Starcoin execution: {:?}", action);
+                return;
+            }
+        };
+        
+        // Get sequence number from Starcoin
+        let seq_number = match starcoin_bridge_client.get_sequence_number(&starcoin_bridge_address.to_hex_literal()).await {
+            Ok(seq) => seq,
+            Err(e) => {
+                error!("Failed to get sequence number: {:?}", e);
+                metrics.err_build_starcoin_bridge_transaction.inc();
+                return;
+            }
+        };
+        
+        // Get chain ID (use 254 for dev/local, should be configurable)
+        let chain_id: u8 = 254;
+        
+        // Build raw transaction
+        let raw_txn = match StarcoinBridgeTransactionBuilder::build_claim_token(
             *starcoin_bridge_address,
-            &gas_object_ref,
-            ceriticate_clone,
-            bridge_object_arg.clone(),
-            starcoin_bridge_token_type_tags.load().as_ref(),
-            rgp,
+            seq_number,
+            chain_id,
+            message_bytes,
+            sig_bytes,
         ) {
-            Ok(tx_data) => tx_data,
+            Ok(txn) => txn,
             Err(err) => {
                 metrics.err_build_starcoin_bridge_transaction.inc();
                 error!(
-                    "Manual intervention is required. Failed to build transaction for action {:?}: {:?}",
+                    "Failed to build Starcoin transaction for action {:?}: {:?}",
                     action, err
                 );
-                // This should not happen, but in case it does, we do not want to
-                // panic, instead we log here for manual intervention.
                 return;
             }
         };
 
-        // Extract Ed25519KeyPair from StarcoinKeyPair
-        let ed25519_key = match starcoin_bridge_key {
-            starcoin_bridge_types::crypto::StarcoinKeyPair::Ed25519(kp) => kp,
-            _ => {
-                error!("Expected Ed25519 keypair for signing");
-                return;
+        // Sign and submit transaction
+        info!("Signing and submitting Starcoin transaction");
+        
+        match starcoin_bridge_client.sign_and_submit_transaction(starcoin_bridge_key, raw_txn).await {
+            Ok(txn_hash) => {
+                info!(?txn_hash, "Starcoin transaction submitted successfully");
+                // Mark action as completed
+                store
+                    .remove_pending_actions(&[action.digest()])
+                    .unwrap_or_else(|e| {
+                        panic!("Write to DB should not fail: {:?}", e);
+                    });
+                metrics.eth_starcoin_bridge_token_transfer_approved.inc();
             }
-        };
-
-        let sig = Signature::new_secure(
-            &IntentMessage::new(Intent::starcoin_bridge_transaction(), &tx_data),
-            ed25519_key,
-        );
-        let signed_tx = Transaction::from_data(tx_data, vec![sig]);
-        let tx_digest = *signed_tx.digest();
-
-        // Check twice: If the action is already processed, skip it.
-        if Self::handle_already_processed_token_transfer_action_maybe(
-            starcoin_bridge_client,
-            action,
-            store,
-            metrics,
-        )
-        .await
-        {
-            info!("Action already processed, skipping");
-            return;
-        }
-
-        info!(
-            ?tx_digest,
-            ?gas_object_ref,
-            "Sending transaction to Starcoin"
-        );
-        match starcoin_bridge_client
-            .execute_transaction_block_with_effects(signed_tx)
-            .await
-        {
-            Ok(resp) => {
-                Self::handle_execution_effects(tx_digest, resp, store, action, metrics).await
-            }
-
-            // If the transaction did not go through, retry up to a certain times.
             Err(err) => {
-                error!(
-                    ?action_key,
-                    ?tx_digest,
-                    "Starcoin transaction failed at signing: {err:?}"
-                );
+                error!(?action_key, "Starcoin transaction failed: {err:?}");
                 metrics.err_starcoin_bridge_transaction_submission.inc();
                 let metrics_clone = metrics.clone();
-                // Do this in a separate task so we won't deadlock here
                 let sender_clone = execution_queue_sender.clone();
                 spawn_logged_monitored_task!(async move {
-                    // If it fails for too many times, log and ask for manual intervention.
                     if attempt_times >= MAX_EXECUTION_ATTEMPTS {
                         metrics_clone
                             .err_starcoin_bridge_transaction_submission_too_many_failures
                             .inc();
-                        error!("Manual intervention is required. Failed to collect execute transaction for bridge action after {MAX_EXECUTION_ATTEMPTS} attempts: {:?}", err);
+                        error!("Manual intervention required. Failed after {MAX_EXECUTION_ATTEMPTS} attempts: {:?}", err);
                         return;
                     }
                     delay(attempt_times).await;

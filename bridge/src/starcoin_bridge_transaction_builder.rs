@@ -47,6 +47,66 @@ pub fn bridge_module_address() -> StarcoinAddress {
     ])
 }
 
+/// Create token bridge message bytes for Starcoin approve_token_transfer
+/// This creates the BCS-serialized message that the Move contract expects
+pub fn create_token_bridge_message_bytes(
+    source_chain: u8,
+    seq_num: u64,
+    sender: Vec<u8>,
+    target_chain: u8,
+    target: Vec<u8>,
+    token_type: u8,
+    amount: u64,
+) -> Vec<u8> {
+    // The message format expected by Move:
+    // struct TokenTransferMessage {
+    //     message_version: u8,  // always 1
+    //     seq_num: u64,
+    //     source_chain: u8,
+    //     sender: vector<u8>,
+    //     target_chain: u8,
+    //     target: vector<u8>,
+    //     token_type: u8,
+    //     amount: u64,
+    // }
+    let mut msg = Vec::new();
+    msg.push(1u8); // message_version
+    msg.extend_from_slice(&seq_num.to_le_bytes());
+    msg.push(source_chain);
+    // sender as length-prefixed bytes
+    msg.push(sender.len() as u8);
+    msg.extend_from_slice(&sender);
+    msg.push(target_chain);
+    // target as length-prefixed bytes
+    msg.push(target.len() as u8);
+    msg.extend_from_slice(&target);
+    msg.push(token_type);
+    msg.extend_from_slice(&amount.to_le_bytes());
+    msg
+}
+
+/// Transaction builder for Starcoin bridge operations
+pub struct StarcoinBridgeTransactionBuilder;
+
+impl StarcoinBridgeTransactionBuilder {
+    /// Build a claim token transaction using native Starcoin transaction format
+    pub fn build_claim_token(
+        sender: StarcoinAddress,
+        sequence_number: u64,
+        chain_id: u8,
+        message_bytes: Vec<u8>,
+        signatures: Vec<Vec<u8>>,
+    ) -> BridgeResult<starcoin_bridge_types::transaction::RawUserTransaction> {
+        starcoin_native::build_approve_token_transfer(
+            sender,
+            sequence_number,
+            chain_id,
+            message_bytes,
+            signatures,
+        )
+    }
+}
+
 /// Build a Starcoin native transaction for bridge operations
 pub mod starcoin_native {
     use super::*;

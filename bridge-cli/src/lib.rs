@@ -104,12 +104,16 @@ pub enum BridgeCommand {
     ViewBridgeRegistration {
         #[clap(long = "starcoin-bridge-rpc-url")]
         starcoin_bridge_rpc_url: String,
+        #[clap(long = "starcoin-bridge-proxy-address")]
+        starcoin_bridge_proxy_address: String,
     },
     // View current status of Starcoin bridge
     #[clap(name = "view-starcoin-bridge")]
     ViewStarcoinBridge {
         #[clap(long = "starcoin-bridge-rpc-url")]
         starcoin_bridge_rpc_url: String,
+        #[clap(long = "starcoin-bridge-proxy-address")]
+        starcoin_bridge_proxy_address: String,
         #[clap(long, default_value = "false")]
         hex: bool,
         #[clap(long, default_value = "false")]
@@ -644,7 +648,7 @@ impl BridgeClientCommands {
                 let int_wei = U256::from(int_part) * U256::exp10(18);
                 let frac_wei = U256::from((frac_part * 1_000_000_000_000_000_000f64) as u64);
                 let amount = int_wei + frac_wei;
-                // Starcoin address is 16 bytes, matching SUI_ADDRESS_LENGTH in Solidity contract
+                // Starcoin address is 16 bytes, Solidity contract expects exactly 16 bytes
                 let addr_bytes = starcoin_bridge_recipient_address.to_vec();
                 let eth_tx = eth_starcoin_bridge
                     .bridge_eth(addr_bytes.into(), target_chain)

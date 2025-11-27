@@ -92,6 +92,11 @@ impl StarcoinBridgeClient {
     pub fn starcoin_bridge_client(&self) -> &StarcoinJsonRpcClient {
         &self.inner
     }
+
+    /// Get access to the underlying JSON-RPC client
+    pub fn json_rpc_client(&self) -> &StarcoinJsonRpcClient {
+        &self.inner
+    }
 }
 
 // SDK-based client (only for tests)
@@ -430,6 +435,26 @@ where
             .get_gas_data_panic_if_not_gas(gas_object_id)
             .await
     }
+
+    /// Get account sequence number for transaction building
+    pub async fn get_sequence_number(&self, address: &str) -> BridgeResult<u64> {
+        self.inner
+            .get_sequence_number(address)
+            .await
+            .map_err(|e| BridgeError::InternalError(format!("Failed to get sequence number: {:?}", e)))
+    }
+
+    /// Sign and submit a transaction to the Starcoin network
+    pub async fn sign_and_submit_transaction(
+        &self,
+        key: &starcoin_bridge_types::crypto::StarcoinKeyPair,
+        raw_txn: starcoin_bridge_types::transaction::RawUserTransaction,
+    ) -> BridgeResult<String> {
+        self.inner
+            .sign_and_submit_transaction(key, raw_txn)
+            .await
+            .map_err(|e| BridgeError::InternalError(format!("Transaction submission failed: {:?}", e)))
+    }
 }
 
 // Use a trait to abstract over the StarcoinSDKClient and StarcoinMockClient for testing.
@@ -487,6 +512,16 @@ pub trait StarcoinClientInner: Send + Sync {
         &self,
         gas_object_id: ObjectID,
     ) -> (GasCoin, ObjectRef, Owner);
+
+    /// Get account sequence number for transaction building
+    async fn get_sequence_number(&self, address: &str) -> Result<u64, BridgeError>;
+
+    /// Sign and submit a raw transaction to the network
+    async fn sign_and_submit_transaction(
+        &self,
+        key: &starcoin_bridge_types::crypto::StarcoinKeyPair,
+        raw_txn: starcoin_bridge_types::transaction::RawUserTransaction,
+    ) -> Result<String, BridgeError>;
 }
 
 // SDK-based implementation (only for tests)
@@ -707,6 +742,22 @@ impl StarcoinClientInner for StarcoinSdkClient {
                 }
             }
         }
+    }
+
+    async fn get_sequence_number(&self, _address: &str) -> Result<u64, BridgeError> {
+        // SDK-based implementation for tests
+        // TODO: Implement proper sequence number retrieval
+        Ok(0)
+    }
+
+    async fn sign_and_submit_transaction(
+        &self,
+        _key: &starcoin_bridge_types::crypto::StarcoinKeyPair,
+        _raw_txn: starcoin_bridge_types::transaction::RawUserTransaction,
+    ) -> Result<String, BridgeError> {
+        // SDK-based implementation for tests
+        // This is only used in tests and will use mock transactions
+        Err(BridgeError::Generic("SDK-based transaction submission not implemented".into()))
     }
 }
 

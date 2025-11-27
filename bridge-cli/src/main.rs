@@ -288,10 +288,11 @@ async fn main() -> anyhow::Result<()> {
 
         BridgeCommand::ViewBridgeRegistration {
             starcoin_bridge_rpc_url,
+            starcoin_bridge_proxy_address,
         } => {
             let metrics = Arc::new(BridgeMetrics::new_for_testing());
             let starcoin_bridge_client =
-                StarcoinBridgeClient::with_metrics(&starcoin_bridge_rpc_url, "", metrics);
+                StarcoinBridgeClient::with_metrics(&starcoin_bridge_rpc_url, &starcoin_bridge_proxy_address, metrics);
             let bridge_summary = starcoin_bridge_client
                 .get_bridge_summary()
                 .await
@@ -378,12 +379,13 @@ async fn main() -> anyhow::Result<()> {
 
         BridgeCommand::ViewStarcoinBridge {
             starcoin_bridge_rpc_url,
+            starcoin_bridge_proxy_address,
             hex,
             ping,
         } => {
             let metrics = Arc::new(BridgeMetrics::new_for_testing());
             let starcoin_bridge_client =
-                StarcoinBridgeClient::with_metrics(&starcoin_bridge_rpc_url, "", metrics);
+                StarcoinBridgeClient::with_metrics(&starcoin_bridge_rpc_url, &starcoin_bridge_proxy_address, metrics);
             let bridge_summary = starcoin_bridge_client
                 .get_bridge_summary()
                 .await

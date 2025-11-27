@@ -223,6 +223,7 @@ pub fn generate_bridge_node_config_and_write_to_file(
             eth_bridge_chain_id: BridgeChainId::EthSepolia as u8,
             eth_contracts_start_block_fallback: Some(0),
             eth_contracts_start_block_override: None,
+            eth_use_latest_block: false,
         },
         approved_governance_actions: vec![],
         run_client,

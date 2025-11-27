@@ -338,4 +338,18 @@ impl StarcoinClientInner for StarcoinMockClient {
                 )
             })
     }
+
+    async fn get_sequence_number(&self, _address: &str) -> Result<u64, BridgeError> {
+        // Mock implementation for testing
+        Ok(0)
+    }
+
+    async fn sign_and_submit_transaction(
+        &self,
+        _key: &starcoin_bridge_types::crypto::StarcoinKeyPair,
+        _raw_txn: starcoin_bridge_types::transaction::RawUserTransaction,
+    ) -> Result<String, BridgeError> {
+        // Mock implementation for testing
+        Err(BridgeError::Generic("Mock transaction submission not implemented".into()))
+    }
 }

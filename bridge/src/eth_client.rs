@@ -20,6 +20,8 @@ use ethers::types::Address as EthAddress;
 pub struct EthClient<P> {
     provider: Provider<P>,
     contract_addresses: HashSet<EthAddress>,
+    /// Use 'latest' block instead of 'finalized' for local testing with Anvil
+    use_latest_block: bool,
 }
 
 impl EthClient<MeteredEthHttpProvier> {
@@ -27,12 +29,17 @@ impl EthClient<MeteredEthHttpProvier> {
         provider_url: &str,
         contract_addresses: HashSet<EthAddress>,
         metrics: Arc<BridgeMetrics>,
+        use_latest_block: bool,
     ) -> anyhow::Result<Self> {
         let provider = new_metered_eth_provider(provider_url, metrics)?;
         let self_ = Self {
             provider,
             contract_addresses,
+            use_latest_block,
         };
+        if use_latest_block {
+            tracing::warn!("Using 'latest' block instead of 'finalized' - only for local testing!");
+        }
         self_.describe().await?;
         Ok(self_)
     }
@@ -49,6 +56,7 @@ impl EthClient<EthMockProvider> {
         Self {
             provider,
             contract_addresses,
+            use_latest_block: false,
         }
     }
 }
@@ -118,9 +126,11 @@ where
     }
 
     pub async fn get_last_finalized_block_id(&self) -> BridgeResult<u64> {
+        // Use 'latest' for local testing with Anvil (which doesn't support finalized properly)
+        let block_tag = if self.use_latest_block { "latest" } else { "finalized" };
         let block: Result<Option<Block<ethers::types::TxHash>>, ethers::prelude::ProviderError> =
             self.provider
-                .request("eth_getBlockByNumber", ("finalized", false))
+                .request("eth_getBlockByNumber", (block_tag, false))
                 .await;
         let block = block?.ok_or(BridgeError::TransientProviderError(
             "Provider fails to return last finalized block".into(),

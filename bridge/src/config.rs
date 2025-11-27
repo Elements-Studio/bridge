@@ -59,6 +59,11 @@ pub struct EthConfig {
     // reprocess the events from this block number every time it starts.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub eth_contracts_start_block_override: Option<u64>,
+    // Use 'latest' block instead of 'finalized' for local testing with Anvil.
+    // Anvil doesn't properly support finalized blocks (always returns block 0).
+    // Set to true when testing locally with Anvil.
+    #[serde(default)]
+    pub eth_use_latest_block: bool,
 }
 
 #[serde_as]
@@ -332,6 +337,7 @@ impl BridgeNodeConfig {
                     vault_address,
                 ]),
                 metrics,
+                self.eth.eth_use_latest_block,
             )
             .await?,
         );

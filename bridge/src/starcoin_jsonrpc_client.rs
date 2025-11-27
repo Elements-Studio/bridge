@@ -40,6 +40,11 @@ impl StarcoinJsonRpcClient {
         }
     }
 
+    /// Get the underlying RPC client
+    pub fn rpc(&self) -> &SimpleStarcoinRpcClient {
+        &self.rpc
+    }
+
     /// Get the bridge contract address
     pub fn bridge_address(&self) -> &str {
         self.rpc.bridge_address()
@@ -504,10 +509,11 @@ impl StarcoinClientInner for StarcoinJsonRpcClient {
         seq_number: u64,
     ) -> Result<BridgeActionStatus, BridgeError> {
         // Call get_token_transfer_action_status via contract.call_v2
-        // Function signature: get_token_transfer_action_status(bridge: &Bridge, source_chain: u8, bridge_seq_num: u64): u8
+        // Function signature: get_token_transfer_action_status(source_chain: u8, bridge_seq_num: u64): u8
+        // Note: Starcoin contract.call_v2 requires type suffix on arguments (e.g., "12u8", "0u64")
         let args = vec![
-            format!("{}", source_chain_id),  // source_chain as u8
-            format!("{}", seq_number),        // bridge_seq_num as u64
+            format!("{}u8", source_chain_id),   // source_chain as u8
+            format!("{}u64", seq_number),       // bridge_seq_num as u64
         ];
 
         match self.call_bridge_function("test_get_token_transfer_action_status", vec![], args).await {
@@ -538,9 +544,10 @@ impl StarcoinClientInner for StarcoinJsonRpcClient {
         seq_number: u64,
     ) -> Result<Option<Vec<Vec<u8>>>, BridgeError> {
         // Call get_token_transfer_action_signatures via contract.call_v2
+        // Note: Starcoin contract.call_v2 requires type suffix on arguments
         let args = vec![
-            format!("{}", source_chain_id),
-            format!("{}", seq_number),
+            format!("{}u8", source_chain_id),
+            format!("{}u64", seq_number),
         ];
 
         match self.call_bridge_function("test_get_token_transfer_action_signatures", vec![], args).await {
@@ -561,9 +568,10 @@ impl StarcoinClientInner for StarcoinJsonRpcClient {
         seq_number: u64,
     ) -> Result<Option<MoveTypeParsedTokenTransferMessage>, BridgeError> {
         // Call get_parsed_token_transfer_message via contract.call_v2
+        // Note: Starcoin contract.call_v2 requires type suffix on arguments
         let args = vec![
-            format!("{}", source_chain_id),
-            format!("{}", seq_number),
+            format!("{}u8", source_chain_id),
+            format!("{}u64", seq_number),
         ];
 
         match self.call_bridge_function("test_get_parsed_token_transfer_message", vec![], args).await {
@@ -663,5 +671,19 @@ impl StarcoinClientInner for StarcoinJsonRpcClient {
         let owner = Owner::AddressOwner(starcoin_bridge_types::base_types::StarcoinAddress::ZERO);
         
         (gas_coin, object_ref, owner)
+    }
+
+    async fn get_sequence_number(&self, address: &str) -> Result<u64, BridgeError> {
+        self.rpc.get_sequence_number(address).await
+            .map_err(|e| BridgeError::Generic(format!("Failed to get sequence number: {}", e)))
+    }
+
+    async fn sign_and_submit_transaction(
+        &self,
+        key: &starcoin_bridge_types::crypto::StarcoinKeyPair,
+        raw_txn: starcoin_bridge_types::transaction::RawUserTransaction,
+    ) -> Result<String, BridgeError> {
+        self.rpc.sign_and_submit_transaction(key, raw_txn).await
+            .map_err(|e| BridgeError::Generic(format!("Failed to sign and submit transaction: {}", e)))
     }
 }

@@ -835,8 +835,60 @@ pub const STARCOIN_BRIDGE_OBJECT_ID: [u8; 32] = [0; 32];
 // Use Starcoin/Move types instead of stubs
 pub use move_core_types::identifier::Identifier;
 pub use move_core_types::language_storage::TypeTag;
+use move_core_types::account_address::AccountAddress;
+use move_core_types::language_storage::StructTag;
 
-// Parse function stub
-pub fn parse_starcoin_bridge_type_tag(_s: &str) -> Result<TypeTag, String> {
-    Err("parse_starcoin_bridge_type_tag not implemented".to_string())
+/// Parse a Starcoin type tag from hex-encoded BCS bytes
+/// Format: 0x<address><module_name_len><module_name><struct_name_len><struct_name>
+/// Example: 0x17124f9c12268ee0b18f73483beb6f4c0345544803455448 -> 0x...::ETH::ETH
+pub fn parse_starcoin_bridge_type_tag(s: &str) -> Result<TypeTag, String> {
+    // Handle multiple 0x prefixes (e.g., "0x0x..." from double formatting)
+    let mut hex_str = s;
+    while hex_str.starts_with("0x") || hex_str.starts_with("0X") {
+        hex_str = &hex_str[2..];
+    }
+    let bytes = hex::decode(hex_str).map_err(|e| format!("Invalid hex: {}", e))?;
+    
+    if bytes.len() < 16 {
+        return Err(format!("Type tag too short: {} bytes", bytes.len()));
+    }
+    
+    // First 16 bytes are the address
+    let mut address_bytes = [0u8; 16];
+    address_bytes.copy_from_slice(&bytes[0..16]);
+    let address = AccountAddress::new(address_bytes);
+    
+    let mut offset = 16;
+    
+    // Read module name (length-prefixed string)
+    if offset >= bytes.len() {
+        return Err("Missing module name".to_string());
+    }
+    let module_len = bytes[offset] as usize;
+    offset += 1;
+    if offset + module_len > bytes.len() {
+        return Err("Module name truncated".to_string());
+    }
+    let module_name = String::from_utf8(bytes[offset..offset + module_len].to_vec())
+        .map_err(|e| format!("Invalid module name UTF-8: {}", e))?;
+    offset += module_len;
+    
+    // Read struct name (length-prefixed string)
+    if offset >= bytes.len() {
+        return Err("Missing struct name".to_string());
+    }
+    let struct_len = bytes[offset] as usize;
+    offset += 1;
+    if offset + struct_len > bytes.len() {
+        return Err("Struct name truncated".to_string());
+    }
+    let struct_name = String::from_utf8(bytes[offset..offset + struct_len].to_vec())
+        .map_err(|e| format!("Invalid struct name UTF-8: {}", e))?;
+    
+    Ok(TypeTag::Struct(Box::new(StructTag {
+        address,
+        module: Identifier::new(module_name).map_err(|e| format!("Invalid module identifier: {}", e))?,
+        name: Identifier::new(struct_name).map_err(|e| format!("Invalid struct identifier: {}", e))?,
+        type_params: vec![],
+    })))
 }
