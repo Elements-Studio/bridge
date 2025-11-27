@@ -121,6 +121,20 @@ impl SimpleStarcoinRpcClient {
         }
     }
 
+    // Get account sequence number
+    pub async fn get_sequence_number(&self, address: &str) -> Result<u64> {
+        let account = self.get_account(address).await?;
+        match account {
+            Some(acc) => {
+                let seq = acc.get("sequence_number")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0);
+                Ok(seq)
+            }
+            None => Ok(0), // New account starts at 0
+        }
+    }
+
     // Query events
     pub async fn get_events_by_txn_hash(&self, txn_hash: &str) -> Result<Vec<Value>> {
         let result = self

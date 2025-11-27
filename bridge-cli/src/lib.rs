@@ -30,7 +30,7 @@ use starcoin_bridge::utils::{get_eth_signer_client, EthSigner};
 use starcoin_bridge_config::Config;
 use starcoin_bridge_keys::keypair_file::read_key;
 use starcoin_bridge_sdk::StarcoinClientBuilder;
-use starcoin_bridge_types::base_types::{ObjectID, ObjectRef, StarcoinAddress};
+use starcoin_bridge_types::base_types::{ObjectRef, StarcoinAddress};
 use starcoin_bridge_types::bridge::BridgeChainId;
 use starcoin_bridge_types::crypto::StarcoinKeyPair;
 use starcoin_bridge_types::TypeTag;
@@ -599,8 +599,8 @@ pub enum BridgeClientCommands {
     },
     #[clap(name = "deposit-on-starcoin")]
     DepositOnstarcoin {
-        #[clap(long)]
-        coin_object_id: String,
+        #[clap(long, help = "Amount to deposit (in smallest unit)")]
+        amount: u128,
         #[clap(long)]
         coin_type: String,
         #[clap(long)]
@@ -658,23 +658,18 @@ impl BridgeClientCommands {
                     .map_err(|e| anyhow!("{:?}", e))
             }
             BridgeClientCommands::DepositOnstarcoin {
-                coin_object_id,
+                amount,
                 coin_type,
                 target_chain,
                 recipient_address,
             } => {
                 let target_chain = BridgeChainId::try_from(target_chain).expect("Invalid chain id");
                 let coin_type = TypeTag::from_str(&coin_type).expect("Invalid coin type");
-                // Parse coin_object_id from hex string
-                let coin_object_id = Hex::decode(&coin_object_id)
-                    .expect("Invalid coin object id hex")
-                    .try_into()
-                    .expect("Coin object id must be 32 bytes");
                 deposit_on_starcoin(
-                    coin_object_id,
                     coin_type,
                     target_chain,
                     recipient_address,
+                    amount,
                     config,
                     starcoin_bridge_client,
                 )
@@ -685,43 +680,46 @@ impl BridgeClientCommands {
 }
 
 async fn deposit_on_starcoin(
-    _coin_object_id: ObjectID,
     coin_type: TypeTag,
     target_chain: BridgeChainId,
     recipient_address: EthAddress,
+    amount: u128,
     config: &LoadedBridgeCliConfig,
     starcoin_bridge_client: StarcoinBridgeClient,
 ) -> anyhow::Result<()> {
+    use starcoin_bridge::simple_starcoin_rpc::SimpleStarcoinRpcClient;
     use starcoin_bridge::starcoin_bridge_transaction_builder::starcoin_native;
-    use starcoin_bridge_types::transaction::{SignedUserTransaction, TransactionAuthenticator};
+    use starcoin_bridge_types::starcoin_transaction_builder::sign_transaction;
 
     let target_chain_id = target_chain as u8;
 
-    // Get sender address from the key
+    // Get sender address from the key (Starcoin uses 16-byte addresses)
     let pub_bytes = config.starcoin_bridge_key.public();
     let sender = StarcoinAddress::from_bytes(&pub_bytes[..16.min(pub_bytes.len())])
         .unwrap_or(StarcoinAddress::ZERO);
+    let sender_hex = format!("0x{}", Hex::encode(sender.as_ref()));
+
+    // Create RPC client for sequence number query
+    let rpc_client = SimpleStarcoinRpcClient::new(&config.starcoin_bridge_rpc_url);
 
     // Get sequence number from chain
-    // TODO: Query actual sequence number from chain state
-    let sequence_number = 0u64;
+    let sequence_number = rpc_client.get_sequence_number(&sender_hex).await
+        .map_err(|e| anyhow!("Failed to get sequence number: {:?}", e))?;
 
     // Get chain ID from bridge summary
     let bridge_summary = starcoin_bridge_client.get_bridge_summary().await
         .map_err(|e| anyhow!("Failed to get bridge summary: {:?}", e))?;
     let chain_id = bridge_summary.chain_id as u8;
 
-    // For deposit, we need the amount from the coin
-    // In Starcoin, the amount is passed as an argument, not extracted from a coin object
-    // TODO: Get actual amount from user input or coin state
-    let amount: u128 = 0; // Placeholder - needs to be provided by caller
-
     info!(
         sender = ?sender,
+        sender_hex = %sender_hex,
+        sequence_number = sequence_number,
         target_chain = target_chain_id,
         recipient = ?recipient_address,
         coin_type = ?coin_type,
         amount = amount,
+        chain_id = chain_id,
         "Building deposit transaction on Starcoin"
     );
 
@@ -743,32 +741,31 @@ async fn deposit_on_starcoin(
         "Raw transaction built"
     );
 
-    // Sign the transaction
-    // TODO: Implement proper signing with StarcoinKeyPair
-    // For now, create a placeholder signed transaction
-    let signed_txn = SignedUserTransaction::new(
-        raw_txn,
-        TransactionAuthenticator::Ed25519 {
-            public_key: pub_bytes.clone(),
-            signature: vec![0u8; 64], // Placeholder signature
-        },
-    );
+    // Sign the transaction using StarcoinKeyPair
+    let signed_txn = sign_transaction(raw_txn, &config.starcoin_bridge_key)
+        .map_err(|e| anyhow!("Failed to sign transaction: {:?}", e))?;
 
     let txn_hex = signed_txn.to_hex();
     info!(
         txn_hash = ?signed_txn.hash(),
         txn_hex_len = txn_hex.len(),
-        "Transaction signed, ready to submit"
+        "Transaction signed"
     );
 
-    // TODO: Submit transaction via RPC
-    // The actual submission would be:
-    // starcoin_bridge_client.submit_transaction(txn_hex).await?;
+    // Submit transaction via RPC
+    info!("Submitting transaction to Starcoin...");
+    let result = rpc_client.submit_transaction(&txn_hex).await
+        .map_err(|e| anyhow!("Failed to submit transaction: {:?}", e))?;
 
-    Err(anyhow!(
-        "deposit_on_starcoin: Transaction building complete but submission not yet implemented. \
-         Transaction hex: {}...", &txn_hex[..64.min(txn_hex.len())]
-    ))
+    info!(
+        result = ?result,
+        "Transaction submitted successfully"
+    );
+
+    println!("Transaction submitted!");
+    println!("Transaction hash: {:?}", signed_txn.hash());
+
+    Ok(())
 }
 
 async fn claim_on_eth(

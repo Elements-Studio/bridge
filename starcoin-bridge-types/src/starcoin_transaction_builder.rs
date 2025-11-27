@@ -236,7 +236,7 @@ pub fn build_send_token(
 // Signing utilities
 // =============================================================================
 
-/// Sign a raw transaction with Ed25519
+/// Sign a raw transaction with Ed25519 using raw bytes
 pub fn sign_transaction_ed25519(
     raw_txn: RawUserTransaction,
     private_key: &[u8],
@@ -260,6 +260,23 @@ pub fn sign_transaction_ed25519(
         TransactionAuthenticator::Ed25519 {
             public_key: public_key.to_vec(),
             signature: signature.to_bytes().to_vec(),
+        },
+    ))
+}
+
+/// Sign a raw transaction using StarcoinKeyPair
+pub fn sign_transaction(
+    raw_txn: RawUserTransaction,
+    keypair: &crate::crypto::StarcoinKeyPair,
+) -> Result<SignedUserTransaction, String> {
+    let message = raw_txn.to_bytes();
+    let (public_key, signature) = keypair.sign_message(&message);
+
+    Ok(SignedUserTransaction::new(
+        raw_txn,
+        TransactionAuthenticator::Ed25519 {
+            public_key,
+            signature,
         },
     ))
 }

@@ -149,13 +149,36 @@ pub mod crypto {
                 StarcoinKeyPair::Secp256k1(kp) => kp.public().as_bytes().to_vec(),
             }
         }
+
+        /// Sign a message and return (public_key, signature) bytes
+        pub fn sign_message(&self, msg: &[u8]) -> (Vec<u8>, Vec<u8>) {
+            use fastcrypto::traits::KeyPair;
+            match self {
+                StarcoinKeyPair::Ed25519(kp) => {
+                    let sig = fastcrypto::traits::Signer::<fastcrypto::ed25519::Ed25519Signature>::sign(kp, msg);
+                    (kp.public().as_bytes().to_vec(), sig.as_bytes().to_vec())
+                }
+                StarcoinKeyPair::Secp256k1(kp) => {
+                    let sig = fastcrypto::traits::Signer::<fastcrypto::secp256k1::Secp256k1Signature>::sign(kp, msg);
+                    (kp.public().as_bytes().to_vec(), sig.as_bytes().to_vec())
+                }
+            }
+        }
+
+        /// Get the private key bytes (for Ed25519 signing)
+        pub fn private_key_bytes(&self) -> Vec<u8> {
+            match self {
+                StarcoinKeyPair::Ed25519(kp) => kp.as_bytes()[..32].to_vec(), // Ed25519 private key is first 32 bytes
+                StarcoinKeyPair::Secp256k1(kp) => kp.as_bytes().to_vec(),
+            }
+        }
     }
 
     // Implement Signer trait for Signature compatibility
     impl fastcrypto::traits::Signer<Signature> for StarcoinKeyPair {
-        fn sign(&self, _msg: &[u8]) -> Signature {
-            // Stub implementation - returns empty signature
-            Signature(vec![])
+        fn sign(&self, msg: &[u8]) -> Signature {
+            let (_, sig_bytes) = self.sign_message(msg);
+            Signature(sig_bytes)
         }
     }
 
