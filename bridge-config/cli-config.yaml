@@ -1,0 +1,7 @@
+# Starcoin Bridge CLI Configuration
+starcoin-bridge-rpc-url: http://127.0.0.1:9850
+eth-rpc-url: http://localhost:8545
+starcoin-bridge-proxy-address: "0x2838e2b1a9dc17480f6e1b5ec20ccac7"
+eth-bridge-proxy-address: "0x0B306BF915C4d645ff596e518fAf3F9669b97016"
+starcoin-bridge-key-path: /Volumes/SSD/chidanta/bridge/bridge-node/server-config/bridge_client.key
+eth-key-path: /Volumes/SSD/chidanta/bridge/bridge-node/server-config/bridge_authority.key

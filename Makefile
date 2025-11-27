@@ -632,3 +632,89 @@ run-bridge-server: ## Start bridge server (requires ETH network + Starcoin node 
 	@NO_PROXY=localhost,127.0.0.1 RUST_LOG=info,starcoin_bridge=debug \
 		./target/debug/starcoin-bridge \
 		--config-path bridge-config/server-config.yaml
+
+# ============================================================
+# Bridge CLI Commands
+# ============================================================
+BRIDGE_CLI := ./target/debug/starcoin-bridge-cli
+CLI_CONFIG := bridge-config/cli-config.yaml
+STARCOIN_BRIDGE_ADDRESS ?= $(shell grep "starcoin-bridge-proxy-address:" bridge-config/server-config.yaml 2>/dev/null | awk '{print $$2}' | tr -d '"')
+
+build-bridge-cli: ## Build bridge CLI tool
+	@echo "$(YELLOW)Building bridge CLI...$(NC)"
+	@cargo build --bin starcoin-bridge-cli --quiet
+	@echo "$(GREEN)✓ Bridge CLI built$(NC)"
+
+view-bridge: build-bridge-cli ## View Starcoin bridge status
+	@echo "$(YELLOW)Querying Starcoin Bridge...$(NC)"
+	@NO_PROXY=localhost,127.0.0.1 $(BRIDGE_CLI) view-starcoin-bridge \
+		--starcoin-bridge-rpc-url http://127.0.0.1:9850 \
+		--starcoin-bridge-proxy-address $(STARCOIN_BRIDGE_ADDRESS)
+
+# Default values for quick testing
+AMOUNT ?= 0.1
+RECIPIENT ?= $(STARCOIN_BRIDGE_ADDRESS)
+
+# Anvil default account private key (10000 ETH)
+ANVIL_PRIVATE_KEY := 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+
+fund-eth-account: ## Fund ETH account from Anvil default account
+	@echo "$(YELLOW)Funding bridge authority with ETH...$(NC)"
+	@ETH_ADDRESS=$$($(BRIDGE_CLI) examine-key bridge-node/server-config/bridge_authority.key 2>/dev/null | grep "Ethereum address:" | awk '{print $$NF}'); \
+	if [ -z "$$ETH_ADDRESS" ]; then \
+		echo "$(RED)✗ Could not get ETH address from key$(NC)"; \
+		exit 1; \
+	fi; \
+	echo "$(YELLOW)Funding $$ETH_ADDRESS with 100 ETH...$(NC)"; \
+	docker exec bridge-eth-node cast send $$ETH_ADDRESS --value 100ether --private-key $(ANVIL_PRIVATE_KEY) --rpc-url http://localhost:8545 > /dev/null 2>&1 && \
+	echo "$(GREEN)✓ Funded 100 ETH to $$ETH_ADDRESS$(NC)" || \
+	echo "$(YELLOW)⚠ Funding failed (may already have balance)$(NC)"
+
+deposit-eth: build-bridge-cli fund-eth-account init-cli-config ## Deposit ETH to Starcoin (usage: make deposit-eth AMOUNT=0.1 RECIPIENT=0x...)
+	@echo "$(YELLOW)Depositing $(AMOUNT) ETH to $(RECIPIENT)...$(NC)"
+	@NO_PROXY=localhost,127.0.0.1 $(BRIDGE_CLI) client \
+		--config-path $(CLI_CONFIG) \
+		deposit-native-ether-on-eth \
+		--ether-amount $(AMOUNT) \
+		--target-chain 2 \
+		--starcoin-bridge-recipient-address $(RECIPIENT)
+	@echo "$(GREEN)✓ Deposit transaction submitted$(NC)"
+
+# Quick deposit with default test address
+deposit-eth-test: build-bridge-cli init-cli-config ## Quick test: deposit 0.1 ETH to test address
+	@echo "$(YELLOW)Test deposit: 0.1 ETH to bridge client address...$(NC)"
+	@if [ ! -f bridge-node/server-config/bridge_client.key ]; then \
+		echo "$(YELLOW)Creating bridge client key (Ed25519 for Starcoin)...$(NC)"; \
+		$(BRIDGE_CLI) create-bridge-client-key bridge-node/server-config/bridge_client.key; \
+	fi
+	@RECIPIENT=$$($(BRIDGE_CLI) examine-key bridge-node/server-config/bridge_client.key 2>/dev/null | grep "Starcoin address:" | awk '{print $$NF}'); \
+	echo "$(YELLOW)Recipient: $$RECIPIENT$(NC)"; \
+	NO_PROXY=localhost,127.0.0.1 $(BRIDGE_CLI) client \
+		--config-path $(CLI_CONFIG) \
+		deposit-native-ether-on-eth \
+		--ether-amount 0.1 \
+		--target-chain 2 \
+		--starcoin-bridge-recipient-address $$RECIPIENT
+	@echo "$(GREEN)✓ Test deposit submitted$(NC)"
+
+init-cli-config: ## Generate CLI config file
+	@echo "$(YELLOW)Generating CLI config...$(NC)"
+	@if [ ! -f bridge-config/server-config.yaml ]; then \
+		echo "$(RED)✗ Server config not found. Run: make setup-eth-and-config$(NC)"; \
+		exit 1; \
+	fi
+	@ETH_PROXY=$$(grep "eth-bridge-proxy-address:" bridge-config/server-config.yaml | awk '{print $$2}'); \
+	STARCOIN_ADDR=$$(grep "starcoin-bridge-proxy-address:" bridge-config/server-config.yaml | awk '{print $$2}' | tr -d '"'); \
+	if [ ! -f bridge-node/server-config/bridge_client.key ]; then \
+		echo "$(YELLOW)Creating bridge client key (Ed25519 for Starcoin)...$(NC)"; \
+		cargo build --bin starcoin-bridge-cli --quiet; \
+		$(BRIDGE_CLI) create-bridge-client-key bridge-node/server-config/bridge_client.key; \
+	fi; \
+	echo "# Starcoin Bridge CLI Configuration" > $(CLI_CONFIG); \
+	echo "starcoin-bridge-rpc-url: http://127.0.0.1:9850" >> $(CLI_CONFIG); \
+	echo "eth-rpc-url: http://localhost:8545" >> $(CLI_CONFIG); \
+	echo "starcoin-bridge-proxy-address: \"$$STARCOIN_ADDR\"" >> $(CLI_CONFIG); \
+	echo "eth-bridge-proxy-address: \"$$ETH_PROXY\"" >> $(CLI_CONFIG); \
+	echo "starcoin-bridge-key-path: $(PWD)/bridge-node/server-config/bridge_client.key" >> $(CLI_CONFIG); \
+	echo "eth-key-path: $(PWD)/bridge-node/server-config/bridge_authority.key" >> $(CLI_CONFIG)
+	@echo "$(GREEN)✓ CLI config generated: $(CLI_CONFIG)$(NC)"

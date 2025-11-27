@@ -644,13 +644,10 @@ impl BridgeClientCommands {
                 let int_wei = U256::from(int_part) * U256::exp10(18);
                 let frac_wei = U256::from((frac_part * 1_000_000_000_000_000_000f64) as u64);
                 let amount = int_wei + frac_wei;
-                // Starcoin address is 16 bytes, but Solidity contract expects 32 bytes
-                // Left-pad with zeros to make it 32 bytes
+                // Starcoin address is 16 bytes, matching SUI_ADDRESS_LENGTH in Solidity contract
                 let addr_bytes = starcoin_bridge_recipient_address.to_vec();
-                let mut padded_addr = vec![0u8; 32 - addr_bytes.len()];
-                padded_addr.extend(addr_bytes);
                 let eth_tx = eth_starcoin_bridge
-                    .bridge_eth(padded_addr.into(), target_chain)
+                    .bridge_eth(addr_bytes.into(), target_chain)
                     .value(amount);
                 let pending_tx = eth_tx.send().await.unwrap();
                 let tx_receipt = pending_tx.await.unwrap().unwrap();
