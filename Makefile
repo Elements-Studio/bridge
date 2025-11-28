@@ -5,7 +5,7 @@
 # Prerequisites: Docker, Rust, Starcoin CLI, mpm (Move Package Manager)
 # ============================================================
 
-.PHONY: help deploy-eth-network deploy-native deploy-docker start stop restart logs clean info test init-bridge-config deploy-sui register test-bridge stop-eth-network clean-eth-and-config setup-eth-and-config status logs-deployer start-starcoin-dev-node start-starcoin-dev-node-clean run-bridge-server build-starcoin-contracts deploy-starcoin-contracts stop-starcoin-dev-node build-bridge-cli view-bridge deposit-eth deposit-eth-test init-cli-config fund-starcoin-bridge-account
+.PHONY: help deploy-eth-network deploy-native deploy-docker start stop restart logs clean info test init-bridge-config deploy-sui register test-bridge stop-eth-network clean-eth-and-config setup-eth-and-config status logs-deployer start-starcoin-dev-node start-starcoin-dev-node-clean run-bridge-server build-starcoin-contracts deploy-starcoin-contracts stop-starcoin-dev-node build-bridge-cli view-bridge deposit-eth deposit-eth-test withdraw-to-eth withdraw-to-eth-test init-cli-config fund-starcoin-bridge-account
 
 # ============================================================
 # Colors for terminal output
@@ -748,14 +748,24 @@ fund-eth-account: ## Fund ETH account from Anvil default account
 	echo "$(GREEN)✓ Funded 100 ETH to $$ETH_ADDRESS$(NC)" || \
 	echo "$(YELLOW)⚠ Funding failed (may already have balance)$(NC)"
 
-deposit-eth: build-bridge-cli fund-eth-account fund-starcoin-bridge-account ## Deposit ETH to Starcoin (usage: make deposit-eth AMOUNT=0.1 RECIPIENT=0x...)
-	@echo "$(YELLOW)Depositing $(AMOUNT) ETH to $(RECIPIENT)...$(NC)"
-	@NO_PROXY=localhost,127.0.0.1 $(BRIDGE_CLI) client \
+# Deposit ETH to Starcoin (ETH -> Starcoin)
+# AMOUNT: in ETH (e.g., 0.1)
+# TOKEN: ETH (currently only native ETH supported for deposit)
+deposit-eth: build-bridge-cli fund-eth-account fund-starcoin-bridge-account ## Deposit ETH to Starcoin (usage: make deposit-eth AMOUNT=0.1)
+	@if [ ! -f bridge-node/server-config/bridge_client.key ]; then \
+		echo "$(YELLOW)Creating bridge client key (Ed25519 for Starcoin)...$(NC)"; \
+		$(BRIDGE_CLI) create-bridge-client-key bridge-node/server-config/bridge_client.key; \
+	fi
+	@RECIPIENT=$$($(BRIDGE_CLI) examine-key bridge-node/server-config/bridge_client.key 2>/dev/null | grep "Starcoin address:" | awk '{print $$NF}'); \
+	AMOUNT_VAL=$${AMOUNT:-0.1}; \
+	echo "$(YELLOW)Depositing $$AMOUNT_VAL ETH to Starcoin...$(NC)"; \
+	echo "$(YELLOW)Recipient: $$RECIPIENT$(NC)"; \
+	NO_PROXY=localhost,127.0.0.1 $(BRIDGE_CLI) client \
 		--config-path $(CLI_CONFIG) \
 		deposit-native-ether-on-eth \
-		--ether-amount $(AMOUNT) \
+		--ether-amount $$AMOUNT_VAL \
 		--target-chain 2 \
-		--starcoin-bridge-recipient-address $(RECIPIENT)
+		--starcoin-bridge-recipient-address $$RECIPIENT
 	@echo "$(GREEN)✓ Deposit transaction submitted$(NC)"
 
 # Fund the bridge server's Starcoin account with STC for gas
@@ -776,22 +786,38 @@ fund-starcoin-bridge-account: build-bridge-cli ## Fund the bridge server account
 	echo "$(GREEN)✓ Funded bridge account for account initialization$(NC)" || \
 	echo "$(YELLOW)⚠ Funding may have failed (account might already have balance)$(NC)"
 
-# Quick deposit with default test address
-deposit-eth-test: build-bridge-cli ## Quick test: deposit 0.1 ETH to test address
-	@echo "$(YELLOW)Test deposit: 0.1 ETH to bridge client address...$(NC)"
-	@if [ ! -f bridge-node/server-config/bridge_client.key ]; then \
-		echo "$(YELLOW)Creating bridge client key (Ed25519 for Starcoin)...$(NC)"; \
-		$(BRIDGE_CLI) create-bridge-client-key bridge-node/server-config/bridge_client.key; \
+# Quick deposit test with default amount
+deposit-eth-test: build-bridge-cli fund-eth-account fund-starcoin-bridge-account ## Quick test: deposit 0.1 ETH to Starcoin
+	@$(MAKE) deposit-eth AMOUNT=0.1
+
+# Withdraw from Starcoin to ETH (reverse bridge)
+# AMOUNT: in smallest unit (e.g., 10000000 = 0.01 ETH)
+# TOKEN: ETH, BTC, USDC, USDT
+withdraw-to-eth: build-bridge-cli ## Withdraw tokens from Starcoin to ETH (usage: make withdraw-to-eth AMOUNT=10000000 TOKEN=ETH)
+	@if [ ! -f bridge-node/server-config/bridge_authority.key ]; then \
+		echo "$(RED)✗ Bridge authority key not found$(NC)"; \
+		exit 1; \
 	fi
-	@RECIPIENT=$$($(BRIDGE_CLI) examine-key bridge-node/server-config/bridge_client.key 2>/dev/null | grep "Starcoin address:" | awk '{print $$NF}'); \
-	echo "$(YELLOW)Recipient: $$RECIPIENT$(NC)"; \
+	@ETH_RECIPIENT=$$($(BRIDGE_CLI) examine-key bridge-node/server-config/bridge_authority.key 2>/dev/null | grep "Eth address:" | awk '{print $$NF}'); \
+	if [ -z "$$ETH_RECIPIENT" ]; then \
+		ETH_RECIPIENT="0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"; \
+	fi; \
+	AMOUNT_VAL=$${AMOUNT:-10000000}; \
+	TOKEN_VAL=$${TOKEN:-ETH}; \
+	echo "$(YELLOW)Withdrawing $$AMOUNT_VAL $$TOKEN_VAL to ETH...$(NC)"; \
+	echo "$(YELLOW)ETH Recipient: $$ETH_RECIPIENT$(NC)"; \
 	NO_PROXY=localhost,127.0.0.1 $(BRIDGE_CLI) client \
 		--config-path $(CLI_CONFIG) \
-		deposit-native-ether-on-eth \
-		--ether-amount 0.1 \
-		--target-chain 2 \
-		--starcoin-bridge-recipient-address $$RECIPIENT
-	@echo "$(GREEN)✓ Test deposit submitted$(NC)"
+		deposit-on-starcoin \
+		--amount $$AMOUNT_VAL \
+		--coin-type $$TOKEN_VAL \
+		--target-chain 12 \
+		--recipient-address $$ETH_RECIPIENT
+	@echo "$(GREEN)✓ Withdraw transaction submitted$(NC)"
+
+# Quick withdraw test with default amount
+withdraw-to-eth-test: build-bridge-cli ## Quick test: withdraw 0.01 ETH from Starcoin to ETH
+	@$(MAKE) withdraw-to-eth AMOUNT=10000000 TOKEN=ETH
 
 init-cli-config: ## Generate CLI config file
 	@echo "$(YELLOW)Generating CLI config...$(NC)"

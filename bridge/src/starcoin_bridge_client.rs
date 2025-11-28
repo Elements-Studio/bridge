@@ -464,6 +464,49 @@ where
             .await
             .map_err(|e| BridgeError::InternalError(format!("Transaction submission failed: {:?}", e)))
     }
+
+    /// Sign, submit and wait for transaction confirmation
+    /// Polls for up to 30 seconds until the transaction is confirmed on chain
+    /// by checking that the account sequence number has incremented
+    pub async fn sign_and_submit_and_wait_transaction(
+        &self,
+        key: &starcoin_bridge_types::crypto::StarcoinKeyPair,
+        raw_txn: starcoin_bridge_types::transaction::RawUserTransaction,
+    ) -> BridgeResult<String> {
+        // Get the expected sequence number after transaction confirms
+        let expected_seq = raw_txn.sequence_number() + 1;
+        let sender_address = key.starcoin_address().to_hex_literal();
+        
+        let txn_hash = self.sign_and_submit_transaction(key, raw_txn).await?;
+        
+        tracing::info!(?txn_hash, expected_seq, "Transaction submitted, waiting for confirmation");
+        
+        // Poll for transaction confirmation (max 30 seconds, check every 500ms)
+        for i in 0..60 {
+            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+            
+            // Check if transaction is confirmed by verifying sequence number has incremented
+            match self.get_sequence_number(&sender_address).await {
+                Ok(current_seq) => {
+                    if current_seq >= expected_seq {
+                        tracing::info!(?txn_hash, current_seq, expected_seq, "Transaction confirmed on chain");
+                        return Ok(txn_hash);
+                    }
+                    if i % 10 == 0 {
+                        tracing::debug!(?txn_hash, current_seq, expected_seq, "Still waiting for confirmation...");
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!(?txn_hash, ?e, "Failed to get sequence number, retrying...");
+                }
+            }
+        }
+        
+        Err(BridgeError::InternalError(format!(
+            "Transaction {} not confirmed after 30 seconds timeout",
+            txn_hash
+        )))
+    }
 }
 
 // Use a trait to abstract over the StarcoinSDKClient and StarcoinMockClient for testing.

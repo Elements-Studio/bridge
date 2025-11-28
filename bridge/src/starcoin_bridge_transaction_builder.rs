@@ -136,6 +136,32 @@ impl StarcoinBridgeTransactionBuilder {
             signatures,
         )
     }
+
+    /// Build a claim and transfer transaction
+    /// After approve succeeds, this transfers tokens to the recipient
+    pub fn build_claim_and_transfer(
+        module_address: StarcoinAddress,
+        sender: StarcoinAddress,
+        sequence_number: u64,
+        chain_id: u8,
+        block_timestamp_ms: u64,
+        clock_timestamp_ms: u64,
+        source_chain: u8,
+        seq_num: u64,
+        token_id: u8,
+    ) -> BridgeResult<starcoin_bridge_types::transaction::RawUserTransaction> {
+        starcoin_native::build_claim_and_transfer(
+            module_address,
+            sender,
+            sequence_number,
+            chain_id,
+            block_timestamp_ms,
+            clock_timestamp_ms,
+            source_chain,
+            seq_num,
+            token_id,
+        )
+    }
 }
 
 /// Build a Starcoin native transaction for bridge operations

@@ -30,7 +30,7 @@ use crate::{
     client::bridge_authority_aggregator::BridgeAuthorityAggregator,
     error::BridgeError,
     starcoin_bridge_client::{StarcoinClient, StarcoinClientInner},
-    starcoin_bridge_transaction_builder::{build_starcoin_bridge_transaction, StarcoinBridgeTransactionBuilder},
+    starcoin_bridge_transaction_builder::StarcoinBridgeTransactionBuilder,
     storage::BridgeOrchestratorTables,
     types::{BridgeAction, BridgeActionStatus, VerifiedCertifiedBridgeAction},
 };
@@ -38,7 +38,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Semaphore;
 use tokio::time::Duration;
-use tracing::{error, info, instrument, warn, Instrument};
+use tracing::{debug, error, info, instrument, warn, Instrument};
 
 pub const CHANNEL_SIZE: usize = 1000;
 pub const SIGNING_CONCURRENCY: usize = 10;
@@ -582,47 +582,195 @@ where
             }
         };
 
-        // Sign and submit transaction
-        info!("Signing and submitting Starcoin transaction");
+        // Sign and submit approve transaction (don't wait for confirmation)
+        info!("Signing and submitting Starcoin approve transaction");
         
-        match starcoin_bridge_client.sign_and_submit_transaction(starcoin_bridge_key, raw_txn).await {
+        let approve_result = starcoin_bridge_client.sign_and_submit_transaction(starcoin_bridge_key, raw_txn).await;
+        
+        match approve_result {
             Ok(txn_hash) => {
-                info!(?txn_hash, "Starcoin transaction submitted successfully");
-                // Mark action as completed
-                store
-                    .remove_pending_actions(&[action.digest()])
-                    .unwrap_or_else(|e| {
-                        panic!("Write to DB should not fail: {:?}", e);
-                    });
-                metrics.eth_starcoin_bridge_token_transfer_approved.inc();
+                info!(?txn_hash, "Starcoin approve transaction submitted");
             }
             Err(err) => {
-                error!(?action_key, "Starcoin transaction failed: {err:?}");
-                metrics.err_starcoin_bridge_transaction_submission.inc();
-                let metrics_clone = metrics.clone();
-                let sender_clone = execution_queue_sender.clone();
-                spawn_logged_monitored_task!(async move {
-                    if attempt_times >= MAX_EXECUTION_ATTEMPTS {
-                        metrics_clone
-                            .err_starcoin_bridge_transaction_submission_too_many_failures
-                            .inc();
-                        error!("Manual intervention required. Failed after {MAX_EXECUTION_ATTEMPTS} attempts: {:?}", err);
-                        return;
-                    }
-                    delay(attempt_times).await;
-                    sender_clone
-                        .send(CertifiedBridgeActionExecutionWrapper(
-                            certificate,
-                            attempt_times + 1,
-                        ))
-                        .await
-                        .unwrap_or_else(|e| {
-                            panic!("Sending to execution queue should not fail: {:?}", e);
-                        });
-                    info!("Re-enqueued certificate for execution");
-                }.instrument(tracing::debug_span!("reenqueue_execution_task", action_key=?action_key)));
+                let err_str = format!("{:?}", err);
+                // SEQUENCE_NUMBER_TOO_OLD means a previous tx was already executed
+                if !err_str.contains("SEQUENCE_NUMBER_TOO_OLD") {
+                    error!(?action_key, "Failed to submit approve transaction: {:?}", err);
+                    metrics.err_starcoin_bridge_transaction_submission.inc();
+                    // Retry later
+                    let metrics_clone = metrics.clone();
+                    let sender_clone = execution_queue_sender.clone();
+                    spawn_logged_monitored_task!(async move {
+                        if attempt_times >= MAX_EXECUTION_ATTEMPTS {
+                            metrics_clone.err_starcoin_bridge_transaction_submission_too_many_failures.inc();
+                            error!("Manual intervention required. Failed after {MAX_EXECUTION_ATTEMPTS} attempts");
+                            return;
+                        }
+                        delay(attempt_times).await;
+                        sender_clone.send(CertifiedBridgeActionExecutionWrapper(certificate, attempt_times + 1)).await
+                            .unwrap_or_else(|e| panic!("Sending to execution queue should not fail: {:?}", e));
+                        info!("Re-enqueued certificate for execution");
+                    }.instrument(tracing::debug_span!("reenqueue_execution_task", action_key=?action_key)));
+                    return;
+                }
+                warn!(?action_key, "Got SEQUENCE_NUMBER_TOO_OLD, approve may already be on chain");
             }
         }
+        
+        // Poll on-chain status until Approved (max 60 seconds)
+        info!("Polling on-chain status for approve confirmation...");
+        let mut approved = false;
+        for i in 0..60 {
+            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+            
+            let status = starcoin_bridge_client
+                .get_token_transfer_action_onchain_status_until_success(source_chain, seq_num)
+                .await;
+            
+            match status {
+                BridgeActionStatus::Approved => {
+                    info!(?action_key, "Transfer approved on chain, proceeding to claim");
+                    metrics.eth_starcoin_bridge_token_transfer_approved.inc();
+                    approved = true;
+                    break;
+                }
+                BridgeActionStatus::Claimed => {
+                    info!(?action_key, "Transfer already claimed on chain");
+                    metrics.eth_starcoin_bridge_token_transfer_approved.inc();
+                    metrics.eth_starcoin_bridge_token_transfer_claimed.inc();
+                    store.remove_pending_actions(&[action.digest()]).unwrap_or_else(|e| {
+                        panic!("Write to DB should not fail: {:?}", e);
+                    });
+                    return;
+                }
+                _ => {
+                    if i % 10 == 0 {
+                        info!(?action_key, ?status, "Still waiting for approve confirmation... ({}s)", i);
+                    }
+                }
+            }
+        }
+        
+        if !approved {
+            error!(?action_key, "Approve transaction not confirmed after 60 seconds, will retry");
+            let metrics_clone = metrics.clone();
+            let sender_clone = execution_queue_sender.clone();
+            spawn_logged_monitored_task!(async move {
+                if attempt_times >= MAX_EXECUTION_ATTEMPTS {
+                    metrics_clone.err_starcoin_bridge_transaction_submission_too_many_failures.inc();
+                    error!("Manual intervention required. Failed after {MAX_EXECUTION_ATTEMPTS} attempts");
+                    return;
+                }
+                delay(attempt_times).await;
+                sender_clone.send(CertifiedBridgeActionExecutionWrapper(certificate, attempt_times + 1)).await
+                    .unwrap_or_else(|e| panic!("Sending to execution queue should not fail: {:?}", e));
+                info!("Re-enqueued certificate for execution");
+            }.instrument(tracing::debug_span!("reenqueue_execution_task", action_key=?action_key)));
+            return;
+        }
+        
+        // Approve confirmed, now submit claim transaction
+        // Get fresh sequence number for claim transaction
+        // Must be > approve sequence number (seq_number), poll until chain state is updated
+        let claim_seq_number = {
+            let mut retries = 0;
+            let max_retries = 10;
+            loop {
+                match starcoin_bridge_client.get_sequence_number(&sender_address.to_hex_literal()).await {
+                    Ok(new_seq) => {
+                        if new_seq > seq_number {
+                            info!("Got claim sequence number: {} (approve used: {})", new_seq, seq_number);
+                            break new_seq;
+                        }
+                        retries += 1;
+                        if retries >= max_retries {
+                            error!("Sequence number not updated after {} retries (got {}, expected > {})", 
+                                   max_retries, new_seq, seq_number);
+                            // Use approve seq + 1 as fallback
+                            break seq_number + 1;
+                        }
+                        debug!("Sequence number {} not yet updated (expected > {}), retry {}/{}", 
+                               new_seq, seq_number, retries, max_retries);
+                        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+                    }
+                    Err(e) => {
+                        error!("Failed to get sequence number for claim: {:?}", e);
+                        store.remove_pending_actions(&[action.digest()]).unwrap_or_else(|e| {
+                            panic!("Write to DB should not fail: {:?}", e);
+                        });
+                        return;
+                    }
+                }
+            }
+        };
+        
+        // Get fresh block timestamp
+        let claim_block_timestamp_ms = match starcoin_bridge_client.get_block_timestamp().await {
+            Ok(ts) => ts,
+            Err(e) => {
+                error!("Failed to get block timestamp for claim: {:?}", e);
+                store.remove_pending_actions(&[action.digest()]).unwrap_or_else(|e| {
+                    panic!("Write to DB should not fail: {:?}", e);
+                });
+                return;
+            }
+        };
+        
+        // Build claim transaction
+        info!(source_chain, seq_num, token_type, claim_seq_number, "Building claim transaction with parameters");
+        let claim_txn = match StarcoinBridgeTransactionBuilder::build_claim_and_transfer(
+            *starcoin_bridge_address,
+            sender_address,
+            claim_seq_number,
+            chain_id,
+            claim_block_timestamp_ms,
+            claim_block_timestamp_ms,
+            source_chain,
+            seq_num,
+            token_type,
+        ) {
+            Ok(txn) => txn,
+            Err(err) => {
+                error!("Failed to build claim transaction: {:?}", err);
+                store.remove_pending_actions(&[action.digest()]).unwrap_or_else(|e| {
+                    panic!("Write to DB should not fail: {:?}", e);
+                });
+                return;
+            }
+        };
+        
+        // Submit claim transaction
+        info!("Submitting claim transaction");
+        match starcoin_bridge_client.sign_and_submit_transaction(starcoin_bridge_key, claim_txn).await {
+            Ok(claim_txn_hash) => {
+                info!(?claim_txn_hash, "Claim transaction submitted, waiting for confirmation...");
+                
+                // Poll for claim confirmation (max 30 seconds)
+                for i in 0..30 {
+                    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                    let status = starcoin_bridge_client
+                        .get_token_transfer_action_onchain_status_until_success(source_chain, seq_num)
+                        .await;
+                    if status == BridgeActionStatus::Claimed {
+                        info!(?claim_txn_hash, "Claim confirmed on chain - bridge transfer complete!");
+                        metrics.eth_starcoin_bridge_token_transfer_claimed.inc();
+                        break;
+                    }
+                    if i % 10 == 0 {
+                        info!("Waiting for claim confirmation... ({}s)", i);
+                    }
+                }
+            }
+            Err(err) => {
+                error!("Failed to submit claim transaction: {:?}", err);
+                // Approve succeeded, claim can be retried manually or by watchdog
+            }
+        }
+        
+        // Mark action as completed (approve is done, claim may or may not have succeeded)
+        store.remove_pending_actions(&[action.digest()]).unwrap_or_else(|e| {
+            panic!("Write to DB should not fail: {:?}", e);
+        });
     }
 
     // TODO: do we need a mechanism to periodically read pending actions from DB?

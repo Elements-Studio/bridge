@@ -1,12 +1,12 @@
 # Starcoin Bridge Server Configuration
-# Auto-generated at: Fri Nov 28 11:39:56 CST 2025
+# Auto-generated at: Fri Nov 28 15:37:49 CST 2025
 
 # Server settings
 server-listen-port: 9191
 metrics-port: 9184
 
 # Bridge authority key (validator) - Generated with keygen tool
-# Ethereum address: 0x3eab3cb8505bf46fa467ddaf24f64105db658d50
+# Ethereum address: 0xfa446d1dcd5dcd3224c18cfda85e5e84330c07d6
 bridge-authority-key-path: /Volumes/SSD/chidanta/bridge/bridge-node/server-config/bridge_authority.key
 
 # Run client mode (required)
@@ -33,6 +33,6 @@ eth:
 starcoin:
   starcoin-bridge-rpc-url: http://127.0.0.1:9850
   starcoin-bridge-chain-id: 2
-  starcoin-bridge-proxy-address: "0x05ea3c397ae3c0c42a4eec9ba0a6571a"
+  starcoin-bridge-proxy-address: "0x5af1e5d16237bf92b366526a78aa0c15"
   # Ed25519 key for signing Starcoin transactions
   bridge-client-key-path: /Volumes/SSD/chidanta/bridge/bridge-node/server-config/starcoin_client.key

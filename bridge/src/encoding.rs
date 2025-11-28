@@ -16,7 +16,8 @@ use anyhow::Result;
 use enum_dispatch::enum_dispatch;
 use ethers::types::Address as EthAddress;
 
-pub const STARCOIN_ADDRESS_LENGTH: usize = 32;
+// Starcoin uses 16-byte addresses (128-bit), not 32-byte like Sui
+pub const STARCOIN_ADDRESS_LENGTH: usize = 16;
 pub const TOKEN_TRANSFER_MESSAGE_VERSION: u8 = 1;
 pub const COMMITTEE_BLOCKLIST_MESSAGE_VERSION: u8 = 1;
 pub const EMERGENCY_BUTTON_MESSAGE_VERSION: u8 = 1;
@@ -453,14 +454,14 @@ mod tests {
         .to_bytes()?;
 
         // Construct the expected bytes
-        let prefix_bytes = BRIDGE_MESSAGE_PREFIX.to_vec(); // len: 18
+        let prefix_bytes = BRIDGE_MESSAGE_PREFIX.to_vec(); // len: 23
         let message_type = vec![BridgeActionType::TokenTransfer as u8]; // len: 1
         let message_version = vec![TOKEN_TRANSFER_MESSAGE_VERSION]; // len: 1
         let nonce_bytes = nonce.to_be_bytes().to_vec(); // len: 8
         let source_chain_id_bytes = vec![starcoin_bridge_chain_id as u8]; // len: 1
 
         let starcoin_bridge_address_length_bytes = vec![STARCOIN_ADDRESS_LENGTH as u8]; // len: 1
-        let starcoin_bridge_address_bytes = starcoin_bridge_address.to_vec(); // len: 32
+        let starcoin_bridge_address_bytes = starcoin_bridge_address.to_vec(); // len: 16
         let dest_chain_id_bytes = vec![eth_chain_id as u8]; // len: 1
         let eth_address_length_bytes = vec![EthAddress::len_bytes() as u8]; // len: 1
         let eth_address_bytes = eth_address.as_bytes().to_vec(); // len: 20

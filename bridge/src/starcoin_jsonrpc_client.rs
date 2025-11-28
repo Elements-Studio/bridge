@@ -508,25 +508,25 @@ impl StarcoinClientInner for StarcoinJsonRpcClient {
         source_chain_id: u8,
         seq_number: u64,
     ) -> Result<BridgeActionStatus, BridgeError> {
-        // Call get_token_transfer_action_status via contract.call_v2
-        // Function signature: get_token_transfer_action_status(source_chain: u8, bridge_seq_num: u64): u8
+        // Call query_token_transfer_status via contract.call_v2
+        // Function signature: query_token_transfer_status(source_chain: u8, bridge_seq_num: u64): u8
         // Note: Starcoin contract.call_v2 requires type suffix on arguments (e.g., "12u8", "0u64")
         let args = vec![
             format!("{}u8", source_chain_id),   // source_chain as u8
             format!("{}u64", seq_number),       // bridge_seq_num as u64
         ];
 
-        match self.call_bridge_function("test_get_token_transfer_action_status", vec![], args).await {
+        match self.call_bridge_function("query_token_transfer_status", vec![], args).await {
             Ok(response) => {
                 // Parse u8 status from response
-                // Response format: [{"type": "u8", "value": 0}]
+                // Response format: [1] (direct array of values)
                 let status = response.as_array()
                     .and_then(|arr| arr.first())
-                    .and_then(|v| v.get("value"))
                     .and_then(|v| v.as_u64())
                     .map(|n| n as u8)
                     .unwrap_or(TRANSFER_STATUS_NOT_FOUND);
 
+                tracing::debug!("Query transfer status response: {:?}, parsed status: {}", response, status);
                 Ok(Self::parse_transfer_status(status))
             }
             Err(e) => {
@@ -543,14 +543,14 @@ impl StarcoinClientInner for StarcoinJsonRpcClient {
         source_chain_id: u8,
         seq_number: u64,
     ) -> Result<Option<Vec<Vec<u8>>>, BridgeError> {
-        // Call get_token_transfer_action_signatures via contract.call_v2
+        // Call query_token_transfer_signatures via contract.call_v2
         // Note: Starcoin contract.call_v2 requires type suffix on arguments
         let args = vec![
             format!("{}u8", source_chain_id),
             format!("{}u64", seq_number),
         ];
 
-        match self.call_bridge_function("test_get_token_transfer_action_signatures", vec![], args).await {
+        match self.call_bridge_function("query_token_transfer_signatures", vec![], args).await {
             Ok(response) => {
                 Ok(Self::parse_signatures_response(&response))
             }

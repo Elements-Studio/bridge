@@ -126,14 +126,14 @@ impl SimpleStarcoinRpcClient {
         Ok(timestamp)
     }
 
-    // Get resource at address
+    // Get resource at address (with decode option for json format)
     pub async fn get_resource(
         &self,
         address: &str,
         resource_type: &str,
     ) -> Result<Option<Value>> {
         let result = self
-            .call("state.get_resource", vec![json!(address), json!(resource_type)])
+            .call("state.get_resource", vec![json!(address), json!(resource_type), json!({"decode": true})])
             .await?;
         
         if result.is_null() {
@@ -170,8 +170,8 @@ impl SimpleStarcoinRpcClient {
         }
         
         // Otherwise, query the on-chain account resource for sequence_number
-        // Resource type: 0x1::account::Account
-        let resource = self.get_resource(address, "0x1::account::Account").await?;
+        // Starcoin uses full module path: 0x00000000000000000000000000000001::Account::Account
+        let resource = self.get_resource(address, "0x00000000000000000000000000000001::Account::Account").await?;
         
         match resource {
             Some(res) => {
@@ -324,6 +324,28 @@ impl SimpleStarcoinRpcClient {
             .unwrap_or_else(|| format!("{:?}", result));
         
         Ok(txn_hash_str)
+    }
+
+    /// Sign, submit and wait for transaction confirmation
+    pub async fn sign_and_submit_and_wait_transaction(
+        &self,
+        key: &starcoin_bridge_types::crypto::StarcoinKeyPair,
+        raw_txn: starcoin_bridge_types::transaction::RawUserTransaction,
+    ) -> Result<String> {
+        let txn_hash = self.sign_and_submit_transaction(key, raw_txn).await?;
+        
+        // Poll for transaction confirmation (max 30 seconds)
+        for _ in 0..60 {
+            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+            if let Ok(txn_info) = self.get_transaction_info(&txn_hash).await {
+                if !txn_info.is_null() {
+                    tracing::info!(?txn_hash, "Transaction confirmed on chain");
+                    return Ok(txn_hash);
+                }
+            }
+        }
+        
+        Err(anyhow!("Transaction {} not confirmed after 30 seconds timeout", txn_hash))
     }
 
     // Dry run transaction
