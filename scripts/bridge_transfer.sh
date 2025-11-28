@@ -29,11 +29,15 @@ get_starcoin_address() {
 }
 
 get_eth_address() {
-    local addr=$(./target/debug/starcoin-bridge-cli examine-key bridge-node/server-config/bridge_authority.key 2>/dev/null | grep "Eth address:" | awk '{print $NF}')
-    if [ -z "$addr" ]; then
-        echo "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-    else
+    local addr=$(./target/debug/starcoin-bridge-cli examine-key bridge-node/server-config/bridge_authority.key 2>/dev/null | grep "Ethereum address:" | awk '{print $NF}')
+    if [ -n "$addr" ]; then
+        # Add 0x prefix if missing
+        if [[ "$addr" != 0x* ]]; then
+            addr="0x$addr"
+        fi
         echo "$addr"
+    else
+        echo "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
     fi
 }
 
@@ -61,17 +65,36 @@ get_starcoin_balances() {
     done
 }
 
+# Get specific bridge token balance (returns raw number)
+get_bridge_token_balance() {
+    local addr=$1
+    local token=$2  # ETH, BTC, USDC, USDT
+    local bridge_addr=$(grep "starcoin-bridge-proxy-address:" bridge-config/server-config.yaml 2>/dev/null | awk '{print $2}' | tr -d '"')
+    
+    if [ -z "$bridge_addr" ]; then
+        echo "0"
+        return
+    fi
+    
+    local result=$(curl -s -X POST -H "Content-Type: application/json" \
+        -d "{\"jsonrpc\":\"2.0\",\"method\":\"state.get_resource\",\"params\":[\"$addr\",\"0x1::Account::Balance<${bridge_addr}::${token}::${token}>\",{\"decode\":true}],\"id\":1}" \
+        "$STARCOIN_RPC")
+    
+    echo "$result" | jq -r '.result.json.token.value // "0"'
+}
+
 # Get ETH token balances
 get_eth_balances() {
     local addr=$1
     echo -e "${BLUE}=== ETH Balances for $addr ===${NC}"
     
-    # Get ETH balance
-    local eth_balance=$(curl -s -X POST -H "Content-Type: application/json" \
+    # Get ETH balance using python for big number handling
+    local eth_balance_hex=$(curl -s -X POST -H "Content-Type: application/json" \
         -d "{\"jsonrpc\":\"2.0\",\"method\":\"eth_getBalance\",\"params\":[\"$addr\",\"latest\"],\"id\":1}" \
         "$ETH_RPC" | jq -r '.result // "0x0"')
-    local eth_decimal=$(printf "%d" "$eth_balance" 2>/dev/null || echo "0")
-    echo -e "  ETH: ${GREEN}$(echo "scale=6; $eth_decimal / 1000000000000000000" | bc) ETH${NC}"
+    
+    local eth_balance=$(python3 -c "print(f'{int(\"$eth_balance_hex\", 16) / 1e18:.6f}')" 2>/dev/null || echo "0")
+    echo -e "  ETH: ${GREEN}${eth_balance} ETH${NC}"
 }
 
 # Get latest Starcoin transaction status
@@ -114,18 +137,12 @@ check_bridge_record() {
     fi
 }
 
-# Wait for transaction and poll status
+# Wait for transaction and poll status by checking token balance
 poll_bridge_status() {
     local direction=$1
+    local stc_addr=$2
+    local initial_balance=$3
     local start_time=$(date +%s)
-    local source_chain
-    local seq_num=0
-    
-    if [ "$direction" = "eth-to-stc" ]; then
-        source_chain=12
-    else
-        source_chain=2
-    fi
     
     echo -e "${YELLOW}Polling bridge status (max ${MAX_WAIT}s)...${NC}"
     
@@ -138,24 +155,21 @@ poll_bridge_status() {
             return 1
         fi
         
-        local status=$(check_bridge_record $source_chain $seq_num)
-        
-        case $status in
-            "claimed")
-                echo -e "${GREEN}✓ Bridge transfer completed! (claimed)${NC}"
+        if [ "$direction" = "eth-to-stc" ]; then
+            # Check if ETH token balance increased
+            local current_balance=$(get_bridge_token_balance "$stc_addr" "ETH")
+            if [ "$current_balance" != "0" ] && [ "$current_balance" != "$initial_balance" ]; then
+                local received=$((current_balance - initial_balance))
+                echo -e "${GREEN}✓ Bridge transfer completed! Received $received ETH tokens${NC}"
                 return 0
-                ;;
-            "approved")
-                echo -e "${YELLOW}... Transfer approved, waiting for claim... (${elapsed}s)${NC}"
-                ;;
-            "pending")
-                echo -e "${YELLOW}... Transfer pending signature... (${elapsed}s)${NC}"
-                ;;
-            "not_found")
-                echo -e "${YELLOW}... Waiting for transfer record... (${elapsed}s)${NC}"
-                ;;
-        esac
+            fi
+        else
+            # For stc-to-eth, check ETH balance on ethereum side
+            # TODO: implement ETH balance check
+            echo -e "${YELLOW}... Waiting for ETH transfer... (${elapsed}s)${NC}"
+        fi
         
+        echo -e "${YELLOW}... Waiting for token transfer... (${elapsed}s)${NC}"
         sleep $POLL_INTERVAL
     done
 }
@@ -179,10 +193,34 @@ main() {
     get_eth_balances "$eth_addr"
     echo ""
     
+    # Record initial token balance for polling
+    local initial_eth_balance=$(get_bridge_token_balance "$stc_addr" "ETH")
+    
     # Execute transfer
     if [ "$DIRECTION" = "eth-to-stc" ]; then
-        echo -e "${YELLOW}Initiating ETH → Starcoin transfer: $AMOUNT ETH${NC}"
-        make deposit-eth AMOUNT="$AMOUNT" 2>&1 | tail -5
+        echo -e "${YELLOW}========================================${NC}"
+        echo -e "${YELLOW}  ETH → Starcoin Transfer: $AMOUNT ETH${NC}"
+        echo -e "${YELLOW}========================================${NC}"
+        echo ""
+        
+        echo -e "${YELLOW}[1/5] Funding ETH account for gas...${NC}"
+        make fund-eth-account 2>&1 | grep -E "Funded|Funding|ETH|funded" | head -3 || true
+        echo ""
+        
+        echo -e "${YELLOW}[2/5] Funding Starcoin bridge server account with STC...${NC}"
+        make fund-starcoin-bridge-account 2>&1 | grep -E "Funded|Funding|Bridge account|funded|STC" | head -5 || true
+        echo ""
+        
+        echo -e "${YELLOW}[3/5] Ensuring recipient account exists (funding with STC)...${NC}"
+        echo -e "${YELLOW}       Recipient: $stc_addr${NC}"
+        # This is done inside deposit-eth now
+        echo ""
+        
+        echo -e "${YELLOW}[4/5] Depositing $AMOUNT ETH to bridge contract on Ethereum...${NC}"
+        make deposit-eth AMOUNT="$AMOUNT" 2>&1 | grep -E "Deposited|Deposit|Recipient|submitted|INFO" | tail -5
+        echo ""
+        
+        echo -e "${YELLOW}[5/5] Waiting for bridge to approve and claim tokens...${NC}"
     else
         # Convert ETH amount to smallest unit (8 decimals)
         local amount_wei=$(echo "$AMOUNT * 100000000" | bc | cut -d. -f1)
@@ -192,11 +230,10 @@ main() {
     
     echo ""
     
-    # Poll for completion
-    if poll_bridge_status "$DIRECTION"; then
+    # Poll for completion (pass stc_addr and initial balance)
+    if poll_bridge_status "$DIRECTION" "$stc_addr" "$initial_eth_balance"; then
         echo ""
         echo -e "${BLUE}=== After Transfer ===${NC}"
-        sleep 2  # Wait a bit for state to update
         get_starcoin_balances "$stc_addr"
         get_eth_balances "$eth_addr"
         echo ""
@@ -207,15 +244,11 @@ main() {
         echo -e "${YELLOW}  - Bridge server logs: make logs${NC}"
         echo -e "${YELLOW}  - Starcoin node logs${NC}"
         
-        # Try to get error details
-        local bridge_addr=$(grep "starcoin-bridge-proxy-address:" bridge-config/server-config.yaml 2>/dev/null | awk '{print $2}' | tr -d '"')
-        if [ -n "$bridge_addr" ]; then
-            echo ""
-            echo -e "${YELLOW}Bridge state:${NC}"
-            curl -s -X POST -H "Content-Type: application/json" \
-                -d "{\"jsonrpc\":\"2.0\",\"method\":\"state.get_resource\",\"params\":[\"$bridge_addr\",\"${bridge_addr}::Bridge::Bridge\",{\"decode\":true}],\"id\":1}" \
-                "$STARCOIN_RPC" | jq '.result.json.inner.token_transfer_records'
-        fi
+        # Show current balances anyway
+        echo ""
+        echo -e "${BLUE}=== Current Balances ===${NC}"
+        get_starcoin_balances "$stc_addr"
+        get_eth_balances "$eth_addr"
     fi
 }
 

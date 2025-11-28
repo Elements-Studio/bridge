@@ -756,6 +756,12 @@ deposit-eth: build-bridge-cli fund-eth-account fund-starcoin-bridge-account ## D
 		echo "$(YELLOW)Creating bridge client key (Ed25519 for Starcoin)...$(NC)"; \
 		$(BRIDGE_CLI) create-bridge-client-key bridge-node/server-config/bridge_client.key; \
 	fi
+	@# Fund recipient account with STC so it exists on chain (required for token transfer)
+	@RECIPIENT=$$($(BRIDGE_CLI) examine-key bridge-node/server-config/bridge_client.key 2>/dev/null | grep "Starcoin address:" | awk '{print $$NF}'); \
+	if [ -n "$$RECIPIENT" ]; then \
+		echo "$(YELLOW)Ensuring recipient account exists: $$RECIPIENT$(NC)"; \
+		$(STARCOIN_PATH) -c $(STARCOIN_RPC) dev get-coin -v 1000000 $$RECIPIENT 2>&1 | grep -v "^[0-9].*INFO" || true; \
+	fi
 	@RECIPIENT=$$($(BRIDGE_CLI) examine-key bridge-node/server-config/bridge_client.key 2>/dev/null | grep "Starcoin address:" | awk '{print $$NF}'); \
 	AMOUNT_VAL=$${AMOUNT:-0.1}; \
 	echo "$(YELLOW)Depositing $$AMOUNT_VAL ETH to Starcoin...$(NC)"; \
