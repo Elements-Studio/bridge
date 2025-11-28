@@ -344,6 +344,14 @@ impl StarcoinClientInner for StarcoinMockClient {
         Ok(0)
     }
 
+    async fn get_block_timestamp(&self) -> Result<u64, BridgeError> {
+        // Mock implementation: return current system time in milliseconds
+        Ok(std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as u64)
+    }
+
     async fn sign_and_submit_transaction(
         &self,
         _key: &starcoin_bridge_types::crypto::StarcoinKeyPair,

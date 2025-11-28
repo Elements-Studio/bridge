@@ -166,7 +166,7 @@ pub fn build_approve_token_transfer(
         bcs::to_bytes(&signatures).map_err(|e| e.to_string())?,
     ];
 
-    builder.build_bridge_call("bridge", "approve_token_transfer", vec![], args)
+    builder.build_bridge_call("Bridge", "approve_token_transfer", vec![], args)
 }
 
 /// Build transaction for claiming and transferring tokens
@@ -186,7 +186,7 @@ pub fn build_claim_and_transfer_token(
     ];
 
     builder.build_bridge_call(
-        "bridge",
+        "Bridge",
         "claim_and_transfer_token",
         vec![token_type_tag],
         args,
@@ -208,7 +208,7 @@ pub fn build_execute_system_message(
         bcs::to_bytes(&signatures).map_err(|e| e.to_string())?,
     ];
 
-    builder.build_bridge_call("bridge", "execute_system_message", vec![], args)
+    builder.build_bridge_call("Bridge", "execute_system_message", vec![], args)
 }
 
 /// Build transaction for sending tokens to another chain
@@ -229,7 +229,7 @@ pub fn build_send_token(
         bcs::to_bytes(&amount).map_err(|e| e.to_string())?,
     ];
 
-    builder.build_bridge_call("bridge", "send_token", vec![token_type_tag], args)
+    builder.build_bridge_call("Bridge", "send_token", vec![token_type_tag], args)
 }
 
 // =============================================================================
@@ -308,7 +308,7 @@ mod tests {
             .with_expiration(7200);
 
         let result = builder.build_bridge_call(
-            "bridge",
+            "Bridge",
             "test_function",
             vec![],
             vec![],

@@ -444,6 +444,15 @@ where
             .map_err(|e| BridgeError::InternalError(format!("Failed to get sequence number: {:?}", e)))
     }
 
+    /// Get the current block timestamp from the Starcoin chain
+    /// Returns the timestamp in milliseconds from genesis
+    pub async fn get_block_timestamp(&self) -> BridgeResult<u64> {
+        self.inner
+            .get_block_timestamp()
+            .await
+            .map_err(|e| BridgeError::InternalError(format!("Failed to get block timestamp: {:?}", e)))
+    }
+
     /// Sign and submit a transaction to the Starcoin network
     pub async fn sign_and_submit_transaction(
         &self,
@@ -515,6 +524,10 @@ pub trait StarcoinClientInner: Send + Sync {
 
     /// Get account sequence number for transaction building
     async fn get_sequence_number(&self, address: &str) -> Result<u64, BridgeError>;
+
+    /// Get the current block timestamp from the chain
+    /// Returns the timestamp in milliseconds from genesis
+    async fn get_block_timestamp(&self) -> Result<u64, BridgeError>;
 
     /// Sign and submit a raw transaction to the network
     async fn sign_and_submit_transaction(
@@ -748,6 +761,15 @@ impl StarcoinClientInner for StarcoinSdkClient {
         // SDK-based implementation for tests
         // TODO: Implement proper sequence number retrieval
         Ok(0)
+    }
+
+    async fn get_block_timestamp(&self) -> Result<u64, BridgeError> {
+        // SDK-based implementation for tests
+        // Return current system time in milliseconds
+        Ok(std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as u64)
     }
 
     async fn sign_and_submit_transaction(

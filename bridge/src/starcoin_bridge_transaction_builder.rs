@@ -96,14 +96,28 @@ impl StarcoinBridgeTransactionBuilder {
     /// * `sender` - The transaction sender address (who pays gas and signs the transaction)
     /// * `sequence_number` - The transaction sequence number
     /// * `chain_id` - The Starcoin chain ID
-    /// * `message_bytes` - The bridge message bytes
+    /// * `block_timestamp_ms` - Current block timestamp in milliseconds (from chain.info)
+    /// * `source_chain` - Source chain ID (e.g., ETH chain ID)
+    /// * `seq_num` - Bridge sequence number
+    /// * `sender_address` - Original sender address on source chain
+    /// * `target_chain` - Target chain ID (Starcoin chain ID)
+    /// * `target_address` - Target address on Starcoin
+    /// * `token_type` - Token type ID
+    /// * `amount` - Amount to transfer
     /// * `signatures` - The aggregated signatures
     pub fn build_claim_token(
         module_address: StarcoinAddress,
         sender: StarcoinAddress,
         sequence_number: u64,
         chain_id: u8,
-        message_bytes: Vec<u8>,
+        block_timestamp_ms: u64,
+        source_chain: u8,
+        seq_num: u64,
+        sender_address: Vec<u8>,
+        target_chain: u8,
+        target_address: Vec<u8>,
+        token_type: u8,
+        amount: u64,
         signatures: Vec<Vec<u8>>,
     ) -> BridgeResult<starcoin_bridge_types::transaction::RawUserTransaction> {
         starcoin_native::build_approve_token_transfer(
@@ -111,7 +125,14 @@ impl StarcoinBridgeTransactionBuilder {
             sender,
             sequence_number,
             chain_id,
-            message_bytes,
+            block_timestamp_ms,
+            source_chain,
+            seq_num,
+            sender_address,
+            target_chain,
+            target_address,
+            token_type,
+            amount,
             signatures,
         )
     }
@@ -121,43 +142,107 @@ impl StarcoinBridgeTransactionBuilder {
 pub mod starcoin_native {
     use super::*;
 
+    /// Calculate expiration timestamp for Starcoin transactions based on current block timestamp
+    /// 
+    /// # Arguments
+    /// * `block_timestamp_ms` - Current block timestamp in milliseconds from chain
+    /// 
+    /// Returns the expiration timestamp in milliseconds (current + 1 hour)
+    fn calculate_expiration_from_block(block_timestamp_ms: u64) -> u64 {
+        // Add 1 hour (3600 seconds = 3600000 ms) to current block timestamp
+        // Block timestamp is in milliseconds, so we add in milliseconds
+        block_timestamp_ms.saturating_add(3_600_000)
+    }
+
     /// Build a RawUserTransaction for approving token transfer
+    /// Uses the script function `approve_bridge_token_transfer_single` for single signature
+    /// or `approve_bridge_token_transfer_two`/`approve_bridge_token_transfer_three` for multiple signatures
     /// 
     /// # Arguments
     /// * `module_address` - The address where the bridge module is deployed
     /// * `sender` - The sender address
     /// * `sequence_number` - The transaction sequence number
     /// * `chain_id` - The Starcoin chain ID
-    /// * `message_bytes` - The bridge message bytes (BCS serialized)
-    /// * `signatures` - The aggregated signatures
+    /// * `block_timestamp_ms` - Current block timestamp in milliseconds (from chain.info)
+    /// * `source_chain` - Source chain ID (e.g., ETH chain ID)
+    /// * `seq_num` - Bridge sequence number
+    /// * `sender_address` - Original sender address on source chain
+    /// * `target_chain` - Target chain ID (Starcoin chain ID)
+    /// * `target_address` - Target address on Starcoin
+    /// * `token_type` - Token type ID
+    /// * `amount` - Amount to transfer
+    /// * `signatures` - The aggregated signatures (1-3 signatures supported)
     pub fn build_approve_token_transfer(
         module_address: StarcoinAddress,
         sender: StarcoinAddress,
         sequence_number: u64,
         chain_id: u8,
-        // Message parameters (serialized as BCS)
-        message_bytes: Vec<u8>,
+        block_timestamp_ms: u64,
+        // Message parameters
+        source_chain: u8,
+        seq_num: u64,
+        sender_address: Vec<u8>,
+        target_chain: u8,
+        target_address: Vec<u8>,
+        token_type: u8,
+        amount: u64,
         signatures: Vec<Vec<u8>>,
     ) -> BridgeResult<RawUserTransaction> {
         let module_id = ModuleId::new(
             module_address,
-            Identifier::new("bridge").map_err(|e| BridgeError::Generic(e.to_string()))?,
+            Identifier::new("Bridge").map_err(|e| BridgeError::Generic(e.to_string()))?,
         );
+
+        // Choose function based on number of signatures
+        let (function_name, args) = match signatures.len() {
+            1 => {
+                ("approve_bridge_token_transfer_single", vec![
+                    bcs::to_bytes(&source_chain).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                    bcs::to_bytes(&seq_num).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                    bcs::to_bytes(&sender_address).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                    bcs::to_bytes(&target_chain).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                    bcs::to_bytes(&target_address).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                    bcs::to_bytes(&token_type).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                    bcs::to_bytes(&amount).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                    bcs::to_bytes(&signatures[0]).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                ])
+            },
+            2 => {
+                ("approve_bridge_token_transfer_two", vec![
+                    bcs::to_bytes(&source_chain).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                    bcs::to_bytes(&seq_num).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                    bcs::to_bytes(&sender_address).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                    bcs::to_bytes(&target_chain).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                    bcs::to_bytes(&target_address).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                    bcs::to_bytes(&token_type).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                    bcs::to_bytes(&amount).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                    bcs::to_bytes(&signatures[0]).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                    bcs::to_bytes(&signatures[1]).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                ])
+            },
+            3 => {
+                ("approve_bridge_token_transfer_three", vec![
+                    bcs::to_bytes(&source_chain).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                    bcs::to_bytes(&seq_num).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                    bcs::to_bytes(&sender_address).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                    bcs::to_bytes(&target_chain).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                    bcs::to_bytes(&target_address).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                    bcs::to_bytes(&token_type).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                    bcs::to_bytes(&amount).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                    bcs::to_bytes(&signatures[0]).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                    bcs::to_bytes(&signatures[1]).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                    bcs::to_bytes(&signatures[2]).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                ])
+            },
+            n => return Err(BridgeError::Generic(format!("Unsupported number of signatures: {}. Only 1-3 signatures are supported.", n))),
+        };
 
         let script_function = ScriptFunction::new(
             module_id,
-            Identifier::new("approve_token_transfer").map_err(|e| BridgeError::Generic(e.to_string()))?,
+            Identifier::new(function_name).map_err(|e| BridgeError::Generic(e.to_string()))?,
             vec![],
-            vec![
-                bcs::to_bytes(&message_bytes).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
-                bcs::to_bytes(&signatures).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
-            ],
+            args,
         );
-
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_err(|e| BridgeError::Generic(e.to_string()))?
-            .as_secs();
 
         Ok(RawUserTransaction::new_script_function(
             sender,
@@ -165,78 +250,109 @@ pub mod starcoin_native {
             script_function,
             10_000_000,  // max_gas_amount
             1,           // gas_unit_price
-            now + 3600,  // expiration (1 hour)
+            calculate_expiration_from_block(block_timestamp_ms),
             ChainId::new(chain_id),
         ))
     }
 
     /// Build a RawUserTransaction for claiming and transferring tokens
+    /// 
+    /// # Arguments
+    /// * `module_address` - The address where the bridge module is deployed
+    /// * `sender` - The sender address
+    /// * `sequence_number` - The transaction sequence number
+    /// * `chain_id` - The Starcoin chain ID
+    /// * `block_timestamp_ms` - Current block timestamp in milliseconds (from chain.info)
+    /// * `clock_timestamp_ms` - Clock timestamp for the claim operation
+    /// * `source_chain` - Source chain ID
+    /// * `seq_num` - Bridge sequence number
+    /// * `token_id` - Token ID (1=BTC, 2=ETH, 3=USDC, 4=USDT)
     pub fn build_claim_and_transfer(
+        module_address: StarcoinAddress,
         sender: StarcoinAddress,
         sequence_number: u64,
         chain_id: u8,
+        block_timestamp_ms: u64,
+        clock_timestamp_ms: u64,
         source_chain: u8,
         seq_num: u64,
-        token_type: TypeTag,
+        token_id: u8,
     ) -> BridgeResult<RawUserTransaction> {
         let module_id = ModuleId::new(
-            bridge_module_address(),
-            Identifier::new("bridge").map_err(|e| BridgeError::Generic(e.to_string()))?,
+            module_address,
+            Identifier::new("Bridge").map_err(|e| BridgeError::Generic(e.to_string()))?,
         );
+
+        // Choose function based on token ID
+        let function_name = match token_id {
+            1 => "claim_bridge_btc",
+            2 => "claim_bridge_eth",
+            3 => "claim_bridge_usdc",
+            4 => "claim_bridge_usdt",
+            _ => return Err(BridgeError::UnknownTokenId(token_id)),
+        };
 
         let script_function = ScriptFunction::new(
             module_id,
-            Identifier::new("claim_and_transfer_token").map_err(|e| BridgeError::Generic(e.to_string()))?,
-            vec![token_type],
+            Identifier::new(function_name).map_err(|e| BridgeError::Generic(e.to_string()))?,
+            vec![],
             vec![
+                bcs::to_bytes(&clock_timestamp_ms).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
                 bcs::to_bytes(&source_chain).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
                 bcs::to_bytes(&seq_num).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
             ],
         );
 
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_err(|e| BridgeError::Generic(e.to_string()))?
-            .as_secs();
-
         Ok(RawUserTransaction::new_script_function(
             sender,
             sequence_number,
             script_function,
             10_000_000,
             1,
-            now + 3600,
+            calculate_expiration_from_block(block_timestamp_ms),
             ChainId::new(chain_id),
         ))
     }
 
-    /// Build a RawUserTransaction for executing system messages (emergency, blocklist, etc.)
-    pub fn build_execute_system_message(
+    /// Build a RawUserTransaction for executing emergency operations
+    /// 
+    /// # Arguments
+    /// * `module_address` - The address where the bridge module is deployed
+    /// * `sender` - The sender address
+    /// * `sequence_number` - The transaction sequence number
+    /// * `chain_id` - The Starcoin chain ID
+    /// * `block_timestamp_ms` - Current block timestamp in milliseconds (from chain.info)
+    /// * `source_chain` - Source chain ID
+    /// * `seq_num` - Bridge sequence number
+    /// * `op_type` - Emergency operation type
+    /// * `signature` - The signature for the operation
+    pub fn build_execute_emergency_op(
+        module_address: StarcoinAddress,
         sender: StarcoinAddress,
         sequence_number: u64,
         chain_id: u8,
-        message_bytes: Vec<u8>,
-        signatures: Vec<Vec<u8>>,
+        block_timestamp_ms: u64,
+        source_chain: u8,
+        seq_num: u64,
+        op_type: u8,
+        signature: Vec<u8>,
     ) -> BridgeResult<RawUserTransaction> {
         let module_id = ModuleId::new(
-            bridge_module_address(),
-            Identifier::new("bridge").map_err(|e| BridgeError::Generic(e.to_string()))?,
+            module_address,
+            Identifier::new("Bridge").map_err(|e| BridgeError::Generic(e.to_string()))?,
         );
 
         let script_function = ScriptFunction::new(
             module_id,
-            Identifier::new("execute_system_message").map_err(|e| BridgeError::Generic(e.to_string()))?,
+            Identifier::new("execute_emergency_op_single").map_err(|e| BridgeError::Generic(e.to_string()))?,
             vec![],
             vec![
-                bcs::to_bytes(&message_bytes).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
-                bcs::to_bytes(&signatures).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                bcs::to_bytes(&source_chain).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                bcs::to_bytes(&seq_num).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                bcs::to_bytes(&op_type).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                bcs::to_bytes(&signature).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
             ],
         );
-
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_err(|e| BridgeError::Generic(e.to_string()))?
-            .as_secs();
 
         Ok(RawUserTransaction::new_script_function(
             sender,
@@ -244,16 +360,27 @@ pub mod starcoin_native {
             script_function,
             10_000_000,
             1,
-            now + 3600,
+            calculate_expiration_from_block(block_timestamp_ms),
             ChainId::new(chain_id),
         ))
     }
 
-    /// Build a RawUserTransaction for sending tokens to another chain
+    /// Build a RawUserTransaction for sending tokens to another chain (Starcoin -> ETH)
+    /// 
+    /// # Arguments
+    /// * `sender` - The sender address
+    /// * `sequence_number` - The transaction sequence number
+    /// * `chain_id` - The Starcoin chain ID
+    /// * `block_timestamp_ms` - Current block timestamp in milliseconds (from chain.info)
+    /// * `target_chain` - Target chain ID
+    /// * `target_address` - Target address on the target chain
+    /// * `amount` - Amount to transfer
+    /// * `token_type` - The token type tag
     pub fn build_send_token(
         sender: StarcoinAddress,
         sequence_number: u64,
         chain_id: u8,
+        block_timestamp_ms: u64,
         target_chain: u8,
         target_address: Vec<u8>,
         amount: u128,
@@ -261,7 +388,7 @@ pub mod starcoin_native {
     ) -> BridgeResult<RawUserTransaction> {
         let module_id = ModuleId::new(
             bridge_module_address(),
-            Identifier::new("bridge").map_err(|e| BridgeError::Generic(e.to_string()))?,
+            Identifier::new("Bridge").map_err(|e| BridgeError::Generic(e.to_string()))?,
         );
 
         let script_function = ScriptFunction::new(
@@ -275,57 +402,13 @@ pub mod starcoin_native {
             ],
         );
 
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_err(|e| BridgeError::Generic(e.to_string()))?
-            .as_secs();
-
         Ok(RawUserTransaction::new_script_function(
             sender,
             sequence_number,
             script_function,
             10_000_000,
             1,
-            now + 3600,
-            ChainId::new(chain_id),
-        ))
-    }
-
-    /// Build a RawUserTransaction for committee registration
-    pub fn build_committee_registration(
-        sender: StarcoinAddress,
-        sequence_number: u64,
-        chain_id: u8,
-        bridge_pubkey_bytes: Vec<u8>,
-        url: Vec<u8>,
-    ) -> BridgeResult<RawUserTransaction> {
-        let module_id = ModuleId::new(
-            bridge_module_address(),
-            Identifier::new("bridge").map_err(|e| BridgeError::Generic(e.to_string()))?,
-        );
-
-        let script_function = ScriptFunction::new(
-            module_id,
-            Identifier::new("committee_registration").map_err(|e| BridgeError::Generic(e.to_string()))?,
-            vec![],
-            vec![
-                bcs::to_bytes(&bridge_pubkey_bytes).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
-                bcs::to_bytes(&url).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
-            ],
-        );
-
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_err(|e| BridgeError::Generic(e.to_string()))?
-            .as_secs();
-
-        Ok(RawUserTransaction::new_script_function(
-            sender,
-            sequence_number,
-            script_function,
-            10_000_000,
-            1,
-            now + 3600,
+            calculate_expiration_from_block(block_timestamp_ms),
             ChainId::new(chain_id),
         ))
     }
@@ -576,7 +659,7 @@ fn build_emergency_op_approve_transaction(
 
     builder.programmable_move_call(
         BRIDGE_PACKAGE_ID,
-        ident_str!("bridge").to_owned(),
+        ident_str!("Bridge").to_owned(),
         ident_str!("execute_system_message").to_owned(),
         vec![],
         vec![arg_bridge, arg_msg, arg_signatures],
@@ -643,7 +726,7 @@ fn build_committee_blocklist_approve_transaction(
 
     builder.programmable_move_call(
         BRIDGE_PACKAGE_ID,
-        ident_str!("bridge").to_owned(),
+        ident_str!("Bridge").to_owned(),
         ident_str!("execute_system_message").to_owned(),
         vec![],
         vec![arg_bridge, arg_msg, arg_signatures],
@@ -706,7 +789,7 @@ fn build_limit_update_approve_transaction(
 
     builder.programmable_move_call(
         BRIDGE_PACKAGE_ID,
-        ident_str!("bridge").to_owned(),
+        ident_str!("Bridge").to_owned(),
         ident_str!("execute_system_message").to_owned(),
         vec![],
         vec![arg_bridge, arg_msg, arg_signatures],
@@ -769,7 +852,7 @@ fn build_asset_price_update_approve_transaction(
 
     builder.programmable_move_call(
         BRIDGE_PACKAGE_ID,
-        ident_str!("bridge").to_owned(),
+        ident_str!("Bridge").to_owned(),
         ident_str!("execute_system_message").to_owned(),
         vec![],
         vec![arg_bridge, arg_msg, arg_signatures],

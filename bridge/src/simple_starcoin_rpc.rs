@@ -104,6 +104,28 @@ impl SimpleStarcoinRpcClient {
         self.call("chain.info", vec![]).await
     }
 
+    /// Get the current block timestamp from chain info
+    /// Returns the timestamp in milliseconds from genesis
+    pub async fn get_block_timestamp(&self) -> Result<u64> {
+        let chain_info = self.chain_info().await?;
+        
+        // Parse head.timestamp from chain_info response
+        let timestamp = chain_info
+            .get("head")
+            .and_then(|h| h.get("timestamp"))
+            .and_then(|t| t.as_str())
+            .and_then(|s| s.parse::<u64>().ok())
+            .or_else(|| {
+                chain_info
+                    .get("head")
+                    .and_then(|h| h.get("timestamp"))
+                    .and_then(|t| t.as_u64())
+            })
+            .ok_or_else(|| anyhow!("Failed to parse block timestamp from chain info"))?;
+        
+        Ok(timestamp)
+    }
+
     // Get resource at address
     pub async fn get_resource(
         &self,

@@ -717,6 +717,10 @@ async fn deposit_on_starcoin(
     let sequence_number = rpc_client.get_sequence_number(&sender_hex).await
         .map_err(|e| anyhow!("Failed to get sequence number: {:?}", e))?;
 
+    // Get current block timestamp for transaction expiration
+    let block_timestamp_ms = rpc_client.get_block_timestamp().await
+        .map_err(|e| anyhow!("Failed to get block timestamp: {:?}", e))?;
+
     // Get chain ID from bridge summary
     let bridge_summary = starcoin_bridge_client.get_bridge_summary().await
         .map_err(|e| anyhow!("Failed to get bridge summary: {:?}", e))?;
@@ -731,6 +735,7 @@ async fn deposit_on_starcoin(
         coin_type = ?coin_type,
         amount = amount,
         chain_id = chain_id,
+        block_timestamp_ms = block_timestamp_ms,
         "Building deposit transaction on Starcoin"
     );
 
@@ -739,6 +744,7 @@ async fn deposit_on_starcoin(
         sender,
         sequence_number,
         chain_id,
+        block_timestamp_ms,
         target_chain_id,
         recipient_address.as_bytes().to_vec(),
         amount,

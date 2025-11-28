@@ -495,12 +495,11 @@ where
             sig_bytes.push(sig.as_bytes().to_vec());
         }
         
-        // Build the message bytes from the action
-        let message_bytes = match &bridge_action {
+        // Extract message parameters from the action
+        let (source_chain, seq_num, sender_addr, target_chain, target_addr, token_type, amount) = match &bridge_action {
             BridgeAction::EthToStarcoinBridgeAction(a) => {
                 let event = &a.eth_bridge_event;
-                // Create token bridge message
-                crate::starcoin_bridge_transaction_builder::create_token_bridge_message_bytes(
+                (
                     event.eth_chain_id as u8,
                     event.nonce,
                     event.eth_address.to_fixed_bytes().to_vec(),
@@ -512,7 +511,7 @@ where
             }
             BridgeAction::StarcoinToEthBridgeAction(a) => {
                 let event = &a.starcoin_bridge_event;
-                crate::starcoin_bridge_transaction_builder::create_token_bridge_message_bytes(
+                (
                     event.starcoin_bridge_chain_id as u8,
                     event.nonce,
                     event.starcoin_bridge_address.to_vec(),
@@ -541,6 +540,16 @@ where
             }
         };
         
+        // Get current block timestamp from chain for expiration calculation
+        let block_timestamp_ms = match starcoin_bridge_client.get_block_timestamp().await {
+            Ok(ts) => ts,
+            Err(e) => {
+                error!("Failed to get block timestamp: {:?}", e);
+                metrics.err_build_starcoin_bridge_transaction.inc();
+                return;
+            }
+        };
+        
         // Get chain ID (use 254 for dev/local, should be configurable)
         let chain_id: u8 = 254;
         
@@ -552,7 +561,14 @@ where
             sender_address,             // sender - who signs and pays gas
             seq_number,
             chain_id,
-            message_bytes,
+            block_timestamp_ms,         // current block timestamp for expiration
+            source_chain,
+            seq_num,
+            sender_addr,
+            target_chain,
+            target_addr,
+            token_type,
+            amount,
             sig_bytes,
         ) {
             Ok(txn) => txn,

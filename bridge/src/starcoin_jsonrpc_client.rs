@@ -678,6 +678,11 @@ impl StarcoinClientInner for StarcoinJsonRpcClient {
             .map_err(|e| BridgeError::Generic(format!("Failed to get sequence number: {}", e)))
     }
 
+    async fn get_block_timestamp(&self) -> Result<u64, BridgeError> {
+        self.rpc.get_block_timestamp().await
+            .map_err(|e| BridgeError::Generic(format!("Failed to get block timestamp: {}", e)))
+    }
+
     async fn sign_and_submit_transaction(
         &self,
         key: &starcoin_bridge_types::crypto::StarcoinKeyPair,

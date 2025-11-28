@@ -391,12 +391,23 @@ impl BridgeNodeConfig {
             starcoin_bridge_identifier, self.starcoin.starcoin_bridge_chain_id,
         );
 
-        let public_bytes = bridge_client_key.public();
-        let mut addr_bytes = [0u8; 32];
-        addr_bytes[..public_bytes.len().min(32)]
-            .copy_from_slice(&public_bytes[..public_bytes.len().min(32)]);
-        let client_starcoin_bridge_address =
-            starcoin_bridge_types::base_types::starcoin_bridge_address_from_bytes(addr_bytes);
+        // Parse the bridge contract address from config (starcoin_bridge_proxy_address)
+        // This is where the Move bridge module is deployed
+        let bridge_contract_address = {
+            let addr_str = self.starcoin.starcoin_bridge_proxy_address.trim_start_matches("0x");
+            let addr_bytes = hex::decode(addr_str)
+                .map_err(|e| anyhow!("Invalid starcoin_bridge_proxy_address hex: {}", e))?;
+            if addr_bytes.len() != 16 {
+                anyhow::bail!(
+                    "Invalid starcoin_bridge_proxy_address length: expected 16 bytes, got {}",
+                    addr_bytes.len()
+                );
+            }
+            let mut arr = [0u8; 16];
+            arr.copy_from_slice(&addr_bytes);
+            move_core_types::account_address::AccountAddress::new(arr)
+        };
+        info!("Bridge contract address: 0x{}", hex::encode(bridge_contract_address.as_ref()));
 
         // Starcoin uses account model, not UTXO/Object model like Sui
         // Gas is paid from account balance, no need for gas object
@@ -410,7 +421,7 @@ impl BridgeNodeConfig {
         info!("Starcoin client setup complete");
         Ok((
             bridge_client_key,
-            client_starcoin_bridge_address,
+            bridge_contract_address,
             dummy_gas_object_ref,
         ))
     }
