@@ -189,9 +189,9 @@ pub fn examine_key(path: &PathBuf, is_validator_key: bool) -> Result<(), anyhow:
             kp.public().as_bytes().to_vec()
         }
     };
-    // Convert Vec<u8> to StarcoinAddress (AccountAddress = 16 bytes)
-    let starcoin_bridge_address = StarcoinAddress::from_bytes(&pubkey[..16.min(pubkey.len())])
-        .unwrap_or(StarcoinAddress::ZERO);
+    // Derive Starcoin address using proper algorithm:
+    // SHA3-256(pubkey || scheme_flag), take last 16 bytes
+    let starcoin_bridge_address = key.starcoin_address();
     println!(
         "Corresponding Starcoin address: {:?}",
         starcoin_bridge_address

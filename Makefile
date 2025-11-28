@@ -5,7 +5,7 @@
 # Prerequisites: Docker, Rust, Starcoin CLI, mpm (Move Package Manager)
 # ============================================================
 
-.PHONY: help deploy-eth-network deploy-native deploy-docker start stop restart logs clean info test init-bridge-config deploy-sui register test-bridge stop-eth-network clean-eth-and-config setup-eth-and-config status logs-deployer start-starcoin-dev-node start-starcoin-dev-node-clean run-bridge-server build-starcoin-contracts deploy-starcoin-contracts stop-starcoin-dev-node build-bridge-cli view-bridge deposit-eth deposit-eth-test init-cli-config
+.PHONY: help deploy-eth-network deploy-native deploy-docker start stop restart logs clean info test init-bridge-config deploy-sui register test-bridge stop-eth-network clean-eth-and-config setup-eth-and-config status logs-deployer start-starcoin-dev-node start-starcoin-dev-node-clean run-bridge-server build-starcoin-contracts deploy-starcoin-contracts stop-starcoin-dev-node build-bridge-cli view-bridge deposit-eth deposit-eth-test init-cli-config fund-starcoin-bridge-account
 
 # ============================================================
 # Colors for terminal output
@@ -407,8 +407,8 @@ deploy-starcoin-contracts: build-starcoin-contracts ## Deploy Move contracts + i
 	# Phase 1: Pre-deployment checks and setup
 	# ============================================================
 	@echo "$(YELLOW)Checking Starcoin node...$(NC)"
-	@if ! pgrep -f "starcoin.*dev.*console" > /dev/null; then \
-		echo "$(RED)✗ Starcoin node not running$(NC)"; \
+	@if ! $(STARCOIN_PATH) -c $(STARCOIN_RPC) chain info >/dev/null 2>&1; then \
+		echo "$(RED)✗ Starcoin node not running or unreachable$(NC)"; \
 		echo "$(YELLOW)Start it with: make start-starcoin-dev-node$(NC)"; \
 		exit 1; \
 	fi
@@ -748,7 +748,7 @@ fund-eth-account: ## Fund ETH account from Anvil default account
 	echo "$(GREEN)✓ Funded 100 ETH to $$ETH_ADDRESS$(NC)" || \
 	echo "$(YELLOW)⚠ Funding failed (may already have balance)$(NC)"
 
-deposit-eth: build-bridge-cli fund-eth-account ## Deposit ETH to Starcoin (usage: make deposit-eth AMOUNT=0.1 RECIPIENT=0x...)
+deposit-eth: build-bridge-cli fund-eth-account fund-starcoin-bridge-account ## Deposit ETH to Starcoin (usage: make deposit-eth AMOUNT=0.1 RECIPIENT=0x...)
 	@echo "$(YELLOW)Depositing $(AMOUNT) ETH to $(RECIPIENT)...$(NC)"
 	@NO_PROXY=localhost,127.0.0.1 $(BRIDGE_CLI) client \
 		--config-path $(CLI_CONFIG) \
@@ -757,6 +757,24 @@ deposit-eth: build-bridge-cli fund-eth-account ## Deposit ETH to Starcoin (usage
 		--target-chain 2 \
 		--starcoin-bridge-recipient-address $(RECIPIENT)
 	@echo "$(GREEN)✓ Deposit transaction submitted$(NC)"
+
+# Fund the bridge server's Starcoin account with STC for gas
+fund-starcoin-bridge-account: build-bridge-cli ## Fund the bridge server account with STC for gas fees
+	@echo "$(YELLOW)Funding bridge server Starcoin account...$(NC)"
+	@if [ ! -f bridge-node/server-config/starcoin_client.key ]; then \
+		echo "$(RED)✗ Bridge client key not found: bridge-node/server-config/starcoin_client.key$(NC)"; \
+		exit 1; \
+	fi
+	@BRIDGE_ACCOUNT=$$($(BRIDGE_CLI) examine-key bridge-node/server-config/starcoin_client.key 2>/dev/null | grep "Starcoin address:" | awk '{print $$NF}'); \
+	if [ -z "$$BRIDGE_ACCOUNT" ]; then \
+		echo "$(RED)✗ Failed to get bridge account address$(NC)"; \
+		exit 1; \
+	fi; \
+	echo "$(YELLOW)Bridge account: $$BRIDGE_ACCOUNT$(NC)"; \
+	echo "$(YELLOW)Getting STC for bridge account...$(NC)"; \
+	$(STARCOIN_PATH) -c $(STARCOIN_RPC) dev get-coin -v 10000000 $$BRIDGE_ACCOUNT 2>&1 | grep -v "^[0-9].*INFO" && \
+	echo "$(GREEN)✓ Funded bridge account for account initialization$(NC)" || \
+	echo "$(YELLOW)⚠ Funding may have failed (account might already have balance)$(NC)"
 
 # Quick deposit with default test address
 deposit-eth-test: build-bridge-cli ## Quick test: deposit 0.1 ETH to test address

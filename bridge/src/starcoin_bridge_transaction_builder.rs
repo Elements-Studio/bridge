@@ -147,11 +147,13 @@ pub mod starcoin_native {
     /// # Arguments
     /// * `block_timestamp_ms` - Current block timestamp in milliseconds from chain
     /// 
-    /// Returns the expiration timestamp in milliseconds (current + 1 hour)
+    /// Returns the expiration timestamp in **seconds** (current + 1 hour)
+    /// Note: Starcoin's RawUserTransaction expects expiration_timestamp_secs in seconds
     fn calculate_expiration_from_block(block_timestamp_ms: u64) -> u64 {
-        // Add 1 hour (3600 seconds = 3600000 ms) to current block timestamp
-        // Block timestamp is in milliseconds, so we add in milliseconds
-        block_timestamp_ms.saturating_add(3_600_000)
+        // Convert milliseconds to seconds, then add 1 hour (3600 seconds)
+        // Starcoin's RawUserTransaction.expiration_timestamp_secs expects seconds
+        let current_secs = block_timestamp_ms / 1000;
+        current_secs.saturating_add(3_600)
     }
 
     /// Build a RawUserTransaction for approving token transfer
