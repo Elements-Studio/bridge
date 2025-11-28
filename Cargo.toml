@@ -90,8 +90,8 @@ starcoin-bridge-vm-types = { path = "./starcoin-bridge-vm-types" }
 starcoin-bridge-macros = { git = "https://github.com/MystenLabs/sui", rev = "mainnet-v1.58.3", package = "sui-macros" }
 starcoin-bridge-sql-macro = { path = "./starcoin-bridge-sql-macro" }
 # Starcoin native types from starcoin-vm1
-starcoin-vm-types = { path = "../starcoin-vm1/vm/types" }
-bcs-ext = { path = "../starcoin-vm1/commons/bcs_ext" }
+starcoin-vm-types = { git = "https://github.com/starcoinorg/starcoin", rev = "ba7cd08110d3582361e0862f45109361036b50ce" }
+bcs-ext = { git = "https://github.com/starcoinorg/starcoin", rev = "ba7cd08110d3582361e0862f45109361036b50ce" }
 telemetry-subscribers = { path = "./telemetry-subscribers" }
 test-cluster = { path = "./test-cluster" }
 typed-store = { path = "./typed-store" }
