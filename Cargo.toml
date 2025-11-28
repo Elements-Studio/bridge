@@ -57,7 +57,7 @@ serde_json = "1.0"
 serde_with = "3.8"
 serde-name = "0.2"
 log = "0.4"
-starcoin-crypto = { git = "https://github.com/starcoinorg/starcoin-crypto", rev = "bc3ca2138cf66d646f14a0f673ae5d853743f50a" }
+starcoin-crypto = { git = "https://github.com/starcoinorg/starcoin-crypto", rev = "a742ddc0674022800341182cbb4c3681807b2f00" }
 static_assertions = "1.1"
 strum_macros = "0.27"
 tap = "1.0"
@@ -89,6 +89,9 @@ starcoin-bridge-types = { path = "./starcoin-bridge-types" }
 starcoin-bridge-vm-types = { path = "./starcoin-bridge-vm-types" }
 starcoin-bridge-macros = { git = "https://github.com/MystenLabs/sui", rev = "mainnet-v1.58.3", package = "sui-macros" }
 starcoin-bridge-sql-macro = { path = "./starcoin-bridge-sql-macro" }
+# Starcoin native types from starcoin-vm1
+starcoin-vm-types = { path = "../starcoin-vm1/vm/types" }
+bcs-ext = { path = "../starcoin-vm1/commons/bcs_ext" }
 telemetry-subscribers = { path = "./telemetry-subscribers" }
 test-cluster = { path = "./test-cluster" }
 typed-store = { path = "./typed-store" }
@@ -157,4 +160,4 @@ merlin = { git = "https://github.com/aptos-labs/merlin" }
 
 # Patch old starcoin-crypto git URL to use newer version with updated zeroize
 [patch."https://github.com/starcoinorg/starcoin-crypto?rev=5417dce574142c3da24adf987194a6931869f588"]
-starcoin-crypto = { git = "https://github.com/starcoinorg/starcoin-crypto", rev = "bc3ca2138cf66d646f14a0f673ae5d853743f50a" }
+starcoin-crypto = { git = "https://github.com/starcoinorg/starcoin-crypto", rev = "a742ddc0674022800341182cbb4c3681807b2f00" }

@@ -198,46 +198,101 @@ impl SimpleStarcoinRpcClient {
     }
 
     /// Sign a RawUserTransaction and submit it to the network
+    /// Uses Starcoin native types for correct BCS serialization
     pub async fn sign_and_submit_transaction(
         &self,
         key: &starcoin_bridge_types::crypto::StarcoinKeyPair,
         raw_txn: starcoin_bridge_types::transaction::RawUserTransaction,
     ) -> Result<String> {
         use starcoin_bridge_types::crypto::StarcoinKeyPair;
-        use fastcrypto::hash::{HashFunction, Sha3_256};
-        use fastcrypto::traits::{KeyPair as FastcryptoKeyPair, ToFromBytes, Signer};
+        use starcoin_crypto::ed25519::{Ed25519PrivateKey, Ed25519PublicKey};
+        use starcoin_vm_types::account_address::AccountAddress;
+        use starcoin_vm_types::transaction::{
+            RawUserTransaction as NativeRawUserTransaction,
+            TransactionPayload as NativeTransactionPayload,
+            ScriptFunction,
+        };
+        use starcoin_vm_types::genesis_config::ChainId as NativeChainId;
+        use starcoin_vm_types::identifier::Identifier;
+        use starcoin_vm_types::language_storage::{ModuleId, TypeTag};
         
-        // Serialize the raw transaction
-        let raw_txn_bytes = bcs::to_bytes(&raw_txn)
-            .map_err(|e| anyhow!("Failed to serialize raw transaction: {}", e))?;
+        // Convert our RawUserTransaction to Starcoin native RawUserTransaction
+        // StarcoinAddress is [u8; 16], AccountAddress::new expects [u8; 16]
+        let sender = AccountAddress::new(*raw_txn.sender);
         
-        // Hash the raw transaction for signing
-        // Starcoin uses a specific prefix for transaction signing
-        let prefix = Sha3_256::digest(b"STARCOIN::RawUserTransaction");
-        let mut to_sign = prefix.digest.to_vec();
-        to_sign.extend_from_slice(&raw_txn_bytes);
-        let txn_hash = Sha3_256::digest(&to_sign);
-        
-        // Sign and get public key based on key type
-        let (public_key_bytes, signature_bytes) = match key {
-            StarcoinKeyPair::Ed25519(kp) => {
-                // Use the Signer trait to sign
-                let sig: fastcrypto::ed25519::Ed25519Signature = kp.sign(&txn_hash.digest);
-                (kp.public().as_bytes().to_vec(), sig.as_ref().to_vec())
+        // Convert payload - need to rebuild with starcoin_vm_types types
+        let native_payload = match &raw_txn.payload {
+            starcoin_bridge_types::transaction::TransactionPayload::ScriptFunction(sf) => {
+                // Rebuild ModuleId with starcoin_vm_types types
+                let module_addr = AccountAddress::new(**sf.module.address());
+                let module_name = Identifier::new(sf.module.name().as_str())
+                    .map_err(|e| anyhow!("Invalid module name: {:?}", e))?;
+                let native_module = ModuleId::new(module_addr, module_name);
+                
+                let function_name = Identifier::new(sf.function.as_str())
+                    .map_err(|e| anyhow!("Invalid function name: {:?}", e))?;
+                
+                // Convert type args - they should be compatible via BCS
+                let native_ty_args: Vec<TypeTag> = sf.ty_args.iter()
+                    .map(|t| {
+                        // Serialize and deserialize to convert between move_core_types versions
+                        let bytes = bcs::to_bytes(t).unwrap();
+                        bcs_ext::from_bytes(&bytes).unwrap()
+                    })
+                    .collect();
+                
+                NativeTransactionPayload::ScriptFunction(ScriptFunction::new(
+                    native_module,
+                    function_name,
+                    native_ty_args,
+                    sf.args.clone(),
+                ))
             }
-            _ => return Err(anyhow!("Only Ed25519 keys are supported")),
+            _ => return Err(anyhow!("Only ScriptFunction payload is supported")),
         };
         
-        // Build SignedUserTransaction
-        // Format: raw_txn + authenticator
-        // Authenticator format for Ed25519: scheme(1 byte) + pubkey(32 bytes) + signature(64 bytes)
-        let mut signed_txn_bytes = raw_txn_bytes.clone();
-        signed_txn_bytes.push(0u8); // Ed25519 scheme = 0
-        signed_txn_bytes.extend_from_slice(&public_key_bytes);
-        signed_txn_bytes.extend_from_slice(&signature_bytes);
+        let native_raw_txn = NativeRawUserTransaction::new_with_default_gas_token(
+            sender,
+            raw_txn.sequence_number,
+            native_payload,
+            raw_txn.max_gas_amount,
+            raw_txn.gas_unit_price,
+            raw_txn.expiration_timestamp_secs,
+            NativeChainId::new(raw_txn.chain_id.0),
+        );
+        
+        // Get Ed25519 private key bytes and create Starcoin Ed25519PrivateKey
+        let (public_key_bytes, private_key_bytes) = match key {
+            StarcoinKeyPair::Ed25519(kp) => {
+                use fastcrypto::traits::{KeyPair as FastcryptoKeyPair, ToFromBytes};
+                let priv_bytes = kp.as_bytes()[..32].to_vec(); // Ed25519 private key is first 32 bytes
+                let pub_bytes = kp.public().as_bytes().to_vec();
+                (pub_bytes, priv_bytes)
+            }
+            _ => return Err(anyhow!("Only Ed25519 keys are supported for Starcoin")),
+        };
+        
+        // Create Starcoin native Ed25519 keys
+        let private_key = Ed25519PrivateKey::try_from(private_key_bytes.as_slice())
+            .map_err(|e| anyhow!("Invalid Ed25519 private key: {:?}", e))?;
+        let public_key = Ed25519PublicKey::try_from(public_key_bytes.as_slice())
+            .map_err(|e| anyhow!("Invalid Ed25519 public key: {:?}", e))?;
+        
+        // Sign using Starcoin's native signing
+        let signed_txn = native_raw_txn.sign(&private_key, public_key)
+            .map_err(|e| anyhow!("Failed to sign transaction: {:?}", e))?
+            .into_inner();
+        
+        // Serialize using BCS
+        let signed_txn_bytes = bcs_ext::to_bytes(&signed_txn)
+            .map_err(|e| anyhow!("Failed to serialize signed transaction: {}", e))?;
         
         // Convert to hex and submit
         let signed_txn_hex = hex::encode(&signed_txn_bytes);
+        
+        tracing::debug!("Submitting transaction hex (len={}): {}...", 
+            signed_txn_hex.len(), 
+            &signed_txn_hex[..std::cmp::min(100, signed_txn_hex.len())]);
         
         let result = self.submit_transaction(&signed_txn_hex).await?;
         

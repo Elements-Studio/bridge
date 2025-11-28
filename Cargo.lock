@@ -109,7 +109,7 @@ version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d122413f284cf2d62fb1b7db97e02edb8cda96d769b16e443a4f6195e35662b0"
 dependencies = [
- "crypto-common 0.1.6",
+ "crypto-common",
  "generic-array",
 ]
 
@@ -1010,15 +1010,6 @@ checksum = "55248b47b0caf0546f7988906588779981c43bb1bc9d0c44087278f80cdb44ba"
 
 [[package]]
 name = "bcs"
-version = "0.1.4"
-source = "git+https://github.com/aptos-labs/bcs.git?rev=d31fab9d81748e2594be5cd5cdf845786a30562d#d31fab9d81748e2594be5cd5cdf845786a30562d"
-dependencies = [
- "serde",
- "thiserror 1.0.69",
-]
-
-[[package]]
-name = "bcs"
 version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "85b6598a2f5d564fb7855dc6b06fd1c38cff5a72bd8b863a4d021938497b440a"
@@ -1030,10 +1021,19 @@ dependencies = [
 [[package]]
 name = "bcs-ext"
 version = "1.13.20"
-source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#016564fc658266a805c048ca0ce53b123ea77e9e"
 dependencies = [
  "anyhow",
- "bcs 0.1.6",
+ "bcs",
+ "serde",
+]
+
+[[package]]
+name = "bcs-ext"
+version = "1.13.20"
+source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#b3a44275e2145367253a7383e02821e77def6def"
+dependencies = [
+ "anyhow",
+ "bcs",
  "serde",
 ]
 
@@ -1133,7 +1133,7 @@ dependencies = [
  "bitflags 2.10.0",
  "cexpr",
  "clang-sys",
- "itertools 0.10.5",
+ "itertools 0.13.0",
  "proc-macro2 1.0.103",
  "quote 1.0.42",
  "regex",
@@ -1595,7 +1595,7 @@ version = "0.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "773f3b9af64447d2ce9850330c473515014aa235e6a783b02db81ff39e4a3dad"
 dependencies = [
- "crypto-common 0.1.6",
+ "crypto-common",
  "inout",
  "zeroize",
 ]
@@ -1963,9 +1963,9 @@ checksum = "dcb25d077389e53838a8158c8e99174c5a9d902dee4904320db714f3c653ffba"
 
 [[package]]
 name = "crc"
-version = "3.3.0"
+version = "3.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9710d3b3739c2e349eb44fe848ad0b7c8cb1e42bd87ee49371df2f7acaf3e675"
+checksum = "5eb8a2a1cd12ab0d987a5d5e825195d372001a4094a0376319d5a0ad71c1ba0d"
 dependencies = [
  "crc-catalog",
 ]
@@ -2123,33 +2123,9 @@ dependencies = [
 
 [[package]]
 name = "crypto-common"
-version = "0.1.0"
-source = "git+https://github.com/starcoinorg/crypto-common?rev=c350ab8d2b61f24d4a6102e5797a29b3950b92b2#c350ab8d2b61f24d4a6102e5797a29b3950b92b2"
-dependencies = [
- "bcs 0.1.4",
- "byteorder",
- "bytes 1.11.0",
- "hex",
- "more-asserts",
- "once_cell",
- "openrpc-schema 0.1.0 (git+https://github.com/starcoinorg/openrpc-rs?rev=1f2f7d3495e3bd3ef3b6fcf7c4e0602cad090d5e)",
- "proptest",
- "proptest-derive 0.4.0",
- "rand 0.7.3",
- "rand_core 0.5.1",
- "serde",
- "serde_bytes",
- "serde_json",
- "static_assertions",
- "thiserror 1.0.69",
- "tiny-keccak",
-]
-
-[[package]]
-name = "crypto-common"
-version = "0.1.6"
+version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1bfb12502f3fc46cca1bb51ac28df9d618d813cdc3d2f25b9fe775a34af26bb3"
+checksum = "78c8292055d1c1df0cce5d180393dc8cce0abec0a7102adb6c7b1eef6016d60a"
 dependencies = [
  "generic-array",
  "rand_core 0.6.4",
@@ -2594,12 +2570,12 @@ source = "git+https://github.com/starcoinorg/starcoin-crypto?rev=a742ddc06740228
 dependencies = [
  "aes-gcm 0.8.0",
  "anyhow",
- "bcs 0.1.6",
+ "bcs",
  "bindgen 0.59.2",
  "bytes 1.11.0",
  "cc",
  "curve25519-dalek-fiat",
- "diem-crypto-derive 0.0.3 (git+https://github.com/starcoinorg/starcoin-crypto?rev=a742ddc0674022800341182cbb4c3681807b2f00)",
+ "diem-crypto-derive",
  "digest 0.9.0",
  "ed25519-dalek-fiat",
  "hex",
@@ -2609,40 +2585,7 @@ dependencies = [
  "once_cell",
  "openrpc-schema 0.1.0 (git+https://github.com/starcoinorg/openrpc-rs?rev=f8ab047e30927cdf2f605b61a219c975d6c4f666)",
  "proptest",
- "proptest-derive 0.3.0",
- "rand 0.8.5",
- "rand_core 0.6.4",
- "serde",
- "serde-name 0.1.2",
- "serde_bytes",
- "sha2 0.9.9",
- "static_assertions",
- "thiserror 1.0.69",
- "tiny-keccak",
- "x25519-dalek-fiat",
-]
-
-[[package]]
-name = "diem-crypto"
-version = "0.0.3"
-source = "git+https://github.com/starcoinorg/starcoin-crypto?rev=bc3ca2138cf66d646f14a0f673ae5d853743f50a#bc3ca2138cf66d646f14a0f673ae5d853743f50a"
-dependencies = [
- "aes-gcm 0.8.0",
- "anyhow",
- "bcs 0.1.6",
- "bytes 1.11.0",
- "crypto-common 0.1.0",
- "curve25519-dalek-fiat",
- "diem-crypto-derive 0.0.3 (git+https://github.com/starcoinorg/starcoin-crypto?rev=bc3ca2138cf66d646f14a0f673ae5d853743f50a)",
- "digest 0.9.0",
- "ed25519-dalek-fiat",
- "hex",
- "hkdf 0.10.0",
- "mirai-annotations",
- "once_cell",
- "openrpc-schema 0.1.0 (git+https://github.com/starcoinorg/openrpc-rs?rev=1f2f7d3495e3bd3ef3b6fcf7c4e0602cad090d5e)",
- "proptest",
- "proptest-derive 0.3.0",
+ "proptest-derive",
  "rand 0.8.5",
  "rand_core 0.6.4",
  "serde",
@@ -2659,16 +2602,6 @@ dependencies = [
 name = "diem-crypto-derive"
 version = "0.0.3"
 source = "git+https://github.com/starcoinorg/starcoin-crypto?rev=a742ddc0674022800341182cbb4c3681807b2f00#a742ddc0674022800341182cbb4c3681807b2f00"
-dependencies = [
- "proc-macro2 1.0.103",
- "quote 1.0.42",
- "syn 1.0.109",
-]
-
-[[package]]
-name = "diem-crypto-derive"
-version = "0.0.3"
-source = "git+https://github.com/starcoinorg/starcoin-crypto?rev=bc3ca2138cf66d646f14a0f673ae5d853743f50a#bc3ca2138cf66d646f14a0f673ae5d853743f50a"
 dependencies = [
  "proc-macro2 1.0.103",
  "quote 1.0.42",
@@ -2698,7 +2631,7 @@ checksum = "9ed9a281f7bc9b7576e61468ba615a66a5c8cfdff42420a70aa82701a3b1e292"
 dependencies = [
  "block-buffer 0.10.4",
  "const-oid",
- "crypto-common 0.1.6",
+ "crypto-common",
  "subtle",
 ]
 
@@ -3421,7 +3354,7 @@ dependencies = [
  "ark-serialize",
  "auto_ops",
  "base64ct",
- "bcs 0.1.6",
+ "bcs",
  "bech32",
  "bincode",
  "blake2",
@@ -3597,11 +3530,10 @@ checksum = "00b0228411908ca8685dba7fc2cdd70ec9990a6e753e89b6ac91a84c40fbaf4b"
 [[package]]
 name = "forkable-jellyfish-merkle"
 version = "1.13.20"
-source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#016564fc658266a805c048ca0ce53b123ea77e9e"
 dependencies = [
  "anyhow",
  "backtrace",
- "bcs-ext",
+ "bcs-ext 1.13.20",
  "byteorder",
  "hex",
  "mirai-annotations",
@@ -3609,8 +3541,28 @@ dependencies = [
  "num-traits",
  "serde",
  "serde_bytes",
- "starcoin-crypto 1.10.0-rc.2 (git+https://github.com/starcoinorg/starcoin-crypto?rev=a742ddc0674022800341182cbb4c3681807b2f00)",
- "starcoin-logger",
+ "starcoin-crypto",
+ "starcoin-logger 1.13.20",
+ "thiserror 1.0.69",
+]
+
+[[package]]
+name = "forkable-jellyfish-merkle"
+version = "1.13.20"
+source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#b3a44275e2145367253a7383e02821e77def6def"
+dependencies = [
+ "anyhow",
+ "backtrace",
+ "bcs-ext 1.13.20 (git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge)",
+ "byteorder",
+ "hex",
+ "mirai-annotations",
+ "num-derive",
+ "num-traits",
+ "serde",
+ "serde_bytes",
+ "starcoin-crypto",
+ "starcoin-logger 1.13.20 (git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge)",
  "thiserror 1.0.69",
 ]
 
@@ -3836,9 +3788,9 @@ dependencies = [
 
 [[package]]
 name = "generic-array"
-version = "0.14.9"
+version = "0.14.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4bb6743198531e02858aeaea5398fcc883e71851fcbcb5a2f773e2fb6cb1edf2"
+checksum = "85649ca51fd72272d7821adaf274ad91c288277713d9c18820d8499a7ff69e9a"
 dependencies = [
  "serde",
  "typenum",
@@ -4925,6 +4877,15 @@ name = "itertools"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "413ee7dfc52ee1a4949ceeb7dbc8a33f2d6c088194d9f922fb8318faf1f01186"
+dependencies = [
+ "either",
+]
+
+[[package]]
+name = "itertools"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2b192c782037fadd9cfa75548310488aabdbf3d2da73885b31bd0abd03351285"
 dependencies = [
  "either",
 ]
@@ -6054,18 +6015,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dce6dd36094cac388f119d2e9dc82dc730ef91c32a6222170d630e5414b956e6"
 
 [[package]]
-name = "more-asserts"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1fafa6961cabd9c63bcd77a45d7e3b7f3b552b70417831fb0f56db717e72407e"
-
-[[package]]
 name = "move-abigen"
 version = "0.1.0"
 source = "git+https://github.com/starcoinorg/move?rev=7b6ac7bb04515ee4ced5b1c1cdafb6ea6cb4eadc#7b6ac7bb04515ee4ced5b1c1cdafb6ea6cb4eadc"
 dependencies = [
  "anyhow",
- "bcs 0.1.6",
+ "bcs",
  "heck 0.3.3",
  "log 0.4.28",
  "move-binary-format",
@@ -6086,7 +6041,7 @@ dependencies = [
  "move-core-types 0.0.4 (git+https://github.com/starcoinorg/move?rev=7b6ac7bb04515ee4ced5b1c1cdafb6ea6cb4eadc)",
  "once_cell",
  "proptest",
- "proptest-derive 0.3.0",
+ "proptest-derive",
  "ref-cast",
  "serde",
  "variant_count",
@@ -6103,7 +6058,7 @@ version = "0.1.0"
 source = "git+https://github.com/starcoinorg/move?rev=7b6ac7bb04515ee4ced5b1c1cdafb6ea6cb4eadc#7b6ac7bb04515ee4ced5b1c1cdafb6ea6cb4eadc"
 dependencies = [
  "anyhow",
- "bcs 0.1.6",
+ "bcs",
  "move-binary-format",
  "move-command-line-common",
  "move-core-types 0.0.4 (git+https://github.com/starcoinorg/move?rev=7b6ac7bb04515ee4ced5b1c1cdafb6ea6cb4eadc)",
@@ -6148,7 +6103,7 @@ version = "0.0.1"
 source = "git+https://github.com/starcoinorg/move?rev=7b6ac7bb04515ee4ced5b1c1cdafb6ea6cb4eadc#7b6ac7bb04515ee4ced5b1c1cdafb6ea6cb4eadc"
 dependencies = [
  "anyhow",
- "bcs 0.1.6",
+ "bcs",
  "clap 3.2.25",
  "codespan-reporting",
  "difference",
@@ -6178,7 +6133,7 @@ source = "git+https://github.com/starcoinorg/move?rev=7b6ac7bb04515ee4ced5b1c1cd
 dependencies = [
  "anyhow",
  "arbitrary",
- "bcs 0.1.6",
+ "bcs",
  "bech32",
  "ethnum",
  "hex",
@@ -6187,7 +6142,7 @@ dependencies = [
  "openrpc-schema 0.1.0 (git+https://github.com/starcoinorg/openrpc-rs?rev=f8ab047e30927cdf2f605b61a219c975d6c4f666)",
  "primitive-types 0.10.1",
  "proptest",
- "proptest-derive 0.3.0",
+ "proptest-derive",
  "rand 0.8.5",
  "ref-cast",
  "serde",
@@ -6201,7 +6156,7 @@ version = "0.0.4"
 source = "git+https://github.com/starcoinorg/move?rev=babf994a38cda17b84186c7992f92fb3554347f0#babf994a38cda17b84186c7992f92fb3554347f0"
 dependencies = [
  "anyhow",
- "bcs 0.1.6",
+ "bcs",
  "bech32",
  "ethnum",
  "hex",
@@ -6222,7 +6177,7 @@ version = "0.1.0"
 source = "git+https://github.com/starcoinorg/move?rev=7b6ac7bb04515ee4ced5b1c1cdafb6ea6cb4eadc#7b6ac7bb04515ee4ced5b1c1cdafb6ea6cb4eadc"
 dependencies = [
  "anyhow",
- "bcs 0.1.6",
+ "bcs",
  "clap 3.2.25",
  "codespan",
  "colored",
@@ -6278,7 +6233,7 @@ version = "0.1.0"
 source = "git+https://github.com/starcoinorg/move?rev=7b6ac7bb04515ee4ced5b1c1cdafb6ea6cb4eadc#7b6ac7bb04515ee4ced5b1c1cdafb6ea6cb4eadc"
 dependencies = [
  "anyhow",
- "bcs 0.1.6",
+ "bcs",
  "log 0.4.28",
  "move-command-line-common",
  "move-core-types 0.0.4 (git+https://github.com/starcoinorg/move?rev=7b6ac7bb04515ee4ced5b1c1cdafb6ea6cb4eadc)",
@@ -6499,7 +6454,7 @@ version = "0.1.0"
 source = "git+https://github.com/starcoinorg/move?rev=7b6ac7bb04515ee4ced5b1c1cdafb6ea6cb4eadc#7b6ac7bb04515ee4ced5b1c1cdafb6ea6cb4eadc"
 dependencies = [
  "anyhow",
- "bcs 0.1.6",
+ "bcs",
  "better_any",
  "move-binary-format",
  "move-core-types 0.0.4 (git+https://github.com/starcoinorg/move?rev=7b6ac7bb04515ee4ced5b1c1cdafb6ea6cb4eadc)",
@@ -6546,7 +6501,7 @@ name = "move-vm-types"
 version = "0.1.0"
 source = "git+https://github.com/starcoinorg/move?rev=7b6ac7bb04515ee4ced5b1c1cdafb6ea6cb4eadc#7b6ac7bb04515ee4ced5b1c1cdafb6ea6cb4eadc"
 dependencies = [
- "bcs 0.1.6",
+ "bcs",
  "move-binary-format",
  "move-core-types 0.0.4 (git+https://github.com/starcoinorg/move?rev=7b6ac7bb04515ee4ced5b1c1cdafb6ea6cb4eadc)",
  "once_cell",
@@ -6853,11 +6808,11 @@ dependencies = [
 [[package]]
 name = "network-api"
 version = "1.13.20"
-source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#016564fc658266a805c048ca0ce53b123ea77e9e"
+source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#b3a44275e2145367253a7383e02821e77def6def"
 dependencies = [
  "anyhow",
  "async-trait",
- "bcs-ext",
+ "bcs-ext 1.13.20 (git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge)",
  "futures 0.3.31",
  "hex",
  "itertools 0.10.5",
@@ -6867,8 +6822,8 @@ dependencies = [
  "rand 0.8.5",
  "schemars 0.8.8 (git+https://github.com/starcoinorg/schemars?rev=9b3705780b8fe9c8676ff82919869ba7405b1062)",
  "serde",
- "starcoin-crypto 1.10.0-rc.2 (git+https://github.com/starcoinorg/starcoin-crypto?rev=a742ddc0674022800341182cbb4c3681807b2f00)",
- "starcoin-logger",
+ "starcoin-crypto",
+ "starcoin-logger 1.13.20 (git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge)",
  "starcoin-metrics",
  "starcoin-service-registry",
  "starcoin-types",
@@ -6877,7 +6832,7 @@ dependencies = [
 [[package]]
 name = "network-p2p-types"
 version = "1.13.20"
-source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#016564fc658266a805c048ca0ce53b123ea77e9e"
+source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#b3a44275e2145367253a7383e02821e77def6def"
 dependencies = [
  "anyhow",
  "bitflags 1.3.2",
@@ -6889,20 +6844,20 @@ dependencies = [
  "schemars 0.8.8 (git+https://github.com/starcoinorg/schemars?rev=9b3705780b8fe9c8676ff82919869ba7405b1062)",
  "serde",
  "serde_json",
- "starcoin-crypto 1.10.0-rc.2 (git+https://github.com/starcoinorg/starcoin-crypto?rev=a742ddc0674022800341182cbb4c3681807b2f00)",
+ "starcoin-crypto",
  "starcoin-types",
 ]
 
 [[package]]
 name = "network-types"
 version = "1.13.20"
-source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#016564fc658266a805c048ca0ce53b123ea77e9e"
+source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#b3a44275e2145367253a7383e02821e77def6def"
 dependencies = [
  "anyhow",
  "network-p2p-types",
  "schemars 0.8.8 (git+https://github.com/starcoinorg/schemars?rev=9b3705780b8fe9c8676ff82919869ba7405b1062)",
  "serde",
- "starcoin-crypto 1.10.0-rc.2 (git+https://github.com/starcoinorg/starcoin-crypto?rev=a742ddc0674022800341182cbb4c3681807b2f00)",
+ "starcoin-crypto",
  "starcoin-types",
 ]
 
@@ -8187,17 +8142,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "proptest-derive"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9cf16337405ca084e9c78985114633b6827711d22b9e6ef6c6c0d665eb3f0b6e"
-dependencies = [
- "proc-macro2 1.0.103",
- "quote 1.0.42",
- "syn 1.0.109",
-]
-
-[[package]]
 name = "prost"
 version = "0.11.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8272,7 +8216,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8a56d757972c98b346a9b766e3f02746cde6dd1cd1d1d563472929fdd74bec4d"
 dependencies = [
  "anyhow",
- "itertools 0.10.5",
+ "itertools 0.14.0",
  "proc-macro2 1.0.103",
  "quote 1.0.42",
  "syn 2.0.111",
@@ -9224,7 +9168,7 @@ dependencies = [
 [[package]]
 name = "sc-peerset"
 version = "1.13.20"
-source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#016564fc658266a805c048ca0ce53b123ea77e9e"
+source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#b3a44275e2145367253a7383e02821e77def6def"
 dependencies = [
  "futures 0.3.31",
  "libp2p",
@@ -9533,7 +9477,7 @@ dependencies = [
 [[package]]
 name = "serde-helpers"
 version = "1.13.20"
-source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#016564fc658266a805c048ca0ce53b123ea77e9e"
+source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#b3a44275e2145367253a7383e02821e77def6def"
 dependencies = [
  "hex",
  "serde",
@@ -9628,7 +9572,6 @@ version = "1.0.145"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "402a6f66d8c709116cf22f558eab210f5a50187f702eb4d7e5ef38d9a7f1c79c"
 dependencies = [
- "indexmap 2.12.1",
  "itoa",
  "memchr",
  "ryu",
@@ -9681,9 +9624,9 @@ dependencies = [
 
 [[package]]
 name = "serde_with"
-version = "3.16.0"
+version = "3.16.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "10574371d41b0d9b2cff89418eda27da52bcaff2cc8741db26382a77c29131f1"
+checksum = "4fa237f2807440d238e0364a218270b98f767a00d3dada77b1c53ae88940e2e7"
 dependencies = [
  "base64 0.22.1",
  "chrono",
@@ -9700,9 +9643,9 @@ dependencies = [
 
 [[package]]
 name = "serde_with_macros"
-version = "3.16.0"
+version = "3.16.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "08a72d8216842fdd57820dc78d840bef99248e35fb2554ff923319e60f2d686b"
+checksum = "52a8e3ca0ca629121f70ab50f95249e5a6f925cc0f6ffe8256c45b728875706c"
 dependencies = [
  "darling 0.21.3",
  "proc-macro2 1.0.103",
@@ -9833,7 +9776,7 @@ dependencies = [
 name = "shared-crypto"
 version = "0.1.0"
 dependencies = [
- "bcs 0.1.6",
+ "bcs",
  "eyre",
  "fastcrypto",
  "serde",
@@ -10111,7 +10054,7 @@ dependencies = [
 [[package]]
 name = "sp-utils"
 version = "1.13.20"
-source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#016564fc658266a805c048ca0ce53b123ea77e9e"
+source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#b3a44275e2145367253a7383e02821e77def6def"
 dependencies = [
  "futures 0.3.31",
  "futures-core",
@@ -10163,11 +10106,11 @@ checksum = "6ce2be8dc25455e1f91df71bfa12ad37d7af1092ae736f3a6cd0e37bc7810596"
 [[package]]
 name = "starcoin-abi-decoder"
 version = "1.13.20"
-source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#016564fc658266a805c048ca0ce53b123ea77e9e"
+source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#b3a44275e2145367253a7383e02821e77def6def"
 dependencies = [
  "anyhow",
- "bcs 0.1.6",
- "bcs-ext",
+ "bcs",
+ "bcs-ext 1.13.20 (git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge)",
  "hex",
  "move-binary-format",
  "ordinal",
@@ -10178,25 +10121,25 @@ dependencies = [
  "starcoin-abi-resolver",
  "starcoin-abi-types",
  "starcoin-resource-viewer",
- "starcoin-vm-types",
+ "starcoin-vm-types 1.13.20 (git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge)",
 ]
 
 [[package]]
 name = "starcoin-abi-resolver"
 version = "1.13.20"
-source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#016564fc658266a805c048ca0ce53b123ea77e9e"
+source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#b3a44275e2145367253a7383e02821e77def6def"
 dependencies = [
  "anyhow",
  "move-model",
  "starcoin-abi-types",
  "starcoin-resource-viewer",
- "starcoin-vm-types",
+ "starcoin-vm-types 1.13.20 (git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge)",
 ]
 
 [[package]]
 name = "starcoin-abi-types"
 version = "1.13.20"
-source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#016564fc658266a805c048ca0ce53b123ea77e9e"
+source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#b3a44275e2145367253a7383e02821e77def6def"
 dependencies = [
  "anyhow",
  "hex",
@@ -10205,17 +10148,17 @@ dependencies = [
  "serde",
  "serde_bytes",
  "serde_json",
- "starcoin-vm-types",
+ "starcoin-vm-types 1.13.20 (git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge)",
 ]
 
 [[package]]
 name = "starcoin-account-api"
 version = "1.13.20"
-source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#016564fc658266a805c048ca0ce53b123ea77e9e"
+source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#b3a44275e2145367253a7383e02821e77def6def"
 dependencies = [
  "anyhow",
  "async-trait",
- "bcs-ext",
+ "bcs-ext 1.13.20 (git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge)",
  "futures 0.3.31",
  "hex",
  "rand 0.8.5",
@@ -10224,7 +10167,7 @@ dependencies = [
  "serde",
  "serde_bytes",
  "serde_json",
- "starcoin-crypto 1.10.0-rc.2 (git+https://github.com/starcoinorg/starcoin-crypto?rev=a742ddc0674022800341182cbb4c3681807b2f00)",
+ "starcoin-crypto",
  "starcoin-service-registry",
  "starcoin-types",
  "thiserror 1.0.69",
@@ -10233,10 +10176,9 @@ dependencies = [
 [[package]]
 name = "starcoin-accumulator"
 version = "1.13.20"
-source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#016564fc658266a805c048ca0ce53b123ea77e9e"
 dependencies = [
  "anyhow",
- "bcs-ext",
+ "bcs-ext 1.13.20",
  "byteorder",
  "itertools 0.10.5",
  "lru 0.7.8",
@@ -10245,8 +10187,27 @@ dependencies = [
  "parking_lot 0.12.5",
  "schemars 0.8.8 (git+https://github.com/starcoinorg/schemars?rev=9b3705780b8fe9c8676ff82919869ba7405b1062)",
  "serde",
- "starcoin-crypto 1.10.0-rc.2 (git+https://github.com/starcoinorg/starcoin-crypto?rev=a742ddc0674022800341182cbb4c3681807b2f00)",
- "starcoin-logger",
+ "starcoin-crypto",
+ "starcoin-logger 1.13.20",
+]
+
+[[package]]
+name = "starcoin-accumulator"
+version = "1.13.20"
+source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#b3a44275e2145367253a7383e02821e77def6def"
+dependencies = [
+ "anyhow",
+ "bcs-ext 1.13.20 (git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge)",
+ "byteorder",
+ "itertools 0.10.5",
+ "lru 0.7.8",
+ "mirai-annotations",
+ "once_cell",
+ "parking_lot 0.12.5",
+ "schemars 0.8.8 (git+https://github.com/starcoinorg/schemars?rev=9b3705780b8fe9c8676ff82919869ba7405b1062)",
+ "serde",
+ "starcoin-crypto",
+ "starcoin-logger 1.13.20 (git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge)",
 ]
 
 [[package]]
@@ -10258,7 +10219,8 @@ dependencies = [
  "async-trait",
  "axum 0.7.9",
  "backoff",
- "bcs 0.1.6",
+ "bcs",
+ "bcs-ext 1.13.20",
  "bin-version",
  "bs58 0.5.1",
  "clap 4.5.53",
@@ -10291,6 +10253,8 @@ dependencies = [
  "starcoin-bridge-sdk",
  "starcoin-bridge-test-transaction-builder",
  "starcoin-bridge-types",
+ "starcoin-crypto",
+ "starcoin-vm-types 1.13.20",
  "strum_macros 0.27.2",
  "tap",
  "telemetry-subscribers",
@@ -10410,7 +10374,7 @@ dependencies = [
  "starcoin-bridge-json-rpc-types",
  "starcoin-bridge-types",
  "starcoin-bridge-vm-types",
- "starcoin-crypto 1.10.0-rc.2 (git+https://github.com/starcoinorg/starcoin-crypto?rev=bc3ca2138cf66d646f14a0f673ae5d853743f50a)",
+ "starcoin-crypto",
  "starcoin-rpc-api",
  "starcoin-rpc-client",
  "starcoin-types",
@@ -10425,7 +10389,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "starcoin-types",
- "starcoin-vm-types",
+ "starcoin-vm-types 1.13.20 (git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge)",
 ]
 
 [[package]]
@@ -10433,7 +10397,7 @@ name = "starcoin-bridge-types"
 version = "0.1.0"
 dependencies = [
  "base64ct",
- "bcs 0.1.6",
+ "bcs",
  "ed25519-dalek 2.2.0",
  "eyre",
  "fastcrypto",
@@ -10441,6 +10405,7 @@ dependencies = [
  "move-core-types 0.0.4 (git+https://github.com/starcoinorg/move?rev=babf994a38cda17b84186c7992f92fb3554347f0)",
  "rand 0.8.5",
  "serde",
+ "sha3 0.10.8",
  "starcoin-bridge-vm-types",
 ]
 
@@ -10449,7 +10414,7 @@ name = "starcoin-bridge-vm-types"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "bcs 0.1.6",
+ "bcs",
  "enum_dispatch",
  "fastcrypto",
  "hex",
@@ -10473,7 +10438,7 @@ dependencies = [
 [[package]]
 name = "starcoin-chain-api"
 version = "1.13.20"
-source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#016564fc658266a805c048ca0ce53b123ea77e9e"
+source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#b3a44275e2145367253a7383e02821e77def6def"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -10482,21 +10447,21 @@ dependencies = [
  "rand 0.8.5",
  "rand_core 0.6.4",
  "serde",
- "starcoin-accumulator",
- "starcoin-crypto 1.10.0-rc.2 (git+https://github.com/starcoinorg/starcoin-crypto?rev=a742ddc0674022800341182cbb4c3681807b2f00)",
+ "starcoin-accumulator 1.13.20 (git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge)",
+ "starcoin-crypto",
  "starcoin-service-registry",
  "starcoin-state-api",
  "starcoin-statedb",
  "starcoin-time-service",
  "starcoin-types",
- "starcoin-vm-types",
+ "starcoin-vm-types 1.13.20 (git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge)",
  "thiserror 1.0.69",
 ]
 
 [[package]]
 name = "starcoin-config"
 version = "1.13.20"
-source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#016564fc658266a805c048ca0ce53b123ea77e9e"
+source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#b3a44275e2145367253a7383e02821e77def6def"
 dependencies = [
  "anyhow",
  "clap 3.2.25",
@@ -10518,16 +10483,16 @@ dependencies = [
  "serde",
  "serde_json",
  "starcoin-account-api",
- "starcoin-crypto 1.10.0-rc.2 (git+https://github.com/starcoinorg/starcoin-crypto?rev=a742ddc0674022800341182cbb4c3681807b2f00)",
+ "starcoin-crypto",
  "starcoin-gas",
- "starcoin-gas-algebra-ext",
- "starcoin-logger",
+ "starcoin-gas-algebra-ext 1.13.20 (git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge)",
+ "starcoin-logger 1.13.20 (git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge)",
  "starcoin-metrics",
  "starcoin-system",
  "starcoin-time-service",
  "starcoin-types",
- "starcoin-uint",
- "starcoin-vm-types",
+ "starcoin-uint 1.13.20 (git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge)",
+ "starcoin-vm-types 1.13.20 (git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge)",
  "stdlib",
  "tempfile",
  "thiserror 1.0.69",
@@ -10540,9 +10505,9 @@ version = "1.10.0-rc.2"
 source = "git+https://github.com/starcoinorg/starcoin-crypto?rev=a742ddc0674022800341182cbb4c3681807b2f00#a742ddc0674022800341182cbb4c3681807b2f00"
 dependencies = [
  "anyhow",
- "bcs 0.1.6",
- "diem-crypto 0.0.3 (git+https://github.com/starcoinorg/starcoin-crypto?rev=a742ddc0674022800341182cbb4c3681807b2f00)",
- "diem-crypto-derive 0.0.3 (git+https://github.com/starcoinorg/starcoin-crypto?rev=a742ddc0674022800341182cbb4c3681807b2f00)",
+ "bcs",
+ "diem-crypto",
+ "diem-crypto-derive",
  "hex",
  "once_cell",
  "rand 0.8.5",
@@ -10550,42 +10515,13 @@ dependencies = [
  "serde",
  "serde-name 0.2.1",
  "serde_bytes",
- "starcoin-crypto-macro 1.10.0-rc.2 (git+https://github.com/starcoinorg/starcoin-crypto?rev=a742ddc0674022800341182cbb4c3681807b2f00)",
-]
-
-[[package]]
-name = "starcoin-crypto"
-version = "1.10.0-rc.2"
-source = "git+https://github.com/starcoinorg/starcoin-crypto?rev=bc3ca2138cf66d646f14a0f673ae5d853743f50a#bc3ca2138cf66d646f14a0f673ae5d853743f50a"
-dependencies = [
- "anyhow",
- "bcs 0.1.6",
- "diem-crypto 0.0.3 (git+https://github.com/starcoinorg/starcoin-crypto?rev=bc3ca2138cf66d646f14a0f673ae5d853743f50a)",
- "diem-crypto-derive 0.0.3 (git+https://github.com/starcoinorg/starcoin-crypto?rev=bc3ca2138cf66d646f14a0f673ae5d853743f50a)",
- "hex",
- "once_cell",
- "rand 0.8.5",
- "rand_core 0.6.4",
- "serde",
- "serde-name 0.2.1",
- "serde_bytes",
- "starcoin-crypto-macro 1.10.0-rc.2 (git+https://github.com/starcoinorg/starcoin-crypto?rev=bc3ca2138cf66d646f14a0f673ae5d853743f50a)",
+ "starcoin-crypto-macro",
 ]
 
 [[package]]
 name = "starcoin-crypto-macro"
 version = "1.10.0-rc.2"
 source = "git+https://github.com/starcoinorg/starcoin-crypto?rev=a742ddc0674022800341182cbb4c3681807b2f00#a742ddc0674022800341182cbb4c3681807b2f00"
-dependencies = [
- "proc-macro2 1.0.103",
- "quote 1.0.42",
- "syn 1.0.109",
-]
-
-[[package]]
-name = "starcoin-crypto-macro"
-version = "1.10.0-rc.2"
-source = "git+https://github.com/starcoinorg/starcoin-crypto?rev=bc3ca2138cf66d646f14a0f673ae5d853743f50a#bc3ca2138cf66d646f14a0f673ae5d853743f50a"
 dependencies = [
  "proc-macro2 1.0.103",
  "quote 1.0.42",
@@ -10608,7 +10544,7 @@ dependencies = [
 [[package]]
 name = "starcoin-gas"
 version = "1.13.20"
-source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#016564fc658266a805c048ca0ce53b123ea77e9e"
+source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#b3a44275e2145367253a7383e02821e77def6def"
 dependencies = [
  "clap 3.2.25",
  "move-binary-format",
@@ -10616,15 +10552,14 @@ dependencies = [
  "move-stdlib",
  "move-table-extension",
  "move-vm-types",
- "starcoin-gas-algebra-ext",
- "starcoin-logger",
- "starcoin-natives",
+ "starcoin-gas-algebra-ext 1.13.20 (git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge)",
+ "starcoin-logger 1.13.20 (git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge)",
+ "starcoin-natives 1.13.20 (git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge)",
 ]
 
 [[package]]
 name = "starcoin-gas-algebra-ext"
 version = "1.13.20"
-source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#016564fc658266a805c048ca0ce53b123ea77e9e"
 dependencies = [
  "move-binary-format",
  "move-core-types 0.0.4 (git+https://github.com/starcoinorg/move?rev=7b6ac7bb04515ee4ced5b1c1cdafb6ea6cb4eadc)",
@@ -10633,13 +10568,47 @@ dependencies = [
  "move-vm-test-utils",
  "move-vm-types",
  "serde",
- "starcoin-natives",
+ "starcoin-natives 1.13.20",
+]
+
+[[package]]
+name = "starcoin-gas-algebra-ext"
+version = "1.13.20"
+source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#b3a44275e2145367253a7383e02821e77def6def"
+dependencies = [
+ "move-binary-format",
+ "move-core-types 0.0.4 (git+https://github.com/starcoinorg/move?rev=7b6ac7bb04515ee4ced5b1c1cdafb6ea6cb4eadc)",
+ "move-stdlib",
+ "move-table-extension",
+ "move-vm-test-utils",
+ "move-vm-types",
+ "serde",
+ "starcoin-natives 1.13.20 (git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge)",
 ]
 
 [[package]]
 name = "starcoin-logger"
 version = "1.13.20"
-source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#016564fc658266a805c048ca0ce53b123ea77e9e"
+dependencies = [
+ "anyhow",
+ "arc-swap",
+ "chrono",
+ "lazy_static",
+ "log 0.4.28",
+ "log4rs",
+ "once_cell",
+ "parking_lot 0.12.5",
+ "schemars 0.8.8 (git+https://github.com/starcoinorg/schemars?rev=9b3705780b8fe9c8676ff82919869ba7405b1062)",
+ "serde",
+ "slog",
+ "slog-async",
+ "slog-term",
+]
+
+[[package]]
+name = "starcoin-logger"
+version = "1.13.20"
+source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#b3a44275e2145367253a7383e02821e77def6def"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -10659,20 +10628,20 @@ dependencies = [
 [[package]]
 name = "starcoin-metrics"
 version = "1.13.20"
-source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#016564fc658266a805c048ca0ce53b123ea77e9e"
+source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#b3a44275e2145367253a7383e02821e77def6def"
 dependencies = [
  "anyhow",
  "prometheus",
  "psutil",
  "serde_json",
- "starcoin-logger",
+ "starcoin-logger 1.13.20 (git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge)",
  "timeout-join-handler",
 ]
 
 [[package]]
 name = "starcoin-move-compiler"
 version = "1.13.20"
-source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#016564fc658266a805c048ca0ce53b123ea77e9e"
+source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#b3a44275e2145367253a7383e02821e77def6def"
 dependencies = [
  "anyhow",
  "move-binary-format",
@@ -10681,9 +10650,9 @@ dependencies = [
  "once_cell",
  "petgraph 0.5.1",
  "regex",
- "starcoin-crypto 1.10.0-rc.2 (git+https://github.com/starcoinorg/starcoin-crypto?rev=a742ddc0674022800341182cbb4c3681807b2f00)",
- "starcoin-logger",
- "starcoin-vm-types",
+ "starcoin-crypto",
+ "starcoin-logger 1.13.20 (git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge)",
+ "starcoin-vm-types 1.13.20 (git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge)",
  "tempfile",
  "walkdir",
 ]
@@ -10691,9 +10660,9 @@ dependencies = [
 [[package]]
 name = "starcoin-move-explain"
 version = "1.13.20"
-source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#016564fc658266a805c048ca0ce53b123ea77e9e"
+source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#b3a44275e2145367253a7383e02821e77def6def"
 dependencies = [
- "bcs-ext",
+ "bcs-ext 1.13.20 (git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge)",
  "clap 3.2.25",
  "move-core-types 0.0.4 (git+https://github.com/starcoinorg/move?rev=7b6ac7bb04515ee4ced5b1c1cdafb6ea6cb4eadc)",
  "stdlib",
@@ -10702,7 +10671,6 @@ dependencies = [
 [[package]]
 name = "starcoin-natives"
 version = "1.13.20"
-source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#016564fc658266a805c048ca0ce53b123ea77e9e"
 dependencies = [
  "arrayref",
  "hex",
@@ -10720,8 +10688,35 @@ dependencies = [
  "num_enum 0.5.11",
  "ripemd160",
  "smallvec 1.15.1",
- "starcoin-crypto 1.10.0-rc.2 (git+https://github.com/starcoinorg/starcoin-crypto?rev=a742ddc0674022800341182cbb4c3681807b2f00)",
- "starcoin-uint",
+ "starcoin-crypto",
+ "starcoin-uint 1.13.20",
+ "tiny-keccak",
+ "walkdir",
+]
+
+[[package]]
+name = "starcoin-natives"
+version = "1.13.20"
+source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#b3a44275e2145367253a7383e02821e77def6def"
+dependencies = [
+ "arrayref",
+ "hex",
+ "libsecp256k1",
+ "log 0.4.28",
+ "move-binary-format",
+ "move-command-line-common",
+ "move-core-types 0.0.4 (git+https://github.com/starcoinorg/move?rev=7b6ac7bb04515ee4ced5b1c1cdafb6ea6cb4eadc)",
+ "move-docgen",
+ "move-errmapgen",
+ "move-prover",
+ "move-stdlib",
+ "move-vm-runtime",
+ "move-vm-types",
+ "num_enum 0.5.11",
+ "ripemd160",
+ "smallvec 1.15.1",
+ "starcoin-crypto",
+ "starcoin-uint 1.13.20 (git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge)",
  "tiny-keccak",
  "walkdir",
 ]
@@ -10729,7 +10724,7 @@ dependencies = [
 [[package]]
 name = "starcoin-resource-viewer"
 version = "1.13.20"
-source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#016564fc658266a805c048ca0ce53b123ea77e9e"
+source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#b3a44275e2145367253a7383e02821e77def6def"
 dependencies = [
  "anyhow",
  "hex",
@@ -10737,17 +10732,17 @@ dependencies = [
  "move-core-types 0.0.4 (git+https://github.com/starcoinorg/move?rev=7b6ac7bb04515ee4ced5b1c1cdafb6ea6cb4eadc)",
  "serde",
  "serde_json",
- "starcoin-vm-types",
+ "starcoin-vm-types 1.13.20 (git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge)",
 ]
 
 [[package]]
 name = "starcoin-rpc-api"
 version = "1.13.20"
-source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#016564fc658266a805c048ca0ce53b123ea77e9e"
+source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#b3a44275e2145367253a7383e02821e77def6def"
 dependencies = [
  "anyhow",
  "async-trait",
- "bcs-ext",
+ "bcs-ext 1.13.20 (git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge)",
  "clap 3.2.25",
  "futures 0.3.31",
  "hex",
@@ -10769,18 +10764,18 @@ dependencies = [
  "starcoin-abi-decoder",
  "starcoin-abi-types",
  "starcoin-account-api",
- "starcoin-accumulator",
+ "starcoin-accumulator 1.13.20 (git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge)",
  "starcoin-chain-api",
  "starcoin-config",
- "starcoin-crypto 1.10.0-rc.2 (git+https://github.com/starcoinorg/starcoin-crypto?rev=a742ddc0674022800341182cbb4c3681807b2f00)",
- "starcoin-logger",
+ "starcoin-crypto",
+ "starcoin-logger 1.13.20 (git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge)",
  "starcoin-resource-viewer",
  "starcoin-service-registry",
  "starcoin-state-api",
  "starcoin-sync-api",
  "starcoin-txpool-api",
  "starcoin-types",
- "starcoin-vm-types",
+ "starcoin-vm-types 1.13.20 (git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge)",
  "thiserror 1.0.69",
  "vm-status-translator",
 ]
@@ -10788,13 +10783,13 @@ dependencies = [
 [[package]]
 name = "starcoin-rpc-client"
 version = "1.13.20"
-source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#016564fc658266a805c048ca0ce53b123ea77e9e"
+source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#b3a44275e2145367253a7383e02821e77def6def"
 dependencies = [
  "actix",
  "actix-rt",
  "anyhow",
  "async-std",
- "bcs-ext",
+ "bcs-ext 1.13.20 (git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge)",
  "futures 0.3.31",
  "futures-timer",
  "hex",
@@ -10814,8 +10809,8 @@ dependencies = [
  "serde_json",
  "starcoin-abi-types",
  "starcoin-account-api",
- "starcoin-crypto 1.10.0-rc.2 (git+https://github.com/starcoinorg/starcoin-crypto?rev=a742ddc0674022800341182cbb4c3681807b2f00)",
- "starcoin-logger",
+ "starcoin-crypto",
+ "starcoin-logger 1.13.20 (git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge)",
  "starcoin-rpc-api",
  "starcoin-service-registry",
  "starcoin-state-api",
@@ -10823,7 +10818,7 @@ dependencies = [
  "starcoin-sync-api",
  "starcoin-txpool-api",
  "starcoin-types",
- "starcoin-vm-types",
+ "starcoin-vm-types 1.13.20 (git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge)",
  "thiserror 1.0.69",
  "tokio",
 ]
@@ -10847,7 +10842,7 @@ dependencies = [
 [[package]]
 name = "starcoin-service-registry"
 version = "1.13.20"
-source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#016564fc658266a805c048ca0ce53b123ea77e9e"
+source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#b3a44275e2145367253a7383e02821e77def6def"
 dependencies = [
  "actix",
  "actix-rt",
@@ -10866,83 +10861,83 @@ dependencies = [
 [[package]]
 name = "starcoin-state-api"
 version = "1.13.20"
-source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#016564fc658266a805c048ca0ce53b123ea77e9e"
+source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#b3a44275e2145367253a7383e02821e77def6def"
 dependencies = [
  "anyhow",
  "async-trait",
- "bcs-ext",
- "forkable-jellyfish-merkle",
+ "bcs-ext 1.13.20 (git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge)",
+ "forkable-jellyfish-merkle 1.13.20 (git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge)",
  "once_cell",
  "serde",
- "starcoin-crypto 1.10.0-rc.2 (git+https://github.com/starcoinorg/starcoin-crypto?rev=a742ddc0674022800341182cbb4c3681807b2f00)",
+ "starcoin-crypto",
  "starcoin-service-registry",
  "starcoin-state-tree",
  "starcoin-types",
- "starcoin-vm-types",
+ "starcoin-vm-types 1.13.20 (git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge)",
 ]
 
 [[package]]
 name = "starcoin-state-store-api"
 version = "1.13.20"
-source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#016564fc658266a805c048ca0ce53b123ea77e9e"
+source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#b3a44275e2145367253a7383e02821e77def6def"
 dependencies = [
  "anyhow",
- "forkable-jellyfish-merkle",
+ "forkable-jellyfish-merkle 1.13.20 (git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge)",
  "serde",
- "starcoin-crypto 1.10.0-rc.2 (git+https://github.com/starcoinorg/starcoin-crypto?rev=a742ddc0674022800341182cbb4c3681807b2f00)",
- "starcoin-vm-types",
+ "starcoin-crypto",
+ "starcoin-vm-types 1.13.20 (git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge)",
 ]
 
 [[package]]
 name = "starcoin-state-tree"
 version = "1.13.20"
-source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#016564fc658266a805c048ca0ce53b123ea77e9e"
+source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#b3a44275e2145367253a7383e02821e77def6def"
 dependencies = [
  "anyhow",
- "bcs-ext",
- "forkable-jellyfish-merkle",
+ "bcs-ext 1.13.20 (git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge)",
+ "forkable-jellyfish-merkle 1.13.20 (git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge)",
  "parking_lot 0.12.5",
  "serde",
- "starcoin-crypto 1.10.0-rc.2 (git+https://github.com/starcoinorg/starcoin-crypto?rev=a742ddc0674022800341182cbb4c3681807b2f00)",
- "starcoin-logger",
+ "starcoin-crypto",
+ "starcoin-logger 1.13.20 (git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge)",
  "starcoin-state-store-api",
  "starcoin-types",
- "starcoin-vm-types",
+ "starcoin-vm-types 1.13.20 (git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge)",
 ]
 
 [[package]]
 name = "starcoin-statedb"
 version = "1.13.20"
-source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#016564fc658266a805c048ca0ce53b123ea77e9e"
+source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#b3a44275e2145367253a7383e02821e77def6def"
 dependencies = [
  "anyhow",
- "bcs-ext",
- "forkable-jellyfish-merkle",
+ "bcs-ext 1.13.20 (git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge)",
+ "forkable-jellyfish-merkle 1.13.20 (git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge)",
  "lru 0.7.8",
  "parking_lot 0.12.5",
  "serde",
- "starcoin-crypto 1.10.0-rc.2 (git+https://github.com/starcoinorg/starcoin-crypto?rev=a742ddc0674022800341182cbb4c3681807b2f00)",
- "starcoin-logger",
+ "starcoin-crypto",
+ "starcoin-logger 1.13.20 (git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge)",
  "starcoin-state-api",
  "starcoin-state-tree",
  "starcoin-types",
- "starcoin-vm-types",
+ "starcoin-vm-types 1.13.20 (git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge)",
  "thiserror 1.0.69",
 ]
 
 [[package]]
 name = "starcoin-sync-api"
 version = "1.13.20"
-source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#016564fc658266a805c048ca0ce53b123ea77e9e"
+source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#b3a44275e2145367253a7383e02821e77def6def"
 dependencies = [
  "anyhow",
  "async-trait",
  "network-api",
  "schemars 0.8.8 (git+https://github.com/starcoinorg/schemars?rev=9b3705780b8fe9c8676ff82919869ba7405b1062)",
  "serde",
- "starcoin-accumulator",
- "starcoin-crypto 1.10.0-rc.2 (git+https://github.com/starcoinorg/starcoin-crypto?rev=a742ddc0674022800341182cbb4c3681807b2f00)",
- "starcoin-logger",
+ "starcoin-accumulator 1.13.20 (git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge)",
+ "starcoin-crypto",
+ "starcoin-logger 1.13.20 (git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge)",
  "starcoin-service-registry",
  "starcoin-types",
  "stream-task",
@@ -10951,7 +10946,7 @@ dependencies = [
 [[package]]
 name = "starcoin-system"
 version = "1.13.20"
-source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#016564fc658266a805c048ca0ce53b123ea77e9e"
+source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#b3a44275e2145367253a7383e02821e77def6def"
 dependencies = [
  "anyhow",
  "systemstat",
@@ -10960,7 +10955,7 @@ dependencies = [
 [[package]]
 name = "starcoin-time-service"
 version = "1.13.20"
-source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#016564fc658266a805c048ca0ce53b123ea77e9e"
+source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#b3a44275e2145367253a7383e02821e77def6def"
 dependencies = [
  "log 0.4.28",
  "serde",
@@ -10969,27 +10964,27 @@ dependencies = [
 [[package]]
 name = "starcoin-txpool-api"
 version = "1.13.20"
-source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#016564fc658266a805c048ca0ce53b123ea77e9e"
+source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#b3a44275e2145367253a7383e02821e77def6def"
 dependencies = [
  "anyhow",
  "async-trait",
  "futures-channel",
  "schemars 0.8.8 (git+https://github.com/starcoinorg/schemars?rev=9b3705780b8fe9c8676ff82919869ba7405b1062)",
  "serde",
- "starcoin-crypto 1.10.0-rc.2 (git+https://github.com/starcoinorg/starcoin-crypto?rev=a742ddc0674022800341182cbb4c3681807b2f00)",
+ "starcoin-crypto",
  "starcoin-types",
 ]
 
 [[package]]
 name = "starcoin-types"
 version = "1.13.20"
-source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#016564fc658266a805c048ca0ce53b123ea77e9e"
+source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#b3a44275e2145367253a7383e02821e77def6def"
 dependencies = [
  "anyhow",
- "bcs-ext",
+ "bcs-ext 1.13.20 (git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge)",
  "byteorder",
  "bytes 1.11.0",
- "forkable-jellyfish-merkle",
+ "forkable-jellyfish-merkle 1.13.20 (git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge)",
  "hex",
  "num_enum 0.5.11",
  "rand 0.8.5",
@@ -10997,34 +10992,43 @@ dependencies = [
  "schemars 0.8.8 (git+https://github.com/starcoinorg/schemars?rev=9b3705780b8fe9c8676ff82919869ba7405b1062)",
  "serde",
  "serde_json",
- "starcoin-accumulator",
- "starcoin-crypto 1.10.0-rc.2 (git+https://github.com/starcoinorg/starcoin-crypto?rev=a742ddc0674022800341182cbb4c3681807b2f00)",
- "starcoin-uint",
- "starcoin-vm-types",
+ "starcoin-accumulator 1.13.20 (git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge)",
+ "starcoin-crypto",
+ "starcoin-uint 1.13.20 (git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge)",
+ "starcoin-vm-types 1.13.20 (git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge)",
  "thiserror 1.0.69",
 ]
 
 [[package]]
 name = "starcoin-uint"
 version = "1.13.20"
-source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#016564fc658266a805c048ca0ce53b123ea77e9e"
 dependencies = [
  "hex",
  "serde",
- "starcoin-crypto 1.10.0-rc.2 (git+https://github.com/starcoinorg/starcoin-crypto?rev=a742ddc0674022800341182cbb4c3681807b2f00)",
+ "starcoin-crypto",
+ "uint",
+]
+
+[[package]]
+name = "starcoin-uint"
+version = "1.13.20"
+source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#b3a44275e2145367253a7383e02821e77def6def"
+dependencies = [
+ "hex",
+ "serde",
+ "starcoin-crypto",
  "uint",
 ]
 
 [[package]]
 name = "starcoin-vm-types"
 version = "1.13.20"
-source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#016564fc658266a805c048ca0ce53b123ea77e9e"
 dependencies = [
  "anyhow",
- "bcs-ext",
+ "bcs-ext 1.13.20",
  "bech32",
  "chrono",
- "forkable-jellyfish-merkle",
+ "forkable-jellyfish-merkle 1.13.20",
  "hex",
  "log 0.4.28",
  "mirai-annotations",
@@ -11041,9 +11045,40 @@ dependencies = [
  "serde",
  "serde_bytes",
  "serde_json",
- "starcoin-accumulator",
- "starcoin-crypto 1.10.0-rc.2 (git+https://github.com/starcoinorg/starcoin-crypto?rev=a742ddc0674022800341182cbb4c3681807b2f00)",
- "starcoin-gas-algebra-ext",
+ "starcoin-accumulator 1.13.20",
+ "starcoin-crypto",
+ "starcoin-gas-algebra-ext 1.13.20",
+]
+
+[[package]]
+name = "starcoin-vm-types"
+version = "1.13.20"
+source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#b3a44275e2145367253a7383e02821e77def6def"
+dependencies = [
+ "anyhow",
+ "bcs-ext 1.13.20 (git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge)",
+ "bech32",
+ "chrono",
+ "forkable-jellyfish-merkle 1.13.20 (git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge)",
+ "hex",
+ "log 0.4.28",
+ "mirai-annotations",
+ "move-binary-format",
+ "move-bytecode-verifier",
+ "move-core-types 0.0.4 (git+https://github.com/starcoinorg/move?rev=7b6ac7bb04515ee4ced5b1c1cdafb6ea6cb4eadc)",
+ "move-ir-types",
+ "move-table-extension",
+ "move-vm-types",
+ "num_enum 0.5.11",
+ "once_cell",
+ "rand 0.8.5",
+ "schemars 0.8.8 (git+https://github.com/starcoinorg/schemars?rev=9b3705780b8fe9c8676ff82919869ba7405b1062)",
+ "serde",
+ "serde_bytes",
+ "serde_json",
+ "starcoin-accumulator 1.13.20 (git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge)",
+ "starcoin-crypto",
+ "starcoin-gas-algebra-ext 1.13.20 (git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge)",
 ]
 
 [[package]]
@@ -11055,10 +11090,10 @@ checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 [[package]]
 name = "stdlib"
 version = "1.13.20"
-source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#016564fc658266a805c048ca0ce53b123ea77e9e"
+source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#b3a44275e2145367253a7383e02821e77def6def"
 dependencies = [
  "anyhow",
- "bcs-ext",
+ "bcs-ext 1.13.20 (git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge)",
  "clap 3.2.25",
  "fs_extra",
  "include_dir",
@@ -11071,10 +11106,10 @@ dependencies = [
  "serde",
  "sha2 0.10.9",
  "simplelog",
- "starcoin-crypto 1.10.0-rc.2 (git+https://github.com/starcoinorg/starcoin-crypto?rev=a742ddc0674022800341182cbb4c3681807b2f00)",
+ "starcoin-crypto",
  "starcoin-framework",
  "starcoin-move-compiler",
- "starcoin-vm-types",
+ "starcoin-vm-types 1.13.20 (git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge)",
  "tempfile",
  "walkdir",
 ]
@@ -11082,7 +11117,7 @@ dependencies = [
 [[package]]
 name = "stream-task"
 version = "1.13.20"
-source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#016564fc658266a805c048ca0ce53b123ea77e9e"
+source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#b3a44275e2145367253a7383e02821e77def6def"
 dependencies = [
  "anyhow",
  "async-std",
@@ -11643,7 +11678,7 @@ dependencies = [
 [[package]]
 name = "timeout-join-handler"
 version = "1.13.20"
-source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#016564fc658266a805c048ca0ce53b123ea77e9e"
+source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#b3a44275e2145367253a7383e02821e77def6def"
 dependencies = [
  "thiserror 1.0.69",
 ]
@@ -12079,21 +12114,21 @@ dependencies = [
 
 [[package]]
 name = "tracing-appender"
-version = "0.2.3"
+version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3566e8ce28cc0a3fe42519fc80e6b4c943cc4c8cef275620eb8dac2d3d4e06cf"
+checksum = "786d480bce6247ab75f005b14ae1624ad978d3029d9113f0a22fa1ac773faeaf"
 dependencies = [
  "crossbeam-channel",
- "thiserror 1.0.69",
+ "thiserror 2.0.17",
  "time 0.3.44",
  "tracing-subscriber",
 ]
 
 [[package]]
 name = "tracing-attributes"
-version = "0.1.30"
+version = "0.1.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "81383ab64e72a7a8b8e13130c49e3dab29def6d0c7d76a03087b3cf71c5c6903"
+checksum = "7490cfa5ec963746568740651ac6781f701c9c5ea257c58e057f3ba8cf69e8da"
 dependencies = [
  "proc-macro2 1.0.103",
  "quote 1.0.42",
@@ -12102,9 +12137,9 @@ dependencies = [
 
 [[package]]
 name = "tracing-core"
-version = "0.1.34"
+version = "0.1.35"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b9d12581f227e93f094d3af2ae690a574abb8a2b9b7a96e7cfe9647b2b617678"
+checksum = "7a04e24fab5c89c6a36eb8558c9656f30d81de51dfa4d3b45f26b21d61fa0a6c"
 dependencies = [
  "once_cell",
  "valuable",
@@ -12298,7 +12333,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "backoff",
- "bcs 0.1.6",
+ "bcs",
  "bincode",
  "collectable",
  "eyre",
@@ -12478,7 +12513,7 @@ version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc1de2c688dc15305988b563c3854064043356019f97a4b46276fe734c4f07ea"
 dependencies = [
- "crypto-common 0.1.6",
+ "crypto-common",
  "subtle",
 ]
 
@@ -12633,13 +12668,13 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 [[package]]
 name = "vm-status-translator"
 version = "1.13.20"
-source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#016564fc658266a805c048ca0ce53b123ea77e9e"
+source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#b3a44275e2145367253a7383e02821e77def6def"
 dependencies = [
  "anyhow",
  "schemars 0.8.8 (git+https://github.com/starcoinorg/schemars?rev=9b3705780b8fe9c8676ff82919869ba7405b1062)",
  "serde",
  "starcoin-move-explain",
- "starcoin-vm-types",
+ "starcoin-vm-types 1.13.20 (git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge)",
 ]
 
 [[package]]
@@ -13471,9 +13506,9 @@ checksum = "d6bbff5f0aada427a1e5a6da5f1f98158182f26556f345ac9e04d36d0ebed650"
 
 [[package]]
 name = "winnow"
-version = "0.7.13"
+version = "0.7.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "21a0236b59786fed61e2a80582dd500fe61f18b5dca67a4a067d0bc9039339cf"
+checksum = "5a5364e9d77fcdeeaa6062ced926ee3381faa2ee02d3eb83a5c27a8825540829"
 dependencies = [
  "memchr",
 ]
@@ -13689,18 +13724,18 @@ dependencies = [
 
 [[package]]
 name = "zerocopy"
-version = "0.8.28"
+version = "0.8.30"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "43fa6694ed34d6e57407afbccdeecfa268c470a7d2a5b0cf49ce9fcc345afb90"
+checksum = "4ea879c944afe8a2b25fef16bb4ba234f47c694565e97383b36f3a878219065c"
 dependencies = [
  "zerocopy-derive",
 ]
 
 [[package]]
 name = "zerocopy-derive"
-version = "0.8.28"
+version = "0.8.30"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c640b22cd9817fae95be82f0d2f90b11f7605f6c319d16705c459b27ac2cbc26"
+checksum = "cf955aa904d6040f70dc8e9384444cb1030aed272ba3cb09bbc4ab9e7c1f34f5"
 dependencies = [
  "proc-macro2 1.0.103",
  "quote 1.0.42",

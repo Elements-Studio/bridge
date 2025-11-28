@@ -12,6 +12,7 @@ eyre = "0.6"
 hex = "0.4"
 bcs = "0.1"
 base64ct = { version = "1.5", features = ["alloc"] }
+sha3 = "0.10"
 starcoin-bridge-vm-types = { path = "../starcoin-bridge-vm-types" }
 move-core-types = { workspace = true }
 rand = "0.8"

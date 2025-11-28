@@ -528,11 +528,14 @@ where
             }
         };
         
-        // Get sequence number from Starcoin
-        let seq_number = match starcoin_bridge_client.get_sequence_number(&starcoin_bridge_address.to_hex_literal()).await {
+        // Get sender address from the key (this is who pays gas and signs)
+        let sender_address = starcoin_bridge_key.starcoin_address();
+        
+        // Get sequence number from Starcoin (from sender's account, not the contract)
+        let seq_number = match starcoin_bridge_client.get_sequence_number(&sender_address.to_hex_literal()).await {
             Ok(seq) => seq,
             Err(e) => {
-                error!("Failed to get sequence number: {:?}", e);
+                error!("Failed to get sequence number for sender {}: {:?}", sender_address.to_hex_literal(), e);
                 metrics.err_build_starcoin_bridge_transaction.inc();
                 return;
             }
@@ -542,8 +545,11 @@ where
         let chain_id: u8 = 254;
         
         // Build raw transaction
+        // module_address = starcoin_bridge_address (where the contract is deployed)
+        // sender = sender_address (from the key, who signs and pays gas)
         let raw_txn = match StarcoinBridgeTransactionBuilder::build_claim_token(
-            *starcoin_bridge_address,
+            *starcoin_bridge_address,  // module_address - where bridge contract is deployed
+            sender_address,             // sender - who signs and pays gas
             seq_number,
             chain_id,
             message_bytes,

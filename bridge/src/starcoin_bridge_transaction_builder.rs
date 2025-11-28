@@ -90,7 +90,16 @@ pub struct StarcoinBridgeTransactionBuilder;
 
 impl StarcoinBridgeTransactionBuilder {
     /// Build a claim token transaction using native Starcoin transaction format
+    /// 
+    /// # Arguments
+    /// * `module_address` - The address where the bridge module is deployed (contract address)
+    /// * `sender` - The transaction sender address (who pays gas and signs the transaction)
+    /// * `sequence_number` - The transaction sequence number
+    /// * `chain_id` - The Starcoin chain ID
+    /// * `message_bytes` - The bridge message bytes
+    /// * `signatures` - The aggregated signatures
     pub fn build_claim_token(
+        module_address: StarcoinAddress,
         sender: StarcoinAddress,
         sequence_number: u64,
         chain_id: u8,
@@ -98,6 +107,7 @@ impl StarcoinBridgeTransactionBuilder {
         signatures: Vec<Vec<u8>>,
     ) -> BridgeResult<starcoin_bridge_types::transaction::RawUserTransaction> {
         starcoin_native::build_approve_token_transfer(
+            module_address,
             sender,
             sequence_number,
             chain_id,
@@ -112,7 +122,16 @@ pub mod starcoin_native {
     use super::*;
 
     /// Build a RawUserTransaction for approving token transfer
+    /// 
+    /// # Arguments
+    /// * `module_address` - The address where the bridge module is deployed
+    /// * `sender` - The sender address
+    /// * `sequence_number` - The transaction sequence number
+    /// * `chain_id` - The Starcoin chain ID
+    /// * `message_bytes` - The bridge message bytes (BCS serialized)
+    /// * `signatures` - The aggregated signatures
     pub fn build_approve_token_transfer(
+        module_address: StarcoinAddress,
         sender: StarcoinAddress,
         sequence_number: u64,
         chain_id: u8,
@@ -121,7 +140,7 @@ pub mod starcoin_native {
         signatures: Vec<Vec<u8>>,
     ) -> BridgeResult<RawUserTransaction> {
         let module_id = ModuleId::new(
-            bridge_module_address(),
+            module_address,
             Identifier::new("bridge").map_err(|e| BridgeError::Generic(e.to_string()))?,
         );
 

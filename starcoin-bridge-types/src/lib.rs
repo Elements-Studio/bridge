@@ -150,6 +150,37 @@ pub mod crypto {
             }
         }
 
+        /// Derive Starcoin account address from keypair's public key.
+        ///
+        /// The address derivation follows Starcoin's algorithm:
+        /// 1. Create preimage: pubkey_bytes || scheme_flag (0x00 for Ed25519)
+        /// 2. Hash with SHA3-256 to get AuthenticationKey (32 bytes)
+        /// 3. Take the last 16 bytes as the AccountAddress
+        pub fn starcoin_address(&self) -> move_core_types::account_address::AccountAddress {
+            use sha3::{Digest, Sha3_256};
+            
+            // Get public key bytes
+            let pubkey_bytes = self.public();
+            
+            // Create preimage: pubkey || scheme_flag
+            // Ed25519 = 0x00, Secp256k1 = 0x01
+            let scheme_flag: u8 = match self {
+                StarcoinKeyPair::Ed25519(_) => 0x00,
+                StarcoinKeyPair::Secp256k1(_) => 0x01,
+            };
+            let mut preimage = pubkey_bytes;
+            preimage.push(scheme_flag);
+            
+            // Hash with SHA3-256
+            let hash = Sha3_256::digest(&preimage);
+            
+            // Take last 16 bytes as address
+            let mut addr_bytes = [0u8; 16];
+            addr_bytes.copy_from_slice(&hash[16..32]);
+            
+            move_core_types::account_address::AccountAddress::new(addr_bytes)
+        }
+
         /// Sign a message and return (public_key, signature) bytes
         pub fn sign_message(&self, msg: &[u8]) -> (Vec<u8>, Vec<u8>) {
             use fastcrypto::traits::KeyPair;

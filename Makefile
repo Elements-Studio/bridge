@@ -219,39 +219,23 @@ setup-eth-and-config: ## Complete ETH setup (clean + deploy ETH network + genera
 	# Deploy ETH network via docker-compose
 	@echo "   Starting ETH network..."
 	@docker-compose up -d
-	@echo "   Waiting for ETH deployer to complete..."
+	@echo "   Waiting for ETH contracts deployment..."
 	@SUCCESS=0; \
 	for i in $$(seq 1 120); do \
-		STATUS=$$(docker inspect -f '{{.State.Status}}' bridge-eth-deployer 2>/dev/null || echo "not_found"); \
-		if [ "$$STATUS" = "exited" ]; then \
-			EXIT_CODE=$$(docker inspect -f '{{.State.ExitCode}}' bridge-eth-deployer 2>/dev/null); \
-			if [ "$$EXIT_CODE" = "0" ]; then \
-				echo "   $(GREEN)✓ ETH deployer completed (took $$((i*2))s)$(NC)"; \
-				sleep 2; \
-				SUCCESS=1; \
-				break; \
-			else \
-				echo "   $(RED)✗ ETH deployer failed with exit code $$EXIT_CODE$(NC)"; \
-				docker logs bridge-eth-deployer 2>&1 | tail -20; \
-				exit 1; \
-			fi; \
+		if curl -sf http://localhost:8080/deployment.json > /dev/null 2>&1 || \
+		   curl -sf http://localhost:8080/deployment.txt > /dev/null 2>&1; then \
+			SUCCESS=1; \
+			echo "   $(GREEN)✓ ETH contracts deployed (took $$((i*2))s)$(NC)"; \
+			break; \
 		fi; \
-		printf "   ⏳ Deploying... %ds/240s\r" "$$((i*2))"; \
+		printf "   ⏳ %ds/%ds\r" "$$((i*2))" "240"; \
 		sleep 2; \
 	done; \
 	if [ $$SUCCESS -eq 0 ]; then \
-		echo "\n   $(RED)✗ Timeout waiting for deployer after 240s$(NC)"; \
+		echo "\n   $(RED)✗ Timeout after 240s$(NC)"; \
 		echo "   $(YELLOW)Check: docker logs bridge-eth-deployer$(NC)"; \
 		exit 1; \
 	fi
-	@echo "   Verifying deployment files..."
-	@for i in $$(seq 1 10); do \
-		if curl -sf http://localhost:8080/deployment.json > /dev/null 2>&1; then \
-			echo "   $(GREEN)✓ Deployment files accessible$(NC)"; \
-			break; \
-		fi; \
-		sleep 1; \
-	done
 	@echo ""
 	# Generate bridge configuration files (skip key generation since we already did it)
 	@echo "$(YELLOW)Step 6/6: Generating bridge configuration...$(NC)"
