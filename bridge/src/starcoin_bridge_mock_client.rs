@@ -170,6 +170,11 @@ impl StarcoinMockClient {
 impl StarcoinClientInner for StarcoinMockClient {
     type Error = starcoin_bridge_sdk::error::Error;
 
+    fn bridge_address(&self) -> &str {
+        // Return a dummy address for testing
+        "0x0000000000000000000000000000000b"
+    }
+
     // Unwraps in this function: We assume the responses are pre-populated
     // by the test before calling into this function.
     async fn query_events(

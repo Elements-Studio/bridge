@@ -29,6 +29,7 @@ use starcoin_bridge_types::bridge::MoveTypeCommitteeMember;
 use starcoin_bridge_types::bridge::MoveTypeCommitteeMemberRegistration;
 use starcoin_bridge_types::collection_types::VecMap;
 use starcoin_bridge_types::parse_starcoin_bridge_type_tag;
+use starcoin_bridge_types::parse_token_code_bytes_to_type_tag;
 use starcoin_bridge_types::TypeTag;
 use starcoin_bridge_types::BRIDGE_PACKAGE_ID;
 use std::str::FromStr;
@@ -127,9 +128,10 @@ pub struct UpdateRouteLimitEvent {
 }
 
 // `TokenRegistrationEvent` emitted in treasury.move
+// Note: type_name is Vec<u8> because Move uses vector<u8> from BCS::to_bytes(&Token::token_code<T>())
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct MoveTokenRegistrationEvent {
-    pub type_name: String,
+    pub type_name: Vec<u8>,
     pub decimal: u8,
     pub native_token: bool,
 }
@@ -146,13 +148,13 @@ impl TryFrom<MoveTokenRegistrationEvent> for TokenRegistrationEvent {
     type Error = BridgeError;
 
     fn try_from(event: MoveTokenRegistrationEvent) -> BridgeResult<Self> {
-        let type_name =
-            parse_starcoin_bridge_type_tag(&format!("0x{}", event.type_name)).map_err(|e| {
-                BridgeError::InternalError(format!(
-                    "Failed to parse TypeTag: {e}, type name: {}",
-                    event.type_name
-                ))
-            })?;
+        // type_name is BCS-encoded TokenCode, parse it to TypeTag
+        let type_name = parse_token_code_bytes_to_type_tag(&event.type_name).map_err(|e| {
+            BridgeError::InternalError(format!(
+                "Failed to parse TypeTag from token code bytes: {e}, bytes: {:?}",
+                event.type_name
+            ))
+        })?;
 
         Ok(Self {
             type_name,
@@ -163,10 +165,11 @@ impl TryFrom<MoveTokenRegistrationEvent> for TokenRegistrationEvent {
 }
 
 // `NewTokenEvent` emitted in treasury.move
+// Note: type_name is Vec<u8> because Move uses vector<u8> from BCS::to_bytes(&Token::token_code<T>())
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct MoveNewTokenEvent {
     pub token_id: u8,
-    pub type_name: String,
+    pub type_name: Vec<u8>,
     pub native_token: bool,
     pub decimal_multiplier: u64,
     pub notional_value: u64,
@@ -186,13 +189,13 @@ impl TryFrom<MoveNewTokenEvent> for NewTokenEvent {
     type Error = BridgeError;
 
     fn try_from(event: MoveNewTokenEvent) -> BridgeResult<Self> {
-        let type_name =
-            parse_starcoin_bridge_type_tag(&format!("0x{}", event.type_name)).map_err(|e| {
-                BridgeError::InternalError(format!(
-                    "Failed to parse TypeTag: {e}, type name: {}",
-                    event.type_name
-                ))
-            })?;
+        // type_name is BCS-encoded TokenCode, parse it to TypeTag
+        let type_name = parse_token_code_bytes_to_type_tag(&event.type_name).map_err(|e| {
+            BridgeError::InternalError(format!(
+                "Failed to parse TypeTag from token code bytes: {e}, bytes: {:?}",
+                event.type_name
+            ))
+        })?;
 
         Ok(Self {
             token_id: event.token_id,
@@ -388,14 +391,28 @@ macro_rules! declare_events {
             });)*
         }
 
+        /// Helper to extract module::name from event tag like "bridge::TokenDepositedEvent"
+        fn matches_event_type(event: &StarcoinEvent, event_tag: &str) -> bool {
+            // event_tag is like "bridge::TokenDepositedEvent"
+            // event.type_ is a StructTag with module and name fields
+            let parts: Vec<&str> = event_tag.split("::").collect();
+            if parts.len() != 2 {
+                return false;
+            }
+            let expected_module = parts[0];
+            let expected_name = parts[1];
+
+            // Compare module and name (case-insensitive for module to handle Bridge vs bridge)
+            event.type_.module.as_str().eq_ignore_ascii_case(expected_module)
+                && event.type_.name.as_str() == expected_name
+        }
+
         // Try to convert a StarcoinEvent into StarcoinBridgeEvent
         impl StarcoinBridgeEvent {
             pub fn try_from_starcoin_bridge_event(event: &StarcoinEvent) -> BridgeResult<Option<StarcoinBridgeEvent>> {
-                init_all_struct_tags(); // Ensure all tags are initialized
-
-                // Unwrap safe: we inited above
+                // Match by module::event_name instead of full StructTag to support dynamic bridge addresses
                 $(
-                    if &event.type_ == $variant.get().unwrap() {
+                    if matches_event_type(event, $event_tag) {
                         let event_struct: $event_struct = bcs::from_bytes(&event.bcs).map_err(|e| BridgeError::InternalError(format!("Failed to deserialize event to {}: {:?}", stringify!($event_struct), e)))?;
                         return Ok(Some(StarcoinBridgeEvent::$variant(event_struct.try_into()?)));
                     }

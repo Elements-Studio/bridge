@@ -938,7 +938,12 @@ pub fn parse_starcoin_bridge_type_tag(s: &str) -> Result<TypeTag, String> {
         hex_str = &hex_str[2..];
     }
     let bytes = hex::decode(hex_str).map_err(|e| format!("Invalid hex: {}", e))?;
-    
+    parse_token_code_bytes_to_type_tag(&bytes)
+}
+
+/// Parse a TypeTag from BCS-encoded TokenCode bytes (from BCS::to_bytes(&Token::token_code<T>()))
+/// Format: <address:16 bytes><module_name_len:1 byte><module_name><struct_name_len:1 byte><struct_name>
+pub fn parse_token_code_bytes_to_type_tag(bytes: &[u8]) -> Result<TypeTag, String> {
     if bytes.len() < 16 {
         return Err(format!("Type tag too short: {} bytes", bytes.len()));
     }

@@ -28,6 +28,18 @@ const TRANSFER_STATUS_APPROVED: u8 = 1;
 const TRANSFER_STATUS_CLAIMED: u8 = 2;
 const TRANSFER_STATUS_NOT_FOUND: u8 = 3;
 
+/// Helper trait to parse JSON values that might be strings or numbers
+trait JsonValueExt {
+    /// Try to get a u64 value, handling both numeric and string representations
+    fn as_u64_flex(&self) -> Option<u64>;
+}
+
+impl JsonValueExt for serde_json::Value {
+    fn as_u64_flex(&self) -> Option<u64> {
+        self.as_u64().or_else(|| self.as_str().and_then(|s| s.parse().ok()))
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct StarcoinJsonRpcClient {
     rpc: SimpleStarcoinRpcClient,
@@ -293,6 +305,10 @@ const MAX_BLOCK_RANGE: u64 = 32;
 impl StarcoinClientInner for StarcoinJsonRpcClient {
     type Error = JsonRpcError;
 
+    fn bridge_address(&self) -> &str {
+        self.rpc.bridge_address()
+    }
+
     async fn query_events(
         &self,
         query: EventFilter,
@@ -429,10 +445,11 @@ impl StarcoinClientInner for StarcoinJsonRpcClient {
 
     async fn get_latest_checkpoint_sequence_number(&self) -> Result<u64, Self::Error> {
         let chain_info = self.rpc.chain_info().await?;
+        // Starcoin returns block number as string, so try both as_u64() and as_str().parse()
         let block_number = chain_info
             .get("head")
             .and_then(|h| h.get("number"))
-            .and_then(|n| n.as_u64())
+            .and_then(|n| n.as_u64().or_else(|| n.as_str().and_then(|s| s.parse().ok())))
             .ok_or_else(|| JsonRpcError("Missing block number".into()))?;
         Ok(block_number)
     }

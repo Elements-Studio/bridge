@@ -192,13 +192,19 @@ poll_bridge_status() {
                 echo -e "${GREEN}✓ Bridge transfer completed! Received ${received_eth} ETH${NC}"
                 return 0
             fi
+            echo -e "${YELLOW}... Waiting for token transfer... (${elapsed}s)${NC}"
         else
-            # For stc-to-eth, check ETH balance on ethereum side
-            # TODO: implement ETH balance check
-            echo -e "${YELLOW}... Waiting for ETH transfer... (${elapsed}s)${NC}"
+            # For stc-to-eth, check if approve status on Starcoin chain
+            # Bridge node only does approve on Starcoin; user must claim on ETH manually
+            local status=$(check_bridge_record 2 0)  # source_chain=2 (Starcoin), seq_num=0
+            if [ "$status" = "approved" ] || [ "$status" = "claimed" ]; then
+                echo -e "${GREEN}✓ Bridge approve completed on Starcoin!${NC}"
+                echo -e "${YELLOW}Note: To receive tokens on ETH, you need to call transferBridgedTokensWithSignatures on the ETH bridge contract.${NC}"
+                return 0
+            fi
+            echo -e "${YELLOW}... Waiting for Starcoin approve... (${elapsed}s)${NC}"
         fi
         
-        echo -e "${YELLOW}... Waiting for token transfer... (${elapsed}s)${NC}"
         sleep $POLL_INTERVAL
     done
 }
@@ -284,27 +290,44 @@ main() {
     # Poll for completion (pass stc_addr and initial balance)
     if poll_bridge_status "$DIRECTION" "$stc_addr" "$initial_eth_balance"; then
         echo ""
-        echo -e "${YELLOW}[4/4] Transfer complete!${NC}"
         
-        # Get final Starcoin token balance
-        local final_eth_balance=$(get_bridge_token_balance "$stc_addr" "ETH")
-        local final_eth_balance_eth=$(python3 -c "print(f'{$final_eth_balance / 1e8:g}')" 2>/dev/null || echo "0")
-        local final_eth_wallet=$(curl -s -X POST -H "Content-Type: application/json" \
-            -d "{\"jsonrpc\":\"2.0\",\"method\":\"eth_getBalance\",\"params\":[\"$eth_addr\",\"latest\"],\"id\":1}" \
-            "$ETH_RPC" | jq -r '.result // "0x0"')
-        local eth_after=$(python3 -c "print(f'{int(\"$final_eth_wallet\", 16) / 1e18:g}')" 2>/dev/null || echo "0")
-        
-        echo -e "${BLUE}=== After Transfer ===${NC}"
-        echo -e "  Starcoin wETH:      ${GREEN}${final_eth_balance_eth} ETH${NC}"
-        echo -e "  Ethereum wallet:    ${GREEN}${eth_after} ETH${NC}"
-        
-        # Calculate changes
-        local token_change=$(python3 -c "print(f'{($final_eth_balance - $initial_eth_balance) / 1e8:g}')" 2>/dev/null || echo "0")
-        local eth_change=$(python3 -c "print(f'{float(\"$eth_before\") - float(\"$eth_after\"):g}')" 2>/dev/null || echo "$AMOUNT")
-        echo ""
-        echo -e "${GREEN}✓ Bridge transfer successful!${NC}"
-        echo -e "  Starcoin: ${GREEN}+${token_change} ETH${NC} (${initial_eth_balance_eth} → ${final_eth_balance_eth})"
-        echo -e "  Ethereum: ${GREEN}-${eth_change} ETH${NC} (${eth_before} → ${eth_after})"
+        if [ "$DIRECTION" = "eth-to-stc" ]; then
+            echo -e "${YELLOW}[4/4] Transfer complete!${NC}"
+            
+            # Get final Starcoin token balance
+            local final_eth_balance=$(get_bridge_token_balance "$stc_addr" "ETH")
+            local final_eth_balance_eth=$(python3 -c "print(f'{$final_eth_balance / 1e8:g}')" 2>/dev/null || echo "0")
+            local final_eth_wallet=$(curl -s -X POST -H "Content-Type: application/json" \
+                -d "{\"jsonrpc\":\"2.0\",\"method\":\"eth_getBalance\",\"params\":[\"$eth_addr\",\"latest\"],\"id\":1}" \
+                "$ETH_RPC" | jq -r '.result // "0x0"')
+            local eth_after=$(python3 -c "print(f'{int(\"$final_eth_wallet\", 16) / 1e18:g}')" 2>/dev/null || echo "0")
+            
+            echo -e "${BLUE}=== After Transfer ===${NC}"
+            echo -e "  Starcoin wETH:      ${GREEN}${final_eth_balance_eth} ETH${NC}"
+            echo -e "  Ethereum wallet:    ${GREEN}${eth_after} ETH${NC}"
+            
+            # Calculate changes
+            local token_change=$(python3 -c "print(f'{($final_eth_balance - $initial_eth_balance) / 1e8:g}')" 2>/dev/null || echo "0")
+            local eth_change=$(python3 -c "print(f'{float(\"$eth_before\") - float(\"$eth_after\"):g}')" 2>/dev/null || echo "$AMOUNT")
+            echo ""
+            echo -e "${GREEN}✓ Bridge transfer successful!${NC}"
+            echo -e "  Starcoin: ${GREEN}+${token_change} ETH${NC} (${initial_eth_balance_eth} → ${final_eth_balance_eth})"
+            echo -e "  Ethereum: ${GREEN}-${eth_change} ETH${NC} (${eth_before} → ${eth_after})"
+        else
+            echo -e "${YELLOW}[5/5] Starcoin approve complete!${NC}"
+            
+            # Get Starcoin balance (tokens were burned)
+            local final_eth_balance=$(get_bridge_token_balance "$stc_addr" "ETH")
+            local final_eth_balance_eth=$(python3 -c "print(f'{$final_eth_balance / 1e8:g}')" 2>/dev/null || echo "0")
+            
+            echo -e "${BLUE}=== After Approve ===${NC}"
+            echo -e "  Starcoin wETH:      ${GREEN}${final_eth_balance_eth} ETH${NC} (tokens burned)"
+            echo ""
+            echo -e "${GREEN}✓ Starcoin→ETH approve successful!${NC}"
+            echo -e "${YELLOW}  Next step: Claim tokens on ETH by calling:${NC}"
+            echo -e "${YELLOW}    Bridge.transferBridgedTokensWithSignatures(signatures, message)${NC}"
+            echo -e "${YELLOW}  You can use 'make claim-on-eth' to complete the transfer.${NC}"
+        fi
     else
         echo ""
         echo -e "${RED}✗ Bridge transfer may have failed. Check logs:${NC}"

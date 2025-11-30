@@ -85,10 +85,6 @@ impl StarcoinBridgeClient {
         }
     }
 
-    pub fn bridge_address(&self) -> &str {
-        self.inner.bridge_address()
-    }
-
     pub fn starcoin_bridge_client(&self) -> &StarcoinJsonRpcClient {
         &self.inner
     }
@@ -131,6 +127,11 @@ where
             inner,
             bridge_metrics: Arc::new(BridgeMetrics::new_for_testing()),
         }
+    }
+
+    /// Get the configured bridge contract address
+    pub fn bridge_address(&self) -> &str {
+        self.inner.bridge_address()
     }
 
     async fn describe(&self) -> anyhow::Result<()> {
@@ -183,12 +184,14 @@ where
         let events = self.inner.query_events(filter.clone(), cursor).await?;
 
         // Filter events to only include those from the requested package and module
+        // Note: Starcoin events use PascalCase module names (e.g., "Bridge"), while
+        // our module identifiers use lowercase (e.g., "bridge"). Use case-insensitive comparison.
         let filtered_data: Vec<_> = events
             .data
             .into_iter()
             .filter(|event| {
                 event.type_.address.as_ref() == starcoin_addr
-                    && event.type_.module == module
+                    && event.type_.module.as_str().to_lowercase() == module.as_str().to_lowercase()
             })
             .collect();
 
@@ -202,18 +205,55 @@ where
     // Returns BridgeAction from a Starcoin Transaction with transaction hash
     // and the event index. If event is declared in an unrecognized
     // package, return error.
+    // 
+    // Note: event_idx refers to the Nth bridge event in the transaction (0-indexed),
+    // not the absolute index in the transaction's event list. This is because
+    // Starcoin transactions may emit multiple events (e.g., Account::WithdrawEvent,
+    // Token::BurnEvent) before the Bridge event.
     pub async fn get_bridge_action_by_tx_digest_and_event_idx_maybe(
         &self,
         tx_digest: &TransactionDigest,
         event_idx: u16,
     ) -> BridgeResult<BridgeAction> {
         let events = self.inner.get_events_by_tx_digest(*tx_digest).await?;
-        let event = events
+        
+        // Get expected bridge address from config (16 bytes for Starcoin)
+        let expected_addr = hex::decode(self.bridge_address().trim_start_matches("0x"))
+            .map_err(|_| BridgeError::BridgeEventInUnrecognizedStarcoinPackage)?;
+        
+        // Find all bridge events (events from the bridge module)
+        let bridge_events: Vec<_> = events
+            .iter()
+            .enumerate()
+            .filter(|(_, event)| event.type_.address.as_ref() == expected_addr.as_slice())
+            .collect();
+        
+        tracing::debug!(
+            "Found {} bridge events in tx {:?}, looking for event_idx {}",
+            bridge_events.len(),
+            tx_digest,
+            event_idx
+        );
+        
+        // Get the Nth bridge event (event_idx is relative to bridge events only)
+        let (actual_idx, event) = bridge_events
             .get(event_idx as usize)
-            .ok_or(BridgeError::NoBridgeEventsInTxPosition)?;
-        if event.type_.address.as_ref() != BRIDGE_PACKAGE_ID.as_ref() {
-            return Err(BridgeError::BridgeEventInUnrecognizedStarcoinPackage);
-        }
+            .ok_or_else(|| {
+                tracing::warn!(
+                    "No bridge event at index {} in tx {:?}, total bridge events: {}",
+                    event_idx,
+                    tx_digest,
+                    bridge_events.len()
+                );
+                BridgeError::NoBridgeEventsInTxPosition
+            })?;
+        
+        tracing::debug!(
+            "Using bridge event at actual index {} (requested bridge event idx {})",
+            actual_idx,
+            event_idx
+        );
+        
         let bridge_event = StarcoinBridgeEvent::try_from_starcoin_bridge_event(event)?
             .ok_or(BridgeError::NoBridgeEventsInTxPosition)?;
 
@@ -513,6 +553,10 @@ where
 #[async_trait]
 pub trait StarcoinClientInner: Send + Sync {
     type Error: Into<anyhow::Error> + Send + Sync + std::error::Error + 'static;
+    
+    /// Get the configured bridge contract address
+    fn bridge_address(&self) -> &str;
+    
     async fn query_events(
         &self,
         query: EventFilter,
@@ -585,6 +629,11 @@ pub trait StarcoinClientInner: Send + Sync {
 #[async_trait]
 impl StarcoinClientInner for StarcoinSdkClient {
     type Error = starcoin_bridge_sdk::error::Error;
+
+    fn bridge_address(&self) -> &str {
+        // Return a dummy address for testing
+        "0x0000000000000000000000000000000b"
+    }
 
     async fn query_events(
         &self,

@@ -669,7 +669,19 @@ where
             return;
         }
         
-        // Approve confirmed, now submit claim transaction
+        // For StarcoinToEthBridgeAction, we're done after approve.
+        // The user needs to claim on ETH chain manually by calling transferBridgedTokensWithSignatures.
+        // This is consistent with Sui Bridge behavior.
+        if matches!(action, BridgeAction::StarcoinToEthBridgeAction(_)) {
+            info!(?action_key, "Starcoin→ETH approve confirmed. User must claim on ETH chain.");
+            metrics.starcoin_bridge_eth_token_transfer_approved.inc();
+            store.remove_pending_actions(&[action.digest()]).unwrap_or_else(|e| {
+                panic!("Write to DB should not fail: {:?}", e);
+            });
+            return;
+        }
+        
+        // For EthToStarcoinBridgeAction, continue to submit claim transaction on Starcoin
         // Get fresh sequence number for claim transaction
         // Must be > approve sequence number (seq_number), poll until chain state is updated
         let claim_seq_number = {

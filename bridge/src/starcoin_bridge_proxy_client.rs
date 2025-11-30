@@ -51,18 +51,20 @@ fn get_proxy() -> anyhow::Result<Arc<StarcoinRpcProxyClient>> {
 
 #[derive(Clone, Debug)]
 pub struct StarcoinProxyClient {
-    // Empty struct - all state is in the global proxy
+    bridge_address: String,
 }
 
 impl Default for StarcoinProxyClient {
     fn default() -> Self {
-        Self::new()
+        Self::new("0x0000000000000000000000000000000b")
     }
 }
 
 impl StarcoinProxyClient {
-    pub fn new() -> Self {
-        Self {}
+    pub fn new(bridge_address: &str) -> Self {
+        Self {
+            bridge_address: bridge_address.to_string(),
+        }
     }
 }
 
@@ -85,6 +87,10 @@ impl From<serde_json::Error> for ProxyError {
 #[async_trait]
 impl StarcoinClientInner for StarcoinProxyClient {
     type Error = ProxyError;
+
+    fn bridge_address(&self) -> &str {
+        &self.bridge_address
+    }
 
     async fn query_events(
         &self,

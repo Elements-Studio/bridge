@@ -48,35 +48,39 @@ impl StarcoinEvent {
             .and_then(|s| s.parse::<u64>().ok())
             .unwrap_or(0);
 
+        // Extract block number - handle both string and number formats
+        let block_number = event_view
+            .get("block_number")
+            .and_then(|v| {
+                if let Some(s) = v.as_str() {
+                    s.parse::<u64>().ok()
+                } else {
+                    v.as_u64()
+                }
+            })
+            .unwrap_or(0);
+
         Ok(Self {
-            id: EventID { tx_digest, event_seq },
+            id: EventID { tx_digest, event_seq, block_number },
             type_: struct_tag,
             bcs: data,
         })
     }
 }
 
-/// Event ID contains transaction digest and event sequence
+/// Event ID contains transaction digest, event sequence, and block number
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EventID {
     pub tx_digest: [u8; 32],
     pub event_seq: u64,
+    /// Block number where this event was emitted - used for cursor pagination
+    pub block_number: u64,
 }
 
 impl From<EventID> for (u64, u64) {
     fn from(id: EventID) -> (u64, u64) {
-        // For cursor, use first 8 bytes of tx_digest as tx_seq
-        let tx_seq = u64::from_le_bytes([
-            id.tx_digest[0],
-            id.tx_digest[1],
-            id.tx_digest[2],
-            id.tx_digest[3],
-            id.tx_digest[4],
-            id.tx_digest[5],
-            id.tx_digest[6],
-            id.tx_digest[7],
-        ]);
-        (tx_seq, id.event_seq)
+        // For cursor: (block_number, event_seq) - used to paginate event queries
+        (id.block_number, id.event_seq)
     }
 }
 

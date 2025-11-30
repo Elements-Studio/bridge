@@ -166,9 +166,15 @@ where
                     .await
                     .expect("Sending event to monitor channel should not fail");
 
+                // Note: We use 0 as the bridge event index because each transaction typically
+                // contains only one bridge event. The server's get_bridge_action_by_tx_digest_and_event_idx_maybe
+                // will search for the Nth bridge event (not absolute event index), so 0 means
+                // "the first bridge event in this transaction".
+                // event_seq is the global sequence number in the EventHandle (0, 1, 2, ...),
+                // which is different from the transaction-local event index.
                 if let Some(action) = bridge_event.try_into_bridge_action(
                     starcoin_bridge_event.id.tx_digest,
-                    starcoin_bridge_event.id.event_seq as u16,
+                    0, // Always 0: first bridge event in this transaction
                 ) {
                     metrics.last_observed_actions_seq_num.with_label_values(&[
                         action.chain_id().to_string().as_str(),

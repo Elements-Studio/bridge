@@ -218,9 +218,9 @@ async fn handle_eth_tx_hash(
     with_metrics!(metrics.clone(), "handle_eth_tx_hash", future).await
 }
 
-#[instrument(level = "error", skip_all, fields(tx_digest_base58=tx_digest_base58, event_idx=event_idx))]
+#[instrument(level = "error", skip_all, fields(tx_digest_hex=tx_digest_hex, event_idx=event_idx))]
 async fn handle_starcoin_bridge_tx_digest(
-    Path((tx_digest_base58, event_idx)): Path<(String, u16)>,
+    Path((tx_digest_hex, event_idx)): Path<(String, u16)>,
     State((handler, metrics, _metadata)): State<(
         Arc<impl BridgeRequestHandlerTrait + Sync + Send>,
         Arc<BridgeMetrics>,
@@ -229,7 +229,7 @@ async fn handle_starcoin_bridge_tx_digest(
 ) -> Result<Json<SignedBridgeAction>, BridgeError> {
     let future = async {
         let sig: Json<SignedBridgeAction> = handler
-            .handle_starcoin_bridge_tx_digest(tx_digest_base58, event_idx)
+            .handle_starcoin_bridge_tx_digest(tx_digest_hex, event_idx)
             .await?;
         Ok(sig)
     };

@@ -313,11 +313,11 @@ impl BridgeRequestHandlerTrait for BridgeRequestHandler {
 
     async fn handle_starcoin_bridge_tx_digest(
         &self,
-        tx_digest_base58: String,
+        tx_digest_hex: String,
         event_idx: u16,
     ) -> Result<Json<SignedBridgeAction>, BridgeError> {
-        let tx_digest: TransactionDigest = bs58::decode(&tx_digest_base58)
-            .into_vec()
+        // Client sends hex-encoded tx_digest, decode it
+        let tx_digest: TransactionDigest = hex::decode(tx_digest_hex.trim_start_matches("0x"))
             .ok()
             .and_then(|v| v.try_into().ok())
             .ok_or(BridgeError::InvalidTxHash)?;
