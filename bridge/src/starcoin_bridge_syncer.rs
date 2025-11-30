@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! The StarcoinSyncer module is responsible for synchronizing Events emitted
-//! on Starcoin blockchain from concerned modules of bridge package 0x9.
+//! on Starcoin blockchain from the bridge package.
 
 use crate::{
     error::BridgeResult,
@@ -12,7 +12,7 @@ use crate::{
 };
 use mysten_metrics::spawn_logged_monitored_task;
 use starcoin_bridge_json_rpc_types::StarcoinEvent;
-use starcoin_bridge_types::BRIDGE_PACKAGE_ID;
+use starcoin_bridge_types::base_types::ObjectID;
 use starcoin_bridge_types::{event::EventID, Identifier};
 use std::{collections::HashMap, sync::Arc};
 use tokio::{
@@ -28,6 +28,8 @@ pub type StarcoinTargetModules = HashMap<Identifier, Option<EventID>>;
 
 pub struct StarcoinSyncer<C> {
     starcoin_bridge_client: Arc<StarcoinClient<C>>,
+    // Bridge package ID (from config, not hardcoded)
+    bridge_package_id: ObjectID,
     // The last transaction that the syncer has fully processed.
     // Syncer will resume post this transaction (i.e. exclusive), when it starts.
     cursors: StarcoinTargetModules,
@@ -40,11 +42,13 @@ where
 {
     pub fn new(
         starcoin_bridge_client: Arc<StarcoinClient<C>>,
+        bridge_package_id: ObjectID,
         cursors: StarcoinTargetModules,
         metrics: Arc<BridgeMetrics>,
     ) -> Self {
         Self {
             starcoin_bridge_client,
+            bridge_package_id,
             cursors,
             metrics,
         }
@@ -65,6 +69,7 @@ where
                 .with_label_values(&["starcoin_bridge_events_queue"]),
         );
 
+        let bridge_package_id = self.bridge_package_id;
         let mut task_handles = vec![];
         for (module, cursor) in self.cursors {
             let metrics = self.metrics.clone();
@@ -75,6 +80,7 @@ where
             let starcoin_bridge_client_clone = self.starcoin_bridge_client.clone();
             task_handles.push(spawn_logged_monitored_task!(
                 Self::run_event_listening_task(
+                    bridge_package_id,
                     module,
                     cursor,
                     events_rx_clone,
@@ -88,8 +94,9 @@ where
     }
 
     async fn run_event_listening_task(
+        // Bridge package ID (from config)
+        bridge_package_id: ObjectID,
         // The module where interested events are defined.
-        // Module is always of bridge package 0x9.
         module: Identifier,
         initial_cursor: Option<EventID>,
         events_sender: mysten_metrics::metered_channel::Sender<(Identifier, Vec<StarcoinEvent>)>,
@@ -129,7 +136,7 @@ where
             interval.tick().await;
             let Ok(Ok(events)) = retry_with_max_elapsed_time!(
                 starcoin_bridge_client.query_events_by_module(
-                    BRIDGE_PACKAGE_ID,
+                    bridge_package_id,
                     module.clone(),
                     cursor
                 ),

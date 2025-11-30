@@ -14,11 +14,11 @@ use crate::{Identifier, TypeTag};
 use move_core_types::language_storage::ModuleId;
 
 /// Bridge package address as StarcoinAddress (16 bytes)
+/// This matches the Bridge address in stc-bridge-move/Move.toml: 0xf8eda27b31a0dcd9b6c06074d74a2c6c
 pub fn bridge_module_address() -> StarcoinAddress {
-    // Take last 16 bytes of BRIDGE_PACKAGE_ID
     StarcoinAddress::new([
-        0x24, 0x6b, 0x23, 0x7c, 0x16, 0xc7, 0x61, 0xe9,
-        0x47, 0x87, 0x83, 0xdd, 0x83, 0xf7, 0x00, 0x4a,
+        0xf8, 0xed, 0xa2, 0x7b, 0x31, 0xa0, 0xdc, 0xd9,
+        0xb6, 0xc0, 0x60, 0x74, 0xd7, 0x4a, 0x2c, 0x6c,
     ])
 }
 
@@ -271,11 +271,14 @@ pub fn sign_transaction_ed25519(
     let message = raw_txn.to_bytes();
     let signature = signing_key.sign(&message);
 
+    let public_key_arr: [u8; 32] = public_key.try_into()
+        .map_err(|_| "Public key must be 32 bytes")?;
+    
     Ok(SignedUserTransaction::new(
         raw_txn,
         TransactionAuthenticator::Ed25519 {
-            public_key: public_key.to_vec(),
-            signature: signature.to_bytes().to_vec(),
+            public_key: public_key_arr,
+            signature: signature.to_bytes(),
         },
     ))
 }
@@ -288,11 +291,16 @@ pub fn sign_transaction(
     let message = raw_txn.to_bytes();
     let (public_key, signature) = keypair.sign_message(&message);
 
+    let public_key_arr: [u8; 32] = public_key.try_into()
+        .map_err(|_| "Public key must be 32 bytes")?;
+    let signature_arr: [u8; 64] = signature.try_into()
+        .map_err(|_| "Signature must be 64 bytes")?;
+
     Ok(SignedUserTransaction::new(
         raw_txn,
         TransactionAuthenticator::Ed25519 {
-            public_key,
-            signature,
+            public_key: public_key_arr,
+            signature: signature_arr,
         },
     ))
 }

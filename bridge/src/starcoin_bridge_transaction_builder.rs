@@ -40,10 +40,11 @@ use crate::{
 // =============================================================================
 
 /// Bridge module address as StarcoinAddress (16 bytes)
+/// This matches the Bridge address in stc-bridge-move/Move.toml: 0xf8eda27b31a0dcd9b6c06074d74a2c6c
 pub fn bridge_module_address() -> StarcoinAddress {
     StarcoinAddress::new([
-        0x24, 0x6b, 0x23, 0x7c, 0x16, 0xc7, 0x61, 0xe9,
-        0x47, 0x87, 0x83, 0xdd, 0x83, 0xf7, 0x00, 0x4a,
+        0xf8, 0xed, 0xa2, 0x7b, 0x31, 0xa0, 0xdc, 0xd9,
+        0xb6, 0xc0, 0x60, 0x74, 0xd7, 0x4a, 0x2c, 0x6c,
     ])
 }
 
@@ -396,6 +397,7 @@ pub mod starcoin_native {
     /// Build a RawUserTransaction for sending tokens to another chain (Starcoin -> ETH)
     /// 
     /// # Arguments
+    /// * `module_address` - The address where the bridge module is deployed
     /// * `sender` - The sender address
     /// * `sequence_number` - The transaction sequence number
     /// * `chain_id` - The Starcoin chain ID
@@ -405,6 +407,7 @@ pub mod starcoin_native {
     /// * `amount` - Amount to transfer
     /// * `token_type` - The token type tag
     pub fn build_send_token(
+        module_address: StarcoinAddress,
         sender: StarcoinAddress,
         sequence_number: u64,
         chain_id: u8,
@@ -415,7 +418,7 @@ pub mod starcoin_native {
         token_type: TypeTag,
     ) -> BridgeResult<RawUserTransaction> {
         let module_id = ModuleId::new(
-            bridge_module_address(),
+            module_address,
             Identifier::new("Bridge").map_err(|e| BridgeError::Generic(e.to_string()))?,
         );
 

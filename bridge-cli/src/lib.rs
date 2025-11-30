@@ -697,14 +697,13 @@ async fn deposit_on_starcoin(
 ) -> anyhow::Result<()> {
     use starcoin_bridge::simple_starcoin_rpc::SimpleStarcoinRpcClient;
     use starcoin_bridge::starcoin_bridge_transaction_builder::starcoin_native;
-    use starcoin_bridge_types::starcoin_transaction_builder::sign_transaction;
 
     let target_chain_id = target_chain as u8;
 
-    // Get sender address from the key (Starcoin uses 16-byte addresses)
-    let pub_bytes = config.starcoin_bridge_key.public();
-    let sender = StarcoinAddress::from_bytes(&pub_bytes[..16.min(pub_bytes.len())])
-        .unwrap_or(StarcoinAddress::ZERO);
+    // Get sender address from the key using proper Starcoin address derivation
+    // (SHA3-256 hash of pubkey || scheme_flag, take last 16 bytes)
+    let sender_move_addr = config.starcoin_bridge_key.starcoin_address();
+    let sender = StarcoinAddress::new(sender_move_addr.into());
     let sender_hex = format!("0x{}", Hex::encode(sender.as_ref()));
 
     // Create RPC client for sequence number query
@@ -721,10 +720,10 @@ async fn deposit_on_starcoin(
     let block_timestamp_ms = rpc_client.get_block_timestamp().await
         .map_err(|e| anyhow!("Failed to get block timestamp: {:?}", e))?;
 
-    // Get chain ID from bridge summary
-    let bridge_summary = starcoin_bridge_client.get_bridge_summary().await
-        .map_err(|e| anyhow!("Failed to get bridge summary: {:?}", e))?;
-    let chain_id = bridge_summary.chain_id as u8;
+    // Get chain ID from Starcoin node (e.g., 254 for dev, 251 for halley)
+    // Note: This is different from bridge_summary.chain_id which is the Bridge chain ID
+    let chain_id = rpc_client.get_chain_id().await
+        .map_err(|e| anyhow!("Failed to get chain ID: {:?}", e))?;
 
     info!(
         sender = ?sender,
@@ -739,8 +738,22 @@ async fn deposit_on_starcoin(
         "Building deposit transaction on Starcoin"
     );
 
-    // Build the raw transaction
+    // Parse module address from config (starcoin_bridge_proxy_address is where the bridge contract is deployed)
+    let module_address = {
+        let addr_str = config.starcoin_bridge_proxy_address.trim_start_matches("0x");
+        let bytes = Hex::decode(addr_str)
+            .map_err(|e| anyhow!("Invalid bridge proxy address hex: {:?}", e))?;
+        if bytes.len() != 16 {
+            return Err(anyhow!("Invalid bridge proxy address length: expected 16 bytes, got {}", bytes.len()));
+        }
+        let mut arr = [0u8; 16];
+        arr.copy_from_slice(&bytes);
+        StarcoinAddress::new(arr)
+    };
+
+    // Build the raw transaction using bridge types
     let raw_txn = starcoin_native::build_send_token(
+        module_address,
         sender,
         sequence_number,
         chain_id,
@@ -758,29 +771,19 @@ async fn deposit_on_starcoin(
         "Raw transaction built"
     );
 
-    // Sign the transaction using StarcoinKeyPair
-    let signed_txn = sign_transaction(raw_txn, &config.starcoin_bridge_key)
-        .map_err(|e| anyhow!("Failed to sign transaction: {:?}", e))?;
-
-    let txn_hex = signed_txn.to_hex();
-    info!(
-        txn_hash = ?signed_txn.hash(),
-        txn_hex_len = txn_hex.len(),
-        "Transaction signed"
-    );
-
-    // Submit transaction via RPC
-    info!("Submitting transaction to Starcoin...");
-    let result = rpc_client.submit_transaction(&txn_hex).await
-        .map_err(|e| anyhow!("Failed to submit transaction: {:?}", e))?;
+    // Use sign_and_submit_transaction which uses Starcoin native types for proper BCS serialization
+    // This is the same path used by the bridge server for approve/claim transactions
+    info!("Signing and submitting transaction to Starcoin...");
+    let txn_hash = rpc_client.sign_and_submit_transaction(&config.starcoin_bridge_key, raw_txn).await
+        .map_err(|e| anyhow!("Failed to sign and submit transaction: {:?}", e))?;
 
     info!(
-        result = ?result,
+        txn_hash = %txn_hash,
         "Transaction submitted successfully"
     );
 
     println!("Transaction submitted!");
-    println!("Transaction hash: {:?}", signed_txn.hash());
+    println!("Transaction hash: {}", txn_hash);
 
     Ok(())
 }

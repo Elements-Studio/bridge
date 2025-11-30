@@ -104,26 +104,55 @@ impl SimpleStarcoinRpcClient {
         self.call("chain.info", vec![]).await
     }
 
-    /// Get the current block timestamp from chain info
-    /// Returns the timestamp in milliseconds from genesis
-    pub async fn get_block_timestamp(&self) -> Result<u64> {
-        let chain_info = self.chain_info().await?;
+    // Node info
+    pub async fn node_info(&self) -> Result<Value> {
+        self.call("node.info", vec![]).await
+    }
+
+    /// Get the Starcoin network chain ID from node.info
+    /// This is the transaction chain_id (e.g., 254 for dev, 251 for halley, 1 for main)
+    pub async fn get_chain_id(&self) -> Result<u8> {
+        let node_info = self.node_info().await?;
         
-        // Parse head.timestamp from chain_info response
-        let timestamp = chain_info
-            .get("head")
-            .and_then(|h| h.get("timestamp"))
-            .and_then(|t| t.as_str())
-            .and_then(|s| s.parse::<u64>().ok())
-            .or_else(|| {
-                chain_info
-                    .get("head")
-                    .and_then(|h| h.get("timestamp"))
-                    .and_then(|t| t.as_u64())
+        // Parse net from node_info response, format is like "dev" or chain id number
+        // Try to get from self_address which contains chain id, or from net field
+        let chain_id = node_info
+            .get("net")
+            .and_then(|n| n.as_str())
+            .and_then(|net| {
+                match net.to_lowercase().as_str() {
+                    "dev" => Some(254u8),
+                    "halley" => Some(253u8),
+                    "proxima" => Some(252u8),
+                    "barnard" => Some(251u8),
+                    "main" => Some(1u8),
+                    _ => net.parse::<u8>().ok(),
+                }
             })
-            .ok_or_else(|| anyhow!("Failed to parse block timestamp from chain info"))?;
+            .ok_or_else(|| anyhow!("Failed to parse chain_id from node info"))?;
         
-        Ok(timestamp)
+        Ok(chain_id)
+    }
+
+    /// Get the current block time in seconds from genesis
+    /// Uses node.info.now_seconds which is what Starcoin uses for transaction expiration
+    pub async fn get_block_timestamp(&self) -> Result<u64> {
+        let node_info = self.node_info().await?;
+        
+        // Parse now_seconds from node_info response
+        let now_seconds = node_info
+            .get("now_seconds")
+            .and_then(|t| t.as_u64())
+            .or_else(|| {
+                node_info
+                    .get("now_seconds")
+                    .and_then(|t| t.as_str())
+                    .and_then(|s| s.parse::<u64>().ok())
+            })
+            .ok_or_else(|| anyhow!("Failed to parse now_seconds from node info"))?;
+        
+        // Return in milliseconds for compatibility with existing code
+        Ok(now_seconds * 1000)
     }
 
     // Get resource at address (with decode option for json format)

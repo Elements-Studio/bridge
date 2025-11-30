@@ -286,6 +286,18 @@ async fn start_client_components(
 
     let starcoin_bridge_client = client_config.starcoin_bridge_client.clone();
 
+    // Get bridge package ID from client (parsed from config's starcoin_bridge_proxy_address)
+    let bridge_address_str = starcoin_bridge_client.bridge_address();
+    let bridge_package_id = {
+        let addr_str = bridge_address_str.trim_start_matches("0x");
+        let addr_bytes = hex::decode(addr_str).expect("Invalid bridge address hex");
+        let mut id = [0u8; 32];
+        // Starcoin uses 16-byte addresses, left-pad with zeros for ObjectID (32 bytes)
+        id[16..32].copy_from_slice(&addr_bytes);
+        id
+    };
+    tracing::info!("Using bridge package ID from config: {}", bridge_address_str);
+
     let mut all_handles = vec![];
     let (task_handles, eth_events_rx, _) =
         EthSyncer::new(client_config.eth_client.clone(), eth_contracts_to_watch)
@@ -296,6 +308,7 @@ async fn start_client_components(
 
     let (task_handles, starcoin_bridge_events_rx) = StarcoinSyncer::new(
         client_config.starcoin_bridge_client,
+        bridge_package_id,
         starcoin_bridge_modules_to_watch,
         metrics.clone(),
     )

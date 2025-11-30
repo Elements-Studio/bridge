@@ -417,12 +417,15 @@ pub mod transaction {
     }
 
     /// Transaction payload - what the transaction does
+    /// Order MUST match Starcoin's TransactionPayload enum: Script=0, Package=1, ScriptFunction=2
     #[derive(Clone, Debug, Serialize, Deserialize)]
     pub enum TransactionPayload {
-        /// Call a script function
-        ScriptFunction(ScriptFunction),
+        /// Script (legacy, not used)
+        Script(Vec<u8>),
         /// Package deployment (not used in bridge)
         Package(Vec<u8>),
+        /// Call a script function (this is what we use)
+        ScriptFunction(ScriptFunction),
     }
 
     /// Chain ID for replay protection
@@ -529,7 +532,7 @@ pub mod transaction {
             use std::collections::hash_map::DefaultHasher;
             use std::hash::{Hash, Hasher};
 
-            let bytes = bcs::to_bytes(self).unwrap_or_default();
+            let bytes = self.to_bytes();
             let mut hasher = DefaultHasher::new();
             bytes.hash(&mut hasher);
             let hash = hasher.finish();
@@ -540,25 +543,81 @@ pub mod transaction {
             digest
         }
 
+        /// Serialize to BCS bytes - combines raw_txn and authenticator
+        pub fn to_bytes(&self) -> Vec<u8> {
+            let raw_bytes = bcs::to_bytes(&self.raw_txn).unwrap_or_default();
+            let auth_bytes = self.authenticator.to_bcs_bytes();
+            let mut result = raw_bytes;
+            result.extend_from_slice(&auth_bytes);
+            result
+        }
+
         /// Encode as hex string for RPC submission
         pub fn to_hex(&self) -> String {
-            hex::encode(bcs::to_bytes(self).unwrap_or_default())
+            hex::encode(self.to_bytes())
         }
     }
 
     /// Transaction authenticator (signature)
-    #[derive(Clone, Debug, Serialize, Deserialize)]
+    /// Uses fixed-size arrays to match Starcoin's BCS serialization format
+    #[derive(Clone, Debug)]
     pub enum TransactionAuthenticator {
-        /// Ed25519 signature
+        /// Ed25519 signature (32-byte public key, 64-byte signature)
         Ed25519 {
-            public_key: Vec<u8>,
-            signature: Vec<u8>,
+            public_key: [u8; 32],
+            signature: [u8; 64],
         },
         /// Multi-ed25519 (not commonly used)
         MultiEd25519 {
             public_key: Vec<u8>,
             signature: Vec<u8>,
         },
+    }
+
+    impl TransactionAuthenticator {
+        /// Serialize to BCS bytes manually to ensure correct format
+        pub fn to_bcs_bytes(&self) -> Vec<u8> {
+            match self {
+                TransactionAuthenticator::Ed25519 { public_key, signature } => {
+                    // BCS format: variant_index (1 byte for small enum) + public_key (32 bytes) + signature (64 bytes)
+                    let mut bytes = Vec::with_capacity(1 + 32 + 64);
+                    bytes.push(0u8); // variant index for Ed25519
+                    bytes.extend_from_slice(public_key);
+                    bytes.extend_from_slice(signature);
+                    bytes
+                }
+                TransactionAuthenticator::MultiEd25519 { public_key, signature } => {
+                    let mut bytes = Vec::new();
+                    bytes.push(1u8); // variant index for MultiEd25519
+                    // Vec<u8> needs length prefix
+                    bytes.extend_from_slice(&(public_key.len() as u32).to_le_bytes()[..]);
+                    bytes.extend_from_slice(public_key);
+                    bytes.extend_from_slice(&(signature.len() as u32).to_le_bytes()[..]);
+                    bytes.extend_from_slice(signature);
+                    bytes
+                }
+            }
+        }
+    }
+
+    impl serde::Serialize for TransactionAuthenticator {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: serde::Serializer,
+        {
+            // Use manual BCS serialization
+            serializer.serialize_bytes(&self.to_bcs_bytes())
+        }
+    }
+
+    impl<'de> serde::Deserialize<'de> for TransactionAuthenticator {
+        fn deserialize<D>(_deserializer: D) -> Result<Self, D::Error>
+        where
+            D: serde::Deserializer<'de>,
+        {
+            // Not commonly needed for our use case
+            Err(serde::de::Error::custom("TransactionAuthenticator deserialization not implemented"))
+        }
     }
 
     // ==========================================================================
@@ -853,12 +912,12 @@ pub mod starcoin_bridge_system_state {
 
 // ============= Constants =============
 // Starcoin bridge package address (32 bytes for compatibility, but Starcoin uses 16 bytes)
-// From Move.toml: Bridge = "0x246b237c16c761e9478783dd83f7004a"
+// Bridge contract deployed address on Starcoin dev network: 0x0b8e0206e990e41e913a7f03d1c60675
 // Padded with zeros in front to maintain compatibility with existing code expecting 32 bytes
 pub const BRIDGE_PACKAGE_ID: [u8; 32] = [
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 16 zero bytes padding
-    0x24, 0x6b, 0x23, 0x7c, 0x16, 0xc7, 0x61, 0xe9, // Actual Starcoin address
-    0x47, 0x87, 0x83, 0xdd, 0x83, 0xf7, 0x00, 0x4a,
+    0x0b, 0x8e, 0x02, 0x06, 0xe9, 0x90, 0xe4, 0x1e, // Actual Starcoin address
+    0x91, 0x3a, 0x7f, 0x03, 0xd1, 0xc6, 0x06, 0x75,
 ];
 // Note: Starcoin doesn't have a separate bridge object like Starcoin
 pub const STARCOIN_BRIDGE_OBJECT_ID: [u8; 32] = [0; 32];

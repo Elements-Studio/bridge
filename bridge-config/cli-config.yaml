@@ -8,7 +8,7 @@ starcoin-bridge-rpc-url: http://127.0.0.1:9850
 eth-rpc-url: http://localhost:8545
 
 # Bridge contract address on Starcoin
-starcoin-bridge-proxy-address: "0xf8eda27b31a0dcd9b6c06074d74a2c6c"
+starcoin-bridge-proxy-address: "0xc150ba8d1bfdbbf1a794fbc7faf7abf9"
 
 # Bridge proxy address on Ethereum
 eth-bridge-proxy-address: 0x0B306BF915C4d645ff596e518fAf3F9669b97016

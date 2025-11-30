@@ -23,13 +23,40 @@ AMOUNT=${2:-0.1}
 
 cd "$BRIDGE_DIR"
 
+# Ensure binary and keys exist before proceeding
+ensure_prerequisites() {
+    # Wait for binary to exist
+    if [ ! -f "./target/debug/starcoin-bridge-cli" ]; then
+        echo -e "${YELLOW}Waiting for starcoin-bridge-cli to be built...${NC}" >&2
+        for i in {1..30}; do
+            if [ -f "./target/debug/starcoin-bridge-cli" ]; then
+                break
+            fi
+            sleep 1
+        done
+    fi
+    
+    if [ ! -f "./target/debug/starcoin-bridge-cli" ]; then
+        echo -e "${RED}✗ starcoin-bridge-cli not found. Run 'make build-bridge-cli' first.${NC}" >&2
+        exit 1
+    fi
+    
+    # Generate bridge_client.key if missing
+    if [ ! -f "bridge-node/server-config/bridge_client.key" ]; then
+        echo -e "${YELLOW}Creating bridge client key...${NC}" >&2
+        mkdir -p bridge-node/server-config
+        ./target/debug/starcoin-bridge-cli create-bridge-client-key bridge-node/server-config/bridge_client.key >&2
+    fi
+}
+
 # Get addresses from keys
 get_starcoin_address() {
-    ./target/debug/starcoin-bridge-cli examine-key bridge-node/server-config/bridge_client.key 2>/dev/null | grep "Starcoin address:" | awk '{print $NF}'
+    ensure_prerequisites
+    ./target/debug/starcoin-bridge-cli examine-key bridge-node/server-config/bridge_client.key 2>/dev/null | grep -i "Starcoin address:" | awk '{print $NF}'
 }
 
 get_eth_address() {
-    local addr=$(./target/debug/starcoin-bridge-cli examine-key bridge-node/server-config/bridge_authority.key 2>/dev/null | grep "Ethereum address:" | awk '{print $NF}')
+    local addr=$(./target/debug/starcoin-bridge-cli examine-key bridge-node/server-config/bridge_authority.key 2>/dev/null | grep -i "ethereum address:" | awk '{print $NF}')
     if [ -n "$addr" ]; then
         # Add 0x prefix if missing
         if [[ "$addr" != 0x* ]]; then
@@ -76,8 +103,9 @@ get_bridge_token_balance() {
         return
     fi
     
+    # Note: use full address format 0x00000000000000000000000000000001 instead of 0x1
     local result=$(curl -s -X POST -H "Content-Type: application/json" \
-        -d "{\"jsonrpc\":\"2.0\",\"method\":\"state.get_resource\",\"params\":[\"$addr\",\"0x1::Account::Balance<${bridge_addr}::${token}::${token}>\",{\"decode\":true}],\"id\":1}" \
+        -d "{\"jsonrpc\":\"2.0\",\"method\":\"state.get_resource\",\"params\":[\"$addr\",\"0x00000000000000000000000000000001::Account::Balance<${bridge_addr}::${token}::${token}>\",{\"decode\":true}],\"id\":1}" \
         "$STARCOIN_RPC")
     
     echo "$result" | jq -r '.result.json.token.value // "0"'
@@ -184,6 +212,16 @@ main() {
     local stc_addr=$(get_starcoin_address)
     local eth_addr=$(get_eth_address)
     
+    # Validate addresses
+    if [ -z "$stc_addr" ]; then
+        echo -e "${RED}✗ Failed to get Starcoin address. Check that bridge_client.key exists.${NC}"
+        exit 1
+    fi
+    if [ -z "$eth_addr" ]; then
+        echo -e "${RED}✗ Failed to get ETH address. Check that bridge_authority.key exists.${NC}"
+        exit 1
+    fi
+    
     echo -e "${YELLOW}Starcoin Address: $stc_addr${NC}"
     echo -e "${YELLOW}ETH Address: $eth_addr${NC}"
     echo ""
@@ -195,7 +233,14 @@ main() {
         echo -e "${YELLOW}========================================${NC}"
         echo ""
         
-        # Record balances BEFORE any operations
+        echo -e "${YELLOW}[1/4] Ensuring accounts are funded...${NC}"
+        # Fund ETH wallet (from Anvil default account)
+        make fund-eth-account 2>&1 | grep -E "Funded|Funding|funded|ETH" | head -3 || true
+        # Fund bridge server on Starcoin (for gas)
+        make fund-starcoin-bridge-account 2>&1 | grep -E "Funded|Funding|Bridge account|funded|STC" | head -3 || true
+        echo ""
+        
+        # Record balances AFTER funding
         local initial_eth_balance=$(get_bridge_token_balance "$stc_addr" "ETH")
         local initial_eth_balance_eth=$(python3 -c "print(f'{$initial_eth_balance / 1e8:g}')" 2>/dev/null || echo "0")
         local initial_eth_wallet=$(curl -s -X POST -H "Content-Type: application/json" \
@@ -206,11 +251,6 @@ main() {
         echo -e "${BLUE}=== Before Transfer ===${NC}"
         echo -e "  Starcoin wETH:      ${GREEN}${initial_eth_balance_eth} ETH${NC}"
         echo -e "  Ethereum wallet:    ${GREEN}${eth_before} ETH${NC}"
-        echo ""
-        
-        echo -e "${YELLOW}[1/4] Ensuring accounts are funded...${NC}"
-        # Fund bridge server on Starcoin (for gas)
-        make fund-starcoin-bridge-account 2>&1 | grep -E "Funded|Funding|Bridge account|funded|STC" | head -3 || true
         echo ""
         
         echo -e "${YELLOW}[2/4] Depositing $AMOUNT ETH to bridge contract on Ethereum...${NC}"
