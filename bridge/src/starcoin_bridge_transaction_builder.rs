@@ -419,10 +419,26 @@ pub mod starcoin_native {
             Identifier::new("Bridge").map_err(|e| BridgeError::Generic(e.to_string()))?,
         );
 
+        // Determine function name based on token type
+        // Token type is like: 0xADDR::ETH::ETH, we extract the module name
+        let function_name = match &token_type {
+            TypeTag::Struct(s) => {
+                let module_name = s.module.as_str();
+                match module_name {
+                    "ETH" => "send_bridge_eth",
+                    "BTC" => "send_bridge_btc",
+                    "USDC" => "send_bridge_usdc",
+                    "USDT" => "send_bridge_usdt",
+                    _ => return Err(BridgeError::Generic(format!("Unsupported token type: {}", module_name))),
+                }
+            }
+            _ => return Err(BridgeError::Generic("Expected struct type tag".to_string())),
+        };
+
         let script_function = ScriptFunction::new(
             module_id,
-            Identifier::new("send_token").map_err(|e| BridgeError::Generic(e.to_string()))?,
-            vec![token_type],
+            Identifier::new(function_name).map_err(|e| BridgeError::Generic(e.to_string()))?,
+            vec![], // No type args needed, function is specific to token
             vec![
                 bcs::to_bytes(&target_chain).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
                 bcs::to_bytes(&target_address).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,

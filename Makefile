@@ -2,7 +2,7 @@
 # Starcoin Bridge - Makefile
 # ============================================================
 # Automates deployment and management of Starcoin <-> Ethereum bridge
-# Prerequisites: Docker, Rust, Starcoin CLI, mpm (Move Package Manager)
+# Prerequisites: Foundry (anvil, forge, cast), Rust, Starcoin CLI, mpm
 # ============================================================
 
 .PHONY: help deploy-eth-network deploy-native deploy-docker start stop restart logs clean info test init-bridge-config deploy-sui register test-bridge stop-eth-network clean-eth-and-config setup-eth-and-config status logs-deployer start-starcoin-dev-node start-starcoin-dev-node-clean run-bridge-server build-starcoin-contracts deploy-starcoin-contracts stop-starcoin-dev-node build-bridge-cli view-bridge deposit-eth deposit-eth-test withdraw-to-eth withdraw-to-eth-test init-cli-config fund-starcoin-bridge-account
@@ -72,58 +72,85 @@ help: ## Show this help message
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-25s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
 # ============================================================
-# Ethereum Network Management
+# Ethereum Network Management (Native - no Docker)
 # ============================================================
-deploy-eth-network: ## Deploy Ethereum network using Docker Compose (Anvil + contracts)
-	@echo "$(YELLOW)Starting Ethereum network...$(NC)"
-	@docker-compose up -d
-	@echo "$(GREEN)Waiting for deployment to complete...$(NC)"
-	@sleep 5
-	@curl -s http://localhost:8080/deployment.json > /dev/null && echo "$(GREEN)✓ ETH network ready$(NC)" || echo "$(RED)✗ ETH network failed$(NC)"
+# Anvil data directory (local to project)
+ANVIL_DATA_DIR := $(PWD)/.anvil
+ANVIL_PID_FILE := $(ANVIL_DATA_DIR)/anvil.pid
+ETH_RPC_URL := http://127.0.0.1:8545
+ANVIL_PRIVATE_KEY := 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
 
-start: ## Start all services
-	@docker-compose up -d
+start-anvil: ## Start local Anvil node (reuse if running)
+	@echo "$(YELLOW)Starting Anvil...$(NC)"
+	@mkdir -p $(ANVIL_DATA_DIR)
+	@if [ -f $(ANVIL_PID_FILE) ] && kill -0 $$(cat $(ANVIL_PID_FILE)) 2>/dev/null; then \
+		echo "$(GREEN)✓ Anvil already running (PID: $$(cat $(ANVIL_PID_FILE)))$(NC)"; \
+	else \
+		pkill -9 -f "anvil.*8545" 2>/dev/null || true; \
+		sleep 1; \
+		anvil --host 127.0.0.1 --port 8545 --chain-id 31337 --silent > $(ANVIL_DATA_DIR)/anvil.log 2>&1 & \
+		echo $$! > $(ANVIL_PID_FILE); \
+		sleep 2; \
+		if curl -sf $(ETH_RPC_URL) -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"eth_chainId","params":[],"id":1}' > /dev/null; then \
+			echo "$(GREEN)✓ Anvil started (PID: $$(cat $(ANVIL_PID_FILE)))$(NC)"; \
+		else \
+			echo "$(RED)✗ Anvil failed to start$(NC)"; \
+			cat $(ANVIL_DATA_DIR)/anvil.log; \
+			exit 1; \
+		fi; \
+	fi
 
-stop: ## Stop all services
-	@docker-compose down
+stop-anvil: ## Stop local Anvil node
+	@echo "$(YELLOW)Stopping Anvil...$(NC)"
+	@if [ -f $(ANVIL_PID_FILE) ]; then \
+		kill $$(cat $(ANVIL_PID_FILE)) 2>/dev/null || true; \
+		rm -f $(ANVIL_PID_FILE); \
+	fi
+	@pkill -9 -f "anvil.*8545" 2>/dev/null || true
+	@echo "$(GREEN)✓ Anvil stopped$(NC)"
 
-restart: ## Restart all services
-	@docker-compose restart
+restart-anvil: ## Restart Anvil with clean state (like docker-compose down -v && up)
+	@echo "$(YELLOW)Restarting Anvil (clean state)...$(NC)"
+	@$(MAKE) stop-anvil
+	@rm -rf $(ANVIL_DATA_DIR)
+	@mkdir -p $(ANVIL_DATA_DIR)
+	@pkill -9 -f "anvil.*8545" 2>/dev/null || true
+	@sleep 1
+	@anvil --host 127.0.0.1 --port 8545 --chain-id 31337 --silent > $(ANVIL_DATA_DIR)/anvil.log 2>&1 & \
+	echo $$! > $(ANVIL_PID_FILE); \
+	sleep 2; \
+	if curl -sf $(ETH_RPC_URL) -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"eth_chainId","params":[],"id":1}' > /dev/null; then \
+		echo "$(GREEN)✓ Anvil restarted (PID: $$(cat $(ANVIL_PID_FILE)))$(NC)"; \
+	else \
+		echo "$(RED)✗ Anvil failed to start$(NC)"; \
+		cat $(ANVIL_DATA_DIR)/anvil.log; \
+		exit 1; \
+	fi
 
-logs: ## Show logs from all services
-	@docker-compose logs -f
+deploy-eth-contracts: start-anvil ## Deploy ETH contracts using local forge
+	@echo "$(YELLOW)Deploying ETH contracts...$(NC)"
+	@cd contracts/evm && forge script script/deploy_bridge.s.sol \
+		--rpc-url $(ETH_RPC_URL) \
+		--private-key $(ANVIL_PRIVATE_KEY) \
+		--broadcast \
+		--legacy \
+		-vvv 2>&1 | tee /tmp/forge_deploy.log | grep -E "Deployed|COMPLETE|Error"
+	@echo "$(GREEN)✓ ETH contracts deployed$(NC)"
 
-logs-eth: ## Show Ethereum node logs
-	@docker-compose logs -f eth-node
-
-logs-deployer: ## Show deployer logs
-	@docker-compose logs eth-deployer
-
-clean: ## Stop services and remove volumes
-	@./scripts/stop-anvil.sh 2>/dev/null || true
-	@docker-compose down -v 2>/dev/null || true
-	@echo "All services stopped and volumes removed"
-
-stop-anvil: ## Stop native Anvil process
-	@./scripts/stop-anvil.sh
-
-info: ## Show deployment information
-	@./scripts/get-deployment-info.sh
+clean: ## Stop Anvil and clean all data
+	@$(MAKE) stop-anvil
+	@rm -rf $(ANVIL_DATA_DIR)
+	@echo "$(GREEN)✓ Cleaned$(NC)"
 
 test-rpc: ## Test RPC connection
 	@echo "Testing Ethereum RPC..."
-	@curl -s -X POST http://localhost:8545 \
+	@curl -s -X POST $(ETH_RPC_URL) \
 		-H "Content-Type: application/json" \
 		-d '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' | jq
 	@echo ""
-	@curl -s -X POST http://localhost:8545 \
+	@curl -s -X POST $(ETH_RPC_URL) \
 		-H "Content-Type: application/json" \
 		-d '{"jsonrpc":"2.0","method":"eth_chainId","params":[],"id":1}' | jq
-
-ps: ## Show running containers
-	@docker-compose ps
-
-redeploy: clean deploy ## Clean everything and redeploy
 
 # ============================================================
 # Bridge Configuration Setup
@@ -165,17 +192,17 @@ clean-eth-and-config: ## Clean ETH containers, bridge-config/ and keys. Use FORC
 	@echo "$(GREEN)✓ Cleaned$(NC)"
 
 # ============================================================
-# Automated ETH + Config Setup (one command deployment)
+# Automated ETH + Config Setup (Native - no Docker)
 # ============================================================
-setup-eth-and-config: ## Complete ETH setup (clean + deploy ETH network + generate bridge config). Use FORCE_YES=1 to skip confirmation
+setup-eth-and-config: ## Complete ETH setup (clean + deploy + generate config). Use FORCE_YES=1 to skip confirmation
 	@echo "$(YELLOW)╔════════════════════════════════════════╗$(NC)"
-	@echo "$(YELLOW)║  ETH Network & Config Setup            ║$(NC)"
+	@echo "$(YELLOW)║  ETH Network & Config Setup (Native)   ║$(NC)"
 	@echo "$(YELLOW)╚════════════════════════════════════════╝$(NC)"
 	@echo ""
 	# Clean old data
 	@echo "$(YELLOW)Step 1/6: Cleaning old data...$(NC)"
-	@docker-compose down -v 2>/dev/null || true
-	$(call safe_rm,bridge-config bridge-node)
+	@$(MAKE) stop-anvil 2>/dev/null || true
+	$(call safe_rm,bridge-config bridge-node .anvil)
 	@echo "$(GREEN)✓ Cleaned$(NC)"
 	@echo ""
 	# Build keygen tool for config generation
@@ -183,7 +210,7 @@ setup-eth-and-config: ## Complete ETH setup (clean + deploy ETH network + genera
 	@cargo build --bin keygen --bin starcoin-bridge-cli --quiet
 	@echo "$(GREEN)✓ Tools built$(NC)"
 	@echo ""
-	# Generate bridge authority key BEFORE deploying ETH contracts
+	# Generate bridge authority key
 	@echo "$(YELLOW)Step 3/6: Generating bridge authority key...$(NC)"
 	@mkdir -p bridge-node/server-config
 	@./target/debug/keygen authority --output bridge-node/server-config/bridge_authority.key > /tmp/keygen_output.txt 2>&1
@@ -195,59 +222,102 @@ setup-eth-and-config: ## Complete ETH setup (clean + deploy ETH network + genera
 	echo "$(GREEN)✓ Bridge authority key generated$(NC)"; \
 	echo "   📍 Ethereum address: $$ETH_ADDRESS"
 	@echo ""
-	# Generate Starcoin client key (Ed25519)
+	# Generate Starcoin client key
 	@echo "$(YELLOW)Step 4/6: Generating Starcoin client key (Ed25519)...$(NC)"
 	@./target/debug/starcoin-bridge-cli create-bridge-client-key bridge-node/server-config/starcoin_client.key > /tmp/starcoin_key_output.txt 2>&1
 	@STARCOIN_CLIENT_ADDRESS=$$(grep "Starcoin address:" /tmp/starcoin_key_output.txt | awk '{print $$NF}'); \
 	echo "$(GREEN)✓ Starcoin client key generated$(NC)"; \
 	echo "   📍 Starcoin address: $$STARCOIN_CLIENT_ADDRESS"
 	@echo ""
-	# Update ETH deploy config with the generated committee member address
-	@echo "$(YELLOW)Step 5/6: Updating ETH deploy config and deploying...$(NC)"
+	# Update ETH deploy config and deploy
+	@echo "$(YELLOW)Step 5/6: Deploying ETH contracts (native forge)...$(NC)"
 	@ETH_ADDRESS=$$(grep "Ethereum address:" /tmp/keygen_output.txt | awk '{print $$3}'); \
 	ETH_ADDRESS_LOWER=$$(echo "$$ETH_ADDRESS" | tr '[:upper:]' '[:lower:]'); \
 	CONFIG_FILE="contracts/evm/deploy_configs/31337.json"; \
 	echo "   Updating $$CONFIG_FILE with committee member: $$ETH_ADDRESS"; \
-	if [ -f "$$CONFIG_FILE" ]; then \
-		jq --arg addr "$$ETH_ADDRESS_LOWER" '.committeeMembers = [$$addr] | .committeeMemberStake = [10000]' "$$CONFIG_FILE" > /tmp/31337_new.json && \
-		mv /tmp/31337_new.json "$$CONFIG_FILE"; \
-		echo "$(GREEN)✓ Deploy config updated$(NC)"; \
-	else \
-		echo "$(RED)✗ Config file not found: $$CONFIG_FILE$(NC)"; \
+	jq --arg addr "$$ETH_ADDRESS_LOWER" '.committeeMembers = [$$addr] | .committeeMemberStake = [10000]' "$$CONFIG_FILE" > /tmp/31337_new.json && \
+	mv /tmp/31337_new.json "$$CONFIG_FILE"; \
+	echo "$(GREEN)✓ Deploy config updated$(NC)"
+	# Restart Anvil with clean state
+	@$(MAKE) restart-anvil
+	# Deploy contracts with forge
+	@echo "   Deploying contracts..."
+	@cd contracts/evm && forge script script/deploy_bridge.s.sol \
+		--rpc-url $(ETH_RPC_URL) \
+		--private-key $(ANVIL_PRIVATE_KEY) \
+		--broadcast \
+		--legacy \
+		-vvv 2>&1 | tee /tmp/forge_deploy.log | grep -E "Deployed|COMPLETE" || true
+	@echo "$(GREEN)✓ ETH contracts deployed$(NC)"
+	# Extract proxy address from forge output
+	@ETH_PROXY=$$(grep "\[Deployed\] SuiBridge:" /tmp/forge_deploy.log | grep -o '0x[a-fA-F0-9]*' | head -1); \
+	if [ -z "$$ETH_PROXY" ]; then \
+		echo "$(RED)✗ Failed to extract proxy address$(NC)"; \
+		cat /tmp/forge_deploy.log | tail -20; \
 		exit 1; \
-	fi
-	# Deploy ETH network via docker-compose
-	@echo "   Starting ETH network..."
-	@docker-compose up -d
-	@echo "   Waiting for ETH contracts deployment..."
-	@SUCCESS=0; \
-	for i in $$(seq 1 120); do \
-		if curl -sf http://localhost:8080/deployment.json > /dev/null 2>&1 || \
-		   curl -sf http://localhost:8080/deployment.txt > /dev/null 2>&1; then \
-			SUCCESS=1; \
-			echo "   $(GREEN)✓ ETH contracts deployed (took $$((i*2))s)$(NC)"; \
-			break; \
-		fi; \
-		printf "   ⏳ %ds/%ds\r" "$$((i*2))" "240"; \
-		sleep 2; \
-	done; \
-	if [ $$SUCCESS -eq 0 ]; then \
-		echo "\n   $(RED)✗ Timeout after 240s$(NC)"; \
-		echo "   $(YELLOW)Check: docker logs bridge-eth-deployer$(NC)"; \
-		exit 1; \
-	fi
+	fi; \
+	echo "   📍 ETH Proxy Address: $$ETH_PROXY"; \
+	echo "$$ETH_PROXY" > /tmp/eth_proxy_address.txt
 	@echo ""
-	# Generate bridge configuration files (skip key generation since we already did it)
+	# Generate bridge configuration
 	@echo "$(YELLOW)Step 6/6: Generating bridge configuration...$(NC)"
-	@./scripts/auto-gen-config.sh --skip-keygen
-	@echo ""
-	# Verify configuration
-	@if [ -f bridge-config/server-config.yaml ]; then \
-		echo "$(GREEN)✓ Configuration file ready$(NC)"; \
-	else \
-		echo "$(RED)✗ Configuration generation failed$(NC)"; \
-		exit 1; \
-	fi
+	@mkdir -p bridge-config
+	# Generate deployment.txt from forge output
+	@echo "NETWORK=Anvil Local Network" > bridge-config/deployment.txt
+	@echo "CHAIN_ID=31337" >> bridge-config/deployment.txt
+	@echo "RPC_URL=http://localhost:8545" >> bridge-config/deployment.txt
+	@echo "DEPLOYER=0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" >> bridge-config/deployment.txt
+	@echo "PRIVATE_KEY=$(ANVIL_PRIVATE_KEY)" >> bridge-config/deployment.txt
+	@echo "" >> bridge-config/deployment.txt
+	@grep "\[Deployed\]" /tmp/forge_deploy.log >> bridge-config/deployment.txt || true
+	@ETH_PROXY=$$(cat /tmp/eth_proxy_address.txt); \
+	echo "ERC1967Proxy=$$ETH_PROXY" >> bridge-config/deployment.txt
+	@echo "$(GREEN)✓ deployment.txt generated$(NC)"
+	# Generate server-config.yaml
+	@ETH_ADDRESS=$$(grep "Ethereum address:" /tmp/keygen_output.txt | awk '{print $$3}'); \
+	ETH_PROXY=$$(cat /tmp/eth_proxy_address.txt); \
+	STARCOIN_CLIENT_ADDRESS=$$(grep "Starcoin address:" /tmp/starcoin_key_output.txt | awk '{print $$NF}'); \
+	echo "# Starcoin Bridge Server Configuration" > bridge-config/server-config.yaml; \
+	echo "# Auto-generated at: $$(date)" >> bridge-config/server-config.yaml; \
+	echo "" >> bridge-config/server-config.yaml; \
+	echo "# Server settings" >> bridge-config/server-config.yaml; \
+	echo "server-listen-port: 9191" >> bridge-config/server-config.yaml; \
+	echo "metrics-port: 9184" >> bridge-config/server-config.yaml; \
+	echo "" >> bridge-config/server-config.yaml; \
+	echo "# Bridge authority key (validator)" >> bridge-config/server-config.yaml; \
+	echo "# Ethereum address: $$ETH_ADDRESS" >> bridge-config/server-config.yaml; \
+	echo "bridge-authority-key-path: $(PWD)/bridge-node/server-config/bridge_authority.key" >> bridge-config/server-config.yaml; \
+	echo "" >> bridge-config/server-config.yaml; \
+	echo "# Run client mode" >> bridge-config/server-config.yaml; \
+	echo "run-client: true" >> bridge-config/server-config.yaml; \
+	echo "" >> bridge-config/server-config.yaml; \
+	echo "# Database path" >> bridge-config/server-config.yaml; \
+	echo "db-path: $(PWD)/bridge-config/bridge.db" >> bridge-config/server-config.yaml; \
+	echo "" >> bridge-config/server-config.yaml; \
+	echo "# Approved governance actions" >> bridge-config/server-config.yaml; \
+	echo "approved-governance-actions: []" >> bridge-config/server-config.yaml; \
+	echo "" >> bridge-config/server-config.yaml; \
+	echo "# Ethereum configuration" >> bridge-config/server-config.yaml; \
+	echo "eth:" >> bridge-config/server-config.yaml; \
+	echo "  eth-rpc-url: http://localhost:8545" >> bridge-config/server-config.yaml; \
+	echo "  eth-bridge-proxy-address: $$ETH_PROXY" >> bridge-config/server-config.yaml; \
+	echo "  eth-bridge-chain-id: 12" >> bridge-config/server-config.yaml; \
+	echo "  eth-contracts-start-block-fallback: 0" >> bridge-config/server-config.yaml; \
+	echo "  eth-contracts-start-block-override: 0" >> bridge-config/server-config.yaml; \
+	echo "  eth-use-latest-block: true" >> bridge-config/server-config.yaml; \
+	echo "" >> bridge-config/server-config.yaml; \
+	echo "# Starcoin configuration" >> bridge-config/server-config.yaml; \
+	echo "starcoin:" >> bridge-config/server-config.yaml; \
+	echo "  starcoin-bridge-rpc-url: http://127.0.0.1:9850" >> bridge-config/server-config.yaml; \
+	echo "  starcoin-bridge-chain-id: 2" >> bridge-config/server-config.yaml; \
+	echo "  starcoin-bridge-proxy-address: \"\"" >> bridge-config/server-config.yaml; \
+	echo "  bridge-client-key-path: $(PWD)/bridge-node/server-config/starcoin_client.key" >> bridge-config/server-config.yaml
+	@echo "$(GREEN)✓ server-config.yaml generated$(NC)"
+	# Fund bridge authority with ETH
+	@ETH_ADDRESS=$$(grep "Ethereum address:" /tmp/keygen_output.txt | awk '{print $$3}'); \
+	echo "   Funding bridge authority with 100 ETH..."; \
+	cast send $$ETH_ADDRESS --value 100ether --private-key $(ANVIL_PRIVATE_KEY) --rpc-url $(ETH_RPC_URL) > /dev/null 2>&1 && \
+	echo "$(GREEN)✓ Funded 100 ETH$(NC)" || echo "$(YELLOW)⚠ Funding skipped$(NC)"
 	@echo ""
 	@echo "$(GREEN)╔════════════════════════════════════════╗$(NC)"
 	@echo "$(GREEN)║  ✅ ETH setup complete!                ║$(NC)"
@@ -266,14 +336,18 @@ status: ## Show current deployment status
 	@echo "$(YELLOW)║  Starcoin Bridge - Status              ║$(NC)"
 	@echo "$(YELLOW)╚════════════════════════════════════════╝$(NC)"
 	@echo ""
-	@echo "$(YELLOW)ETH Network:$(NC)"
-	@if docker ps --filter "name=bridge-eth-node" --format "{{.Names}}" 2>/dev/null | grep -q bridge-eth-node; then \
-		ETH_STATUS=$$(docker ps --filter "name=bridge-eth-node" --format "{{.Status}}" 2>/dev/null); \
-		echo "  $(GREEN)✓ bridge-eth-node$(NC) - $$ETH_STATUS"; \
-		echo "  RPC: http://localhost:8545"; \
+	@echo "$(YELLOW)ETH Network (Anvil):$(NC)"
+	@if [ -f $(ANVIL_PID_FILE) ] && kill -0 $$(cat $(ANVIL_PID_FILE)) 2>/dev/null; then \
+		echo "  $(GREEN)✓ Anvil running$(NC) (PID: $$(cat $(ANVIL_PID_FILE)))"; \
+		BLOCK=$$(curl -s -X POST $(ETH_RPC_URL) -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' 2>/dev/null | jq -r '.result' | xargs printf "%d" 2>/dev/null || echo "?"); \
+		echo "  Block: $$BLOCK"; \
+		echo "  RPC: $(ETH_RPC_URL)"; \
+	elif curl -sf $(ETH_RPC_URL) -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"eth_chainId","params":[],"id":1}' > /dev/null 2>&1; then \
+		echo "  $(GREEN)✓ Anvil running$(NC) (external)"; \
+		echo "  RPC: $(ETH_RPC_URL)"; \
 	else \
 		echo "  $(RED)✗ Not running$(NC)"; \
-		echo "  $(YELLOW)Start: make deploy-eth-network$(NC)"; \
+		echo "  $(YELLOW)Start: make start-anvil$(NC)"; \
 	fi
 	@echo ""
 	@echo "$(YELLOW)Starcoin Node:$(NC)"
@@ -314,16 +388,20 @@ status: ## Show current deployment status
 	fi
 	@echo ""
 	@echo "$(YELLOW)Deployed Contracts:$(NC)"
-	@if docker exec bridge-deployment-info cat /usr/share/nginx/html/deployment.txt 2>/dev/null | grep "ERC1967Proxy" > /dev/null; then \
-		echo "  $(GREEN)✓ ETH Contracts:$(NC)"; \
-		docker exec bridge-deployment-info cat /usr/share/nginx/html/deployment.txt 2>/dev/null | while read line; do echo "    $$line"; done; \
+	@if [ -f bridge-config/server-config.yaml ]; then \
+		ETH_PROXY=$$(grep "eth-bridge-proxy-address:" bridge-config/server-config.yaml | awk '{print $$2}'); \
+		if [ -n "$$ETH_PROXY" ]; then \
+			echo "  $(GREEN)✓ ETH Proxy:$(NC) $$ETH_PROXY"; \
+		else \
+			echo "  $(RED)✗ No ETH proxy address in config$(NC)"; \
+		fi; \
 	else \
-		echo "  $(RED)✗ No ETH deployment info$(NC)"; \
+		echo "  $(RED)✗ No config file$(NC)"; \
 	fi
 	@echo ""
 	@echo "$(YELLOW)Bridge Server:$(NC)"
-	@if pgrep -f "bridge-node" > /dev/null 2>&1; then \
-		echo "  $(GREEN)✓ Running$(NC) (PID: $$(pgrep -f 'bridge-node'))"; \
+	@if pgrep -f "starcoin-bridge" > /dev/null 2>&1; then \
+		echo "  $(GREEN)✓ Running$(NC) (PID: $$(pgrep -f 'starcoin-bridge'))"; \
 		echo "  Port: 9191"; \
 	else \
 		echo "  $(RED)✗ Not running$(NC)"; \
@@ -339,9 +417,13 @@ bridge-info: ## Show bridge deployment information
 
 check: ## Check if services are healthy
 	@echo "Checking Ethereum node..."
-	@docker exec bridge-eth-node cast block-number --rpc-url http://localhost:8545 || echo "❌ Ethereum node not accessible"
-	@echo "Checking deployment info..."
-	@curl -s http://localhost:8080/health > /dev/null && echo "✅ Deployment info server is running" || echo "❌ Deployment info not accessible"
+	@cast block-number --rpc-url $(ETH_RPC_URL) 2>/dev/null && echo "✅ Ethereum node accessible" || echo "❌ Ethereum node not accessible"
+	@echo "Checking Anvil PID..."
+	@if [ -f $(ANVIL_PID_FILE) ] && kill -0 $$(cat $(ANVIL_PID_FILE)) 2>/dev/null; then \
+		echo "✅ Anvil running (PID: $$(cat $(ANVIL_PID_FILE)))"; \
+	else \
+		echo "⚠️ Anvil PID file not found or process not running"; \
+	fi
 
 # ============================================================
 # Starcoin Node Management
@@ -483,17 +565,18 @@ deploy-starcoin-contracts: build-starcoin-contracts ## Deploy Move contracts + i
 	echo "  Function: $$DEFAULT_ACCOUNT::Bridge::initialize_bridge"; \
 	echo "  Chain ID: 254 (devnet)"; \
 	echo ""; \
-	if echo "" | $(STARCOIN_PATH) -c $(STARCOIN_RPC) account execute-function \
+	echo "" | $(STARCOIN_PATH) -c $(STARCOIN_RPC) account execute-function \
 		--function $$DEFAULT_ACCOUNT::Bridge::initialize_bridge \
 		--arg 254u8 \
-		-s $$DEFAULT_ACCOUNT -b 2>&1 | tee /tmp/init_bridge.log | grep -v "^[0-9].*INFO"; then \
+		-s $$DEFAULT_ACCOUNT -b 2>&1 | tee /tmp/init_bridge.log | grep -v "^[0-9].*INFO"; \
+	if grep -q '"status": "Executed"' /tmp/init_bridge.log; then \
 		echo ""; \
 		echo "$(GREEN)✓ Bridge initialized successfully$(NC)"; \
 	else \
 		echo ""; \
 		echo "$(RED)✗ Bridge initialization failed$(NC)"; \
-		echo "$(YELLOW)Error details:$(NC)"; \
-		grep -i "error\|failed\|ERROR" /tmp/init_bridge.log | head -5; \
+		echo "$(YELLOW)Transaction status:$(NC)"; \
+		grep -E '"status"|"status_code"|ABORTED|abort_code' /tmp/init_bridge.log | head -5; \
 		exit 1; \
 	fi; \
 	echo "" && \
@@ -535,18 +618,19 @@ deploy-starcoin-contracts: build-starcoin-contracts ## Deploy Move contracts + i
 	echo "  URL (hex): $$URL_HEX"; \
 	echo ""; \
 	echo "$(BLUE)Executing registration transaction...$(NC)"; \
-	if echo "" | $(STARCOIN_PATH) -c $(STARCOIN_RPC) account execute-function \
+	echo "" | $(STARCOIN_PATH) -c $(STARCOIN_RPC) account execute-function \
 		--function $$DEFAULT_ACCOUNT::Bridge::register_committee_member \
 		--arg 0x$$BRIDGE_PUBKEY \
 		--arg 0x$$URL_HEX \
-		-s $$DEFAULT_ACCOUNT -b 2>&1 | tee /tmp/register.log | grep -v "^[0-9].*INFO"; then \
+		-s $$DEFAULT_ACCOUNT -b 2>&1 | tee /tmp/register.log | grep -v "^[0-9].*INFO"; \
+	if grep -q '"status": "Executed"' /tmp/register.log; then \
 		echo ""; \
 		echo "$(GREEN)✓ Bridge authority registered successfully$(NC)"; \
 	else \
 		echo ""; \
 		echo "$(RED)✗ Registration failed$(NC)"; \
-		echo "$(YELLOW)Error details:$(NC)"; \
-		grep -i "error\|failed\|ERROR" /tmp/register.log | head -5; \
+		echo "$(YELLOW)Transaction status:$(NC)"; \
+		grep -E '"status"|"status_code"|ABORTED|abort_code' /tmp/register.log | head -5; \
 		exit 1; \
 	fi; \
 	echo "" && \
@@ -561,20 +645,21 @@ deploy-starcoin-contracts: build-starcoin-contracts ## Deploy Move contracts + i
 	echo "  Epoch: 0" && \
 	echo "" && \
 	echo "$(BLUE)Executing: $(STARCOIN_PATH) account execute-function --function $$DEFAULT_ACCOUNT::Bridge::create_committee$(NC)"; \
-	if echo "" | $(STARCOIN_PATH) -c $(STARCOIN_RPC) account execute-function \
+	echo "" | $(STARCOIN_PATH) -c $(STARCOIN_RPC) account execute-function \
 		--function $$DEFAULT_ACCOUNT::Bridge::create_committee \
 		--arg $$DEFAULT_ACCOUNT \
 		--arg 10000u64 \
 		--arg 5000u64 \
 		--arg 0u64 \
-		-s $$DEFAULT_ACCOUNT -b 2>&1 | tee /tmp/committee.log | grep -v "^[0-9].*INFO"; then \
+		-s $$DEFAULT_ACCOUNT -b 2>&1 | tee /tmp/committee.log | grep -v "^[0-9].*INFO"; \
+	if grep -q '"status": "Executed"' /tmp/committee.log; then \
 		echo ""; \
 		echo "$(GREEN)✓ Committee created successfully$(NC)"; \
 	else \
 		echo ""; \
 		echo "$(RED)✗ Committee creation failed$(NC)"; \
-		echo "$(YELLOW)Error details:$(NC)"; \
-		grep -i "error\|failed\|ERROR" /tmp/committee.log | head -5; \
+		echo "$(YELLOW)Transaction status:$(NC)"; \
+		grep -E '"status"|"status_code"|ABORTED|abort_code' /tmp/committee.log | head -5; \
 		exit 1; \
 	fi; \
 	echo "" && \
@@ -583,43 +668,51 @@ deploy-starcoin-contracts: build-starcoin-contracts ## Deploy Move contracts + i
 	echo "$(YELLOW)╚════════════════════════════════════════╝$(NC)" && \
 	echo "" && \
 	echo "$(YELLOW)Registering ETH token (ID: 2)...$(NC)" && \
-	if echo "" | $(STARCOIN_PATH) -c $(STARCOIN_RPC) account execute-function \
+	echo "" | $(STARCOIN_PATH) -c $(STARCOIN_RPC) account execute-function \
 		--function $$DEFAULT_ACCOUNT::Bridge::setup_eth_token \
-		-s $$DEFAULT_ACCOUNT -b 2>&1 | tee /tmp/setup_eth.log | grep -v "^[0-9].*INFO"; then \
+		-s $$DEFAULT_ACCOUNT -b 2>&1 | tee /tmp/setup_eth.log | grep -v "^[0-9].*INFO"; \
+	if grep -q '"status": "Executed"' /tmp/setup_eth.log; then \
 		echo "$(GREEN)✓ ETH token registered$(NC)"; \
 	else \
 		echo "$(RED)✗ ETH token registration failed$(NC)"; \
-		grep -i "error\|failed\|ERROR" /tmp/setup_eth.log | head -3; \
+		grep -E '"status"|"status_code"|ABORTED|abort_code|FUNCTION_RESOLUTION_FAILURE' /tmp/setup_eth.log | head -3; \
+		exit 1; \
 	fi && \
 	echo "" && \
 	echo "$(YELLOW)Registering BTC token (ID: 1)...$(NC)" && \
-	if echo "" | $(STARCOIN_PATH) -c $(STARCOIN_RPC) account execute-function \
+	echo "" | $(STARCOIN_PATH) -c $(STARCOIN_RPC) account execute-function \
 		--function $$DEFAULT_ACCOUNT::Bridge::setup_btc_token \
-		-s $$DEFAULT_ACCOUNT -b 2>&1 | tee /tmp/setup_btc.log | grep -v "^[0-9].*INFO"; then \
+		-s $$DEFAULT_ACCOUNT -b 2>&1 | tee /tmp/setup_btc.log | grep -v "^[0-9].*INFO"; \
+	if grep -q '"status": "Executed"' /tmp/setup_btc.log; then \
 		echo "$(GREEN)✓ BTC token registered$(NC)"; \
 	else \
 		echo "$(RED)✗ BTC token registration failed$(NC)"; \
-		grep -i "error\|failed\|ERROR" /tmp/setup_btc.log | head -3; \
+		grep -E '"status"|"status_code"|ABORTED|abort_code|FUNCTION_RESOLUTION_FAILURE' /tmp/setup_btc.log | head -3; \
+		exit 1; \
 	fi && \
 	echo "" && \
 	echo "$(YELLOW)Registering USDC token (ID: 3)...$(NC)" && \
-	if echo "" | $(STARCOIN_PATH) -c $(STARCOIN_RPC) account execute-function \
+	echo "" | $(STARCOIN_PATH) -c $(STARCOIN_RPC) account execute-function \
 		--function $$DEFAULT_ACCOUNT::Bridge::setup_usdc_token \
-		-s $$DEFAULT_ACCOUNT -b 2>&1 | tee /tmp/setup_usdc.log | grep -v "^[0-9].*INFO"; then \
+		-s $$DEFAULT_ACCOUNT -b 2>&1 | tee /tmp/setup_usdc.log | grep -v "^[0-9].*INFO"; \
+	if grep -q '"status": "Executed"' /tmp/setup_usdc.log; then \
 		echo "$(GREEN)✓ USDC token registered$(NC)"; \
 	else \
 		echo "$(RED)✗ USDC token registration failed$(NC)"; \
-		grep -i "error\|failed\|ERROR" /tmp/setup_usdc.log | head -3; \
+		grep -E '"status"|"status_code"|ABORTED|abort_code|FUNCTION_RESOLUTION_FAILURE' /tmp/setup_usdc.log | head -3; \
+		exit 1; \
 	fi && \
 	echo "" && \
 	echo "$(YELLOW)Registering USDT token (ID: 4)...$(NC)" && \
-	if echo "" | $(STARCOIN_PATH) -c $(STARCOIN_RPC) account execute-function \
+	echo "" | $(STARCOIN_PATH) -c $(STARCOIN_RPC) account execute-function \
 		--function $$DEFAULT_ACCOUNT::Bridge::setup_usdt_token \
-		-s $$DEFAULT_ACCOUNT -b 2>&1 | tee /tmp/setup_usdt.log | grep -v "^[0-9].*INFO"; then \
+		-s $$DEFAULT_ACCOUNT -b 2>&1 | tee /tmp/setup_usdt.log | grep -v "^[0-9].*INFO"; \
+	if grep -q '"status": "Executed"' /tmp/setup_usdt.log; then \
 		echo "$(GREEN)✓ USDT token registered$(NC)"; \
 	else \
 		echo "$(RED)✗ USDT token registration failed$(NC)"; \
-		grep -i "error\|failed\|ERROR" /tmp/setup_usdt.log | head -3; \
+		grep -E '"status"|"status_code"|ABORTED|abort_code|FUNCTION_RESOLUTION_FAILURE' /tmp/setup_usdt.log | head -3; \
+		exit 1; \
 	fi && \
 	echo "" && \
 	echo "$(YELLOW)Updating configuration files with bridge address...$(NC)" && \
@@ -651,7 +744,7 @@ deploy-starcoin-contracts: build-starcoin-contracts ## Deploy Move contracts + i
 	echo "$(GREEN)✓ cli-config.yaml generated$(NC)" && \
 	echo "" && \
 	echo "$(YELLOW)Funding bridge authority with ETH...$(NC)" && \
-	if docker exec bridge-eth-node cast send $$ETH_ADDRESS --value 100ether --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 --rpc-url http://localhost:8545 > /dev/null 2>&1; then \
+	if cast send $$ETH_ADDRESS --value 100ether --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 --rpc-url $(ETH_RPC_URL) > /dev/null 2>&1; then \
 		echo "$(GREEN)✓ Bridge authority funded with 100 ETH$(NC)"; \
 	else \
 		echo "$(YELLOW)⚠ Could not fund (may already have balance)$(NC)"; \
@@ -680,13 +773,13 @@ run-bridge-server: ## Start bridge server (requires ETH network + Starcoin node 
 	@echo "$(YELLOW)Checking prerequisites...$(NC)"
 	@if [ ! -f bridge-config/server-config.yaml ]; then \
 		echo "$(RED)✗ Bridge config not found$(NC)"; \
-		echo "$(YELLOW)Run: make restart-all$(NC)"; \
+		echo "$(YELLOW)Run: make setup-eth-and-config$(NC)"; \
 		exit 1; \
 	fi
 	@echo "$(GREEN)✓ Config found$(NC)"
-	@if ! docker ps | grep -q bridge-eth-node; then \
+	@if ! curl -sf $(ETH_RPC_URL) -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"eth_chainId","params":[],"id":1}' > /dev/null 2>&1; then \
 		echo "$(RED)✗ ETH node not running$(NC)"; \
-		echo "$(YELLOW)Run: make restart-all$(NC)"; \
+		echo "$(YELLOW)Run: make start-anvil$(NC)"; \
 		exit 1; \
 	fi
 	@echo "$(GREEN)✓ ETH node running$(NC)"
@@ -744,7 +837,7 @@ fund-eth-account: ## Fund ETH account from Anvil default account
 		exit 1; \
 	fi; \
 	echo "$(YELLOW)Funding $$ETH_ADDRESS with 100 ETH...$(NC)"; \
-	docker exec bridge-eth-node cast send $$ETH_ADDRESS --value 100ether --private-key $(ANVIL_PRIVATE_KEY) --rpc-url http://localhost:8545 > /dev/null 2>&1 && \
+	cast send $$ETH_ADDRESS --value 100ether --private-key $(ANVIL_PRIVATE_KEY) --rpc-url $(ETH_RPC_URL) > /dev/null 2>&1 && \
 	echo "$(GREEN)✓ Funded 100 ETH to $$ETH_ADDRESS$(NC)" || \
 	echo "$(YELLOW)⚠ Funding failed (may already have balance)$(NC)"
 
@@ -752,9 +845,19 @@ fund-eth-account: ## Fund ETH account from Anvil default account
 # AMOUNT: in ETH (e.g., 0.1)
 # TOKEN: ETH (currently only native ETH supported for deposit)
 deposit-eth: build-bridge-cli fund-eth-account fund-starcoin-bridge-account ## Deposit ETH to Starcoin (usage: make deposit-eth AMOUNT=0.1)
+	@$(MAKE) deposit-eth-core AMOUNT=$(AMOUNT)
+
+# Core deposit logic without funding (for scripts that handle funding separately)
+deposit-eth-core: build-bridge-cli
 	@if [ ! -f bridge-node/server-config/bridge_client.key ]; then \
 		echo "$(YELLOW)Creating bridge client key (Ed25519 for Starcoin)...$(NC)"; \
 		$(BRIDGE_CLI) create-bridge-client-key bridge-node/server-config/bridge_client.key; \
+	fi
+	@# Fund recipient account with STC so it exists on chain (required for token transfer)
+	@RECIPIENT=$$($(BRIDGE_CLI) examine-key bridge-node/server-config/bridge_client.key 2>/dev/null | grep "Starcoin address:" | awk '{print $$NF}'); \
+	if [ -n "$$RECIPIENT" ]; then \
+		echo "$(YELLOW)Ensuring recipient account exists: $$RECIPIENT$(NC)"; \
+		$(STARCOIN_PATH) -c $(STARCOIN_RPC) dev get-coin -v 1000000 $$RECIPIENT 2>&1 | grep -v "^[0-9].*INFO" || true; \
 	fi
 	@# Fund recipient account with STC so it exists on chain (required for token transfer)
 	@RECIPIENT=$$($(BRIDGE_CLI) examine-key bridge-node/server-config/bridge_client.key 2>/dev/null | grep "Starcoin address:" | awk '{print $$NF}'); \
@@ -792,31 +895,28 @@ fund-starcoin-bridge-account: build-bridge-cli ## Fund the bridge server account
 	echo "$(GREEN)✓ Funded bridge account for account initialization$(NC)" || \
 	echo "$(YELLOW)⚠ Funding may have failed (account might already have balance)$(NC)"
 
-# Quick deposit test with default amount
+# Quick deposit test with default amount (ETH -> Starcoin)
 deposit-eth-test: build-bridge-cli fund-eth-account fund-starcoin-bridge-account ## Quick test: deposit 0.1 ETH to Starcoin
 	@$(MAKE) deposit-eth AMOUNT=0.1
 
-# Withdraw from Starcoin to ETH (reverse bridge)
-# AMOUNT: in smallest unit (e.g., 10000000 = 0.01 ETH)
-# TOKEN: ETH, BTC, USDC, USDT
-withdraw-to-eth: build-bridge-cli ## Withdraw tokens from Starcoin to ETH (usage: make withdraw-to-eth AMOUNT=10000000 TOKEN=ETH)
-	@if [ ! -f bridge-node/server-config/bridge_authority.key ]; then \
-		echo "$(RED)✗ Bridge authority key not found$(NC)"; \
-		exit 1; \
-	fi
-	@ETH_RECIPIENT=$$($(BRIDGE_CLI) examine-key bridge-node/server-config/bridge_authority.key 2>/dev/null | grep "Eth address:" | awk '{print $$NF}'); \
+# Withdraw from Starcoin to ETH (Starcoin -> ETH)
+withdraw-to-eth: build-bridge-cli init-cli-config ## Withdraw tokens from Starcoin to ETH
+	@BRIDGE_ADDR=$$(grep "starcoin-bridge-proxy-address:" bridge-config/server-config.yaml 2>/dev/null | awk '{print $$2}' | tr -d '"'); \
+	ETH_RECIPIENT=$$($(BRIDGE_CLI) examine-key bridge-node/server-config/bridge_authority.key 2>/dev/null | grep "Eth address:" | awk '{print $$NF}'); \
 	if [ -z "$$ETH_RECIPIENT" ]; then \
 		ETH_RECIPIENT="0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"; \
 	fi; \
 	AMOUNT_VAL=$${AMOUNT:-10000000}; \
 	TOKEN_VAL=$${TOKEN:-ETH}; \
+	COIN_TYPE="$${BRIDGE_ADDR}::$${TOKEN_VAL}::$${TOKEN_VAL}"; \
 	echo "$(YELLOW)Withdrawing $$AMOUNT_VAL $$TOKEN_VAL to ETH...$(NC)"; \
+	echo "$(YELLOW)Coin type: $$COIN_TYPE$(NC)"; \
 	echo "$(YELLOW)ETH Recipient: $$ETH_RECIPIENT$(NC)"; \
 	NO_PROXY=localhost,127.0.0.1 $(BRIDGE_CLI) client \
 		--config-path $(CLI_CONFIG) \
 		deposit-on-starcoin \
 		--amount $$AMOUNT_VAL \
-		--coin-type $$TOKEN_VAL \
+		--coin-type "$$COIN_TYPE" \
 		--target-chain 12 \
 		--recipient-address $$ETH_RECIPIENT
 	@echo "$(GREEN)✓ Withdraw transaction submitted$(NC)"

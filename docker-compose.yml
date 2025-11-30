@@ -5,7 +5,7 @@ services:
     platform: linux/arm64
     environment:
       - ANVIL_IP_ADDR=0.0.0.0
-    command: ["anvil", "--host", "0.0.0.0", "--port", "8545", "--chain-id", "31337", "--block-time", "2"]
+    command: ["anvil", "--host", "0.0.0.0", "--port", "8545", "--chain-id", "31337"]
     ports:
       - "8545:8545"
     healthcheck:
@@ -46,7 +46,6 @@ services:
           --private-key $$PRIVATE_KEY \
           --broadcast \
           --legacy \
-          --slow \
           -vvv 2>&1 | tee /tmp/forge_output.log
         
         # Extract deployment info from forge output (no JSON parsing needed)

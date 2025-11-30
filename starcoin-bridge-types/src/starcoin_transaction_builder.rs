@@ -212,6 +212,7 @@ pub fn build_execute_system_message(
 }
 
 /// Build transaction for sending tokens to another chain
+/// This calls the specific send_bridge_* entry functions based on token type
 pub fn build_send_token(
     sender: StarcoinAddress,
     sequence_number: u64,
@@ -229,7 +230,22 @@ pub fn build_send_token(
         bcs::to_bytes(&amount).map_err(|e| e.to_string())?,
     ];
 
-    builder.build_bridge_call("Bridge", "send_token", vec![token_type_tag], args)
+    // Determine which entry function to call based on token type
+    let function_name = match &token_type_tag {
+        TypeTag::Struct(s) => {
+            match s.name.as_str() {
+                "ETH" => "send_bridge_eth",
+                "BTC" => "send_bridge_btc",
+                "USDC" => "send_bridge_usdc",
+                "USDT" => "send_bridge_usdt",
+                _ => return Err(format!("Unsupported token type: {}", s.name)),
+            }
+        }
+        _ => return Err("Token type must be a struct".to_string()),
+    };
+
+    // The send_bridge_* functions don't take type parameters
+    builder.build_bridge_call("Bridge", function_name, vec![], args)
 }
 
 // =============================================================================

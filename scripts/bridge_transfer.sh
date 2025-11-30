@@ -160,7 +160,8 @@ poll_bridge_status() {
             local current_balance=$(get_bridge_token_balance "$stc_addr" "ETH")
             if [ "$current_balance" != "0" ] && [ "$current_balance" != "$initial_balance" ]; then
                 local received=$((current_balance - initial_balance))
-                echo -e "${GREEN}✓ Bridge transfer completed! Received $received ETH tokens${NC}"
+                local received_eth=$(python3 -c "print(f'{$received / 1e8:g}')" 2>/dev/null || echo "0")
+                echo -e "${GREEN}✓ Bridge transfer completed! Received ${received_eth} ETH${NC}"
                 return 0
             fi
         else
@@ -187,15 +188,6 @@ main() {
     echo -e "${YELLOW}ETH Address: $eth_addr${NC}"
     echo ""
     
-    # Show balances before
-    echo -e "${BLUE}=== Before Transfer ===${NC}"
-    get_starcoin_balances "$stc_addr"
-    get_eth_balances "$eth_addr"
-    echo ""
-    
-    # Record initial token balance for polling
-    local initial_eth_balance=$(get_bridge_token_balance "$stc_addr" "ETH")
-    
     # Execute transfer
     if [ "$DIRECTION" = "eth-to-stc" ]; then
         echo -e "${YELLOW}========================================${NC}"
@@ -203,25 +195,44 @@ main() {
         echo -e "${YELLOW}========================================${NC}"
         echo ""
         
-        echo -e "${YELLOW}[1/5] Funding ETH account for gas...${NC}"
-        make fund-eth-account 2>&1 | grep -E "Funded|Funding|ETH|funded" | head -3 || true
+        # Record balances BEFORE any operations
+        local initial_eth_balance=$(get_bridge_token_balance "$stc_addr" "ETH")
+        local initial_eth_balance_eth=$(python3 -c "print(f'{$initial_eth_balance / 1e8:g}')" 2>/dev/null || echo "0")
+        local initial_eth_wallet=$(curl -s -X POST -H "Content-Type: application/json" \
+            -d "{\"jsonrpc\":\"2.0\",\"method\":\"eth_getBalance\",\"params\":[\"$eth_addr\",\"latest\"],\"id\":1}" \
+            "$ETH_RPC" | jq -r '.result // "0x0"')
+        local eth_before=$(python3 -c "print(f'{int(\"$initial_eth_wallet\", 16) / 1e18:g}')" 2>/dev/null || echo "0")
+        
+        echo -e "${BLUE}=== Before Transfer ===${NC}"
+        echo -e "  Starcoin wETH:      ${GREEN}${initial_eth_balance_eth} ETH${NC}"
+        echo -e "  Ethereum wallet:    ${GREEN}${eth_before} ETH${NC}"
         echo ""
         
-        echo -e "${YELLOW}[2/5] Funding Starcoin bridge server account with STC...${NC}"
-        make fund-starcoin-bridge-account 2>&1 | grep -E "Funded|Funding|Bridge account|funded|STC" | head -5 || true
+        echo -e "${YELLOW}[1/4] Ensuring accounts are funded...${NC}"
+        # Fund bridge server on Starcoin (for gas)
+        make fund-starcoin-bridge-account 2>&1 | grep -E "Funded|Funding|Bridge account|funded|STC" | head -3 || true
         echo ""
         
-        echo -e "${YELLOW}[3/5] Ensuring recipient account exists (funding with STC)...${NC}"
-        echo -e "${YELLOW}       Recipient: $stc_addr${NC}"
-        # This is done inside deposit-eth now
+        echo -e "${YELLOW}[2/4] Depositing $AMOUNT ETH to bridge contract on Ethereum...${NC}"
+        # Use deposit-eth-core (no fund-eth-account dependency) to avoid affecting Before/After display
+        make deposit-eth-core AMOUNT="$AMOUNT" 2>&1 | grep -E "Deposited|Deposit|Recipient|submitted|INFO" | tail -5
         echo ""
         
-        echo -e "${YELLOW}[4/5] Depositing $AMOUNT ETH to bridge contract on Ethereum...${NC}"
-        make deposit-eth AMOUNT="$AMOUNT" 2>&1 | grep -E "Deposited|Deposit|Recipient|submitted|INFO" | tail -5
-        echo ""
-        
-        echo -e "${YELLOW}[5/5] Waiting for bridge to approve and claim tokens...${NC}"
+        echo -e "${YELLOW}[3/4] Waiting for bridge to approve and claim tokens...${NC}"
     else
+        # Funding for stc-to-eth if needed
+        echo -e "${YELLOW}[1/5] Funding accounts (if needed)...${NC}"
+        make fund-starcoin-bridge-account 2>&1 | grep -E "Funded|Funding|Bridge account|funded|STC" | head -3 || true
+        echo ""
+        
+        # Record initial balances AFTER funding
+        local initial_eth_balance=$(get_bridge_token_balance "$stc_addr" "ETH")
+        
+        echo -e "${BLUE}=== Before Transfer ===${NC}"
+        get_starcoin_balances "$stc_addr"
+        get_eth_balances "$eth_addr"
+        echo ""
+        
         # Convert ETH amount to smallest unit (8 decimals)
         local amount_wei=$(echo "$AMOUNT * 100000000" | bc | cut -d. -f1)
         echo -e "${YELLOW}Initiating Starcoin → ETH transfer: $AMOUNT ETH ($amount_wei units)${NC}"
@@ -233,11 +244,27 @@ main() {
     # Poll for completion (pass stc_addr and initial balance)
     if poll_bridge_status "$DIRECTION" "$stc_addr" "$initial_eth_balance"; then
         echo ""
+        echo -e "${YELLOW}[4/4] Transfer complete!${NC}"
+        
+        # Get final Starcoin token balance
+        local final_eth_balance=$(get_bridge_token_balance "$stc_addr" "ETH")
+        local final_eth_balance_eth=$(python3 -c "print(f'{$final_eth_balance / 1e8:g}')" 2>/dev/null || echo "0")
+        local final_eth_wallet=$(curl -s -X POST -H "Content-Type: application/json" \
+            -d "{\"jsonrpc\":\"2.0\",\"method\":\"eth_getBalance\",\"params\":[\"$eth_addr\",\"latest\"],\"id\":1}" \
+            "$ETH_RPC" | jq -r '.result // "0x0"')
+        local eth_after=$(python3 -c "print(f'{int(\"$final_eth_wallet\", 16) / 1e18:g}')" 2>/dev/null || echo "0")
+        
         echo -e "${BLUE}=== After Transfer ===${NC}"
-        get_starcoin_balances "$stc_addr"
-        get_eth_balances "$eth_addr"
+        echo -e "  Starcoin wETH:      ${GREEN}${final_eth_balance_eth} ETH${NC}"
+        echo -e "  Ethereum wallet:    ${GREEN}${eth_after} ETH${NC}"
+        
+        # Calculate changes
+        local token_change=$(python3 -c "print(f'{($final_eth_balance - $initial_eth_balance) / 1e8:g}')" 2>/dev/null || echo "0")
+        local eth_change=$(python3 -c "print(f'{float(\"$eth_before\") - float(\"$eth_after\"):g}')" 2>/dev/null || echo "$AMOUNT")
         echo ""
         echo -e "${GREEN}✓ Bridge transfer successful!${NC}"
+        echo -e "  Starcoin: ${GREEN}+${token_change} ETH${NC} (${initial_eth_balance_eth} → ${final_eth_balance_eth})"
+        echo -e "  Ethereum: ${GREEN}-${eth_change} ETH${NC} (${eth_before} → ${eth_after})"
     else
         echo ""
         echo -e "${RED}✗ Bridge transfer may have failed. Check logs:${NC}"
