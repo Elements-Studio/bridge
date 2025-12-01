@@ -130,4 +130,4 @@ async fn test_starcoin_bridge_paused() {
     .await;
     assert!(starcoin_bridge_to_eth_bridge_action.is_err())
 }
-*/
+

@@ -351,4 +351,3 @@ async fn test_committee_registration() {
         .trigger_reconfiguration_if_not_yet_and_assert_bridge_committee_initialized()
         .await;
 }
-*/
