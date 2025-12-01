@@ -66,6 +66,26 @@ impl StarcoinEvent {
             bcs: data,
         })
     }
+
+    /// Create a random StarcoinEvent for testing
+    #[cfg(any(test, feature = "test-utils"))]
+    pub fn random_for_testing() -> Self {
+        use rand::Rng;
+        use std::str::FromStr;
+        
+        let mut rng = rand::thread_rng();
+        let tx_digest: [u8; 32] = rng.gen();
+        let event_seq: u64 = rng.gen_range(0..1000);
+        let block_number: u64 = rng.gen_range(1..10000);
+        
+        Self {
+            id: EventID { tx_digest, event_seq, block_number },
+            type_: move_core_types::language_storage::StructTag::from_str(
+                "0x1::test::TestEvent"
+            ).unwrap(),
+            bcs: vec![],
+        }
+    }
 }
 
 /// Event ID contains transaction digest, event sequence, and block number
@@ -221,6 +241,17 @@ pub struct Page<T, C = (u64, u64)> {
     pub data: Vec<T>,
     pub next_cursor: Option<C>,
     pub has_next_page: bool,
+}
+
+impl<T, C> Page<T, C> {
+    /// Create an empty page for testing
+    pub fn empty() -> Self {
+        Self {
+            data: vec![],
+            next_cursor: None,
+            has_next_page: false,
+        }
+    }
 }
 
 // EventPage with (u64, u64) tuple as cursor (block_num, event_idx)

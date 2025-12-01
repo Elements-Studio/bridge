@@ -467,7 +467,7 @@ async fn get_latest_bridge_pause_status_with_emergency_event<C: StarcoinClientIn
     }
 }
 
-/*#[cfg(test)]
+#[cfg(test)]
 mod tests {
     use std::str::FromStr;
 
@@ -475,6 +475,7 @@ mod tests {
     use crate::events::{init_all_struct_tags, NewTokenEvent};
     use crate::test_utils::{
         bridge_committee_to_bridge_committee_summary, get_test_authority_and_key,
+        StarcoinAddressTestExt,
     };
     use crate::types::{BridgeAuthority, BRIDGE_PAUSED, BRIDGE_UNPAUSED};
     use fastcrypto::traits::KeyPair;
@@ -1190,4 +1191,4 @@ mod tests {
             bridge_metrics,
         )
     }
-}*/
+}

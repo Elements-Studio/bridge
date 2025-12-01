@@ -139,13 +139,13 @@ impl BridgeOrchestratorTables {
     }
 }
 
-/*#[cfg(test)]
+#[cfg(test)]
 mod tests {
     use std::str::FromStr;
 
     use starcoin_bridge_types::digests::TransactionDigest;
 
-    use crate::test_utils::get_test_starcoin_bridge_to_eth_bridge_action;
+    use crate::test_utils::{get_test_starcoin_bridge_to_eth_bridge_action, TransactionDigestTestExt};
 
     use super::*;
 
@@ -239,10 +239,7 @@ mod tests {
 
         // update starcoin event cursor
         let starcoin_bridge_module = Identifier::from_str("test").unwrap();
-        let starcoin_bridge_cursor = EventID {
-            tx_digest: TransactionDigest::random(),
-            event_seq: 1,
-        };
+        let starcoin_bridge_cursor: EventID = (1u64, 1u64);  // (tx_sequence, event_seq)
         assert!(store.get_starcoin_bridge_event_cursors(&[starcoin_bridge_module.clone()]).unwrap()[0].is_none());
         store
             .update_starcoin_bridge_event_cursor(starcoin_bridge_module.clone(), starcoin_bridge_cursor)
@@ -252,4 +249,4 @@ mod tests {
             starcoin_bridge_cursor
         );
     }
-}*/
+}

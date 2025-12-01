@@ -362,6 +362,7 @@ mod tests {
     use super::*;
     use crate::{
         crypto::BridgeAuthorityPublicKeyBytes,
+        test_utils::StarcoinAddressTestExt,
         types::{BlocklistType, EmergencyActionType},
     };
     use ethers::types::TxHash;
@@ -369,6 +370,7 @@ mod tests {
     use fastcrypto::traits::ToFromBytes;
     use hex_literal::hex;
     use starcoin_bridge_types::bridge::TOKEN_ID_ETH;
+    use starcoin_bridge_types::base_types::StarcoinAddress;
     use std::str::FromStr;
 
     #[test]
@@ -523,7 +525,7 @@ mod tests {
         Ok(())
     }
 
-    /*#[test]
+    #[test]
     fn test_token_deposit_eth_log_to_starcoin_bridge_event_regression() -> anyhow::Result<()> {
         telemetry_subscribers::init_for_testing();
         let tx_hash = TxHash::random();
@@ -540,7 +542,7 @@ mod tests {
                     hex!("0000000000000000000000000000000000000000000000000000000000000002").into(),
                 ],
                 data: ethers::types::Bytes::from(
-                    Hex::decode("0x000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000fa56ea0000000000000000000000000014dc79964da2c08b23698b3d3cc7ca32193d9955000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000000203b1eb23133e94d08d0da9303cfd38e7d4f8f6951f235daa62cd64ea5b6d96d77").unwrap(),
+                    Hex::decode("0x000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000fa56ea0000000000000000000000000014dc79964da2c08b23698b3d3cc7ca32193d9955000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000000103b1eb23133e94d08d0da9303cfd38e7d").unwrap(),
                 ),
                 block_hash: None,
                 block_number: None,
@@ -561,14 +563,14 @@ mod tests {
                     nonce: 0,
                     destination_chain_id: 2,
                     token_id: 2,
-                    starcoin_bridge_adjusted_amount: 4200000000,
+                    starcoin_adjusted_amount: 4200000000,
                     sender_address: EthAddress::from_str(
                         "0x14dc79964da2c08b23698b3d3cc7ca32193d9955"
                     )
                     .unwrap(),
                     recipient_address: ethers::types::Bytes::from(
                         Hex::decode(
-                            "0x3b1eb23133e94d08d0da9303cfd38e7d4f8f6951f235daa62cd64ea5b6d96d77"
+                            "0x3b1eb23133e94d08d0da9303cfd38e7d"
                         )
                         .unwrap(),
                     ),
@@ -576,9 +578,9 @@ mod tests {
             ))
         );
         Ok(())
-    }*/
+    }
 
-    /*#[test]
+    #[test]
     fn test_0_starcoin_bridge_amount_conversion_for_eth_event() {
         let e = EthBridgeEvent::EthStarcoinBridgeEvents(EthStarcoinBridgeEvents::TokensDepositedFilter(
             TokensDepositedFilter {
@@ -586,7 +588,7 @@ mod tests {
                 nonce: 0,
                 destination_chain_id: BridgeChainId::StarcoinTestnet as u8,
                 token_id: 2,
-                starcoin_bridge_adjusted_amount: 1,
+                starcoin_adjusted_amount: 1,
                 sender_address: EthAddress::random(),
                 recipient_address: ethers::types::Bytes::from(
                     StarcoinAddress::random_for_testing_only().to_vec(),
@@ -604,7 +606,7 @@ mod tests {
                 nonce: 0,
                 destination_chain_id: BridgeChainId::StarcoinTestnet as u8,
                 token_id: 2,
-                starcoin_bridge_adjusted_amount: 0, // <------------
+                starcoin_adjusted_amount: 0, // <------------
                 sender_address: EthAddress::random(),
                 recipient_address: ethers::types::Bytes::from(
                     StarcoinAddress::random_for_testing_only().to_vec(),
@@ -615,5 +617,5 @@ mod tests {
             BridgeError::ZeroValueBridgeTransfer(_) => {}
             e => panic!("Unexpected error: {:?}", e),
         }
-    }*/
+    }
 }

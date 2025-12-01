@@ -844,7 +844,7 @@ async fn claim_on_eth(
     Ok(())
 }
 
-/*#[cfg(test)]
+#[cfg(test)]
 mod tests {
     use ethers::abi::FunctionExt;
 
@@ -853,7 +853,7 @@ mod tests {
     #[tokio::test]
     async fn test_encode_call_data() {
         let abi_json =
-            std::fs::read_to_string("../starcoin-bridge/abi/tests/mock_starcoin_bridge_v2.json").unwrap();
+            std::fs::read_to_string("../bridge/abi/tests/mock_sui_bridge_v2.json").unwrap();
         let abi: ethers::abi::Abi = serde_json::from_str(&abi_json).unwrap();
 
         let function_selector = "initializeV2Params(uint256,bool,string)";
@@ -879,4 +879,4 @@ mod tests {
             ]
         )
     }
-}*/
+}
