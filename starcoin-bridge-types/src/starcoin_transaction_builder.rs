@@ -308,10 +308,22 @@ pub fn sign_transaction(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use move_core_types::language_storage::StructTag;
+    use move_core_types::account_address::AccountAddress;
+    use move_core_types::identifier::Identifier;
 
     #[test]
     fn test_build_send_token() {
         let sender = StarcoinAddress::ZERO;
+        
+        // Create a proper ETH token type tag
+        let eth_type_tag = TypeTag::Struct(Box::new(StructTag {
+            address: AccountAddress::from_hex_literal("0xf8eda27b31a0dcd9b6c06074d74a2c6c").unwrap(),
+            module: Identifier::new("ETH").unwrap(),
+            name: Identifier::new("ETH").unwrap(),
+            type_params: vec![],
+        }));
+        
         let result = build_send_token(
             sender,
             0,
@@ -319,7 +331,7 @@ mod tests {
             2,
             vec![0u8; 20], // ETH address
             1000000000,
-            TypeTag::Bool, // placeholder
+            eth_type_tag,
         );
         assert!(result.is_ok());
     }

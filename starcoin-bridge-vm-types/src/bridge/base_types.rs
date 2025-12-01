@@ -243,7 +243,7 @@ mod tests {
             address: addr,
             module: Identifier::new("bridge").unwrap(),
             name: Identifier::new("Bridge").unwrap(),
-            type_args: vec![],
+            type_params: vec![],
         };
 
         let path = ResourcePath::new(addr, struct_tag);

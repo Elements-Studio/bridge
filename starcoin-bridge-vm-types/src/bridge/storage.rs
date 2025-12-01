@@ -103,7 +103,7 @@ mod tests {
             address: addr,
             module: Identifier::new("test").unwrap(),
             name: Identifier::new("Test").unwrap(),
-            type_args: vec![],
+            type_params: vec![],
         };
         let path = ResourcePath::new(addr, struct_tag);
         store.insert_resource(path.clone(), vec![4, 5, 6]);
