@@ -5773,7 +5773,7 @@ dependencies = [
  "serde",
  "serde-value",
  "serde_json",
- "serde_yaml 0.9.34+deprecated",
+ "serde_yaml",
  "thiserror 2.0.17",
  "thread-id",
  "typemap-ors",
@@ -6674,7 +6674,7 @@ dependencies = [
  "reqwest",
  "serde_json",
  "snap",
- "sui-macros",
+ "starcoin-bridge-macros",
  "tempfile",
  "tokio",
  "tracing",
@@ -8106,7 +8106,6 @@ dependencies = [
 [[package]]
 name = "prometheus-closure-metric"
 version = "0.1.0"
-source = "git+https://github.com/MystenLabs/sui?rev=mainnet-v1.58.3#a0545a819fba114903c880f928339b5cd8805a4a"
 dependencies = [
  "anyhow",
  "prometheus",
@@ -8247,9 +8246,6 @@ name = "protobuf"
 version = "2.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "106dd99e98437432fed6519dedecfade6a06a73bb7b2a1e019fdd2bee5778d94"
-dependencies = [
- "bytes 1.11.0",
-]
 
 [[package]]
 name = "psutil"
@@ -9657,18 +9653,6 @@ dependencies = [
 
 [[package]]
 name = "serde_yaml"
-version = "0.8.26"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "578a7433b776b56a35785ed5ce9a7e777ac0598aac5a6dd1b4b18a307c7fc71b"
-dependencies = [
- "indexmap 1.9.3",
- "ryu",
- "serde",
- "yaml-rust",
-]
-
-[[package]]
-name = "serde_yaml"
 version = "0.9.34+deprecated"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6a8b1a1a2ebf674015cc02edccce75287f1a0130d394307b36743c2f5d504b47"
@@ -10313,7 +10297,7 @@ dependencies = [
  "anyhow",
  "serde",
  "serde_json",
- "serde_yaml 0.9.34+deprecated",
+ "serde_yaml",
 ]
 
 [[package]]
@@ -10358,6 +10342,15 @@ dependencies = [
  "hex",
  "sha3 0.10.8",
  "starcoin-bridge-types",
+]
+
+[[package]]
+name = "starcoin-bridge-macros"
+version = "0.1.0"
+dependencies = [
+ "futures 0.3.31",
+ "once_cell",
+ "tracing",
 ]
 
 [[package]]
@@ -11253,37 +11246,6 @@ name = "subtle-ng"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "734676eb262c623cec13c3155096e08d1f8f29adce39ba17948b18dad1e54142"
-
-[[package]]
-name = "sui-enum-compat-util"
-version = "0.1.0"
-source = "git+https://github.com/MystenLabs/sui?rev=mainnet-v1.58.3#a0545a819fba114903c880f928339b5cd8805a4a"
-dependencies = [
- "serde_yaml 0.8.26",
-]
-
-[[package]]
-name = "sui-macros"
-version = "0.7.0"
-source = "git+https://github.com/MystenLabs/sui?rev=mainnet-v1.58.3#a0545a819fba114903c880f928339b5cd8805a4a"
-dependencies = [
- "futures 0.3.31",
- "once_cell",
- "sui-proc-macros",
- "tracing",
-]
-
-[[package]]
-name = "sui-proc-macros"
-version = "0.7.0"
-source = "git+https://github.com/MystenLabs/sui?rev=mainnet-v1.58.3#a0545a819fba114903c880f928339b5cd8805a4a"
-dependencies = [
- "msim-macros",
- "proc-macro2 1.0.103",
- "quote 1.0.42",
- "sui-enum-compat-util",
- "syn 2.0.111",
-]
 
 [[package]]
 name = "svm-rs"
@@ -12367,7 +12329,7 @@ dependencies = [
  "rocksdb",
  "rstest",
  "serde",
- "sui-macros",
+ "starcoin-bridge-macros",
  "tap",
  "tempfile",
  "thiserror 1.0.69",
@@ -13676,15 +13638,6 @@ dependencies = [
  "rusticata-macros",
  "thiserror 1.0.69",
  "time 0.3.44",
-]
-
-[[package]]
-name = "yaml-rust"
-version = "0.4.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "56c1936c4cc7a1c9ab21a1ebb602eb942ba868cbd44a99cb7cdc5892335e1c85"
-dependencies = [
- "linked-hash-map",
 ]
 
 [[package]]

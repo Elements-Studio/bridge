@@ -19,6 +19,6 @@ uuid = { version = "1.18.1", features = ["v4"] }
 parking_lot = "0.12.1"
 futures = "0.3.28"
 async-trait = "0.1.61"
-prometheus-closure-metric = { git = "https://github.com/MystenLabs/sui", rev = "mainnet-v1.58.3", package = "prometheus-closure-metric" }
+prometheus-closure-metric = { workspace = true }
 simple-server-timing-header = "0.1.1"
 
