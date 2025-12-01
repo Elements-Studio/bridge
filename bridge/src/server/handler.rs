@@ -202,14 +202,14 @@ where
         }
     }
 
-    /*#[cfg(test)]
+    #[cfg(test)]
     async fn get_testing_only(
         &mut self,
         key: K,
     ) -> Option<&Arc<Mutex<Option<BridgeResult<SignedBridgeAction>>>>> {
         let _ = self.mutex.lock().await;
         self.cache.get(&key)
-    }*/
+    }
 }
 
 pub struct BridgeRequestHandler {
@@ -351,7 +351,7 @@ impl BridgeRequestHandlerTrait for BridgeRequestHandler {
     }
 }
 
-/*#[cfg(test)]
+#[cfg(test)]
 mod tests {
     use std::collections::HashSet;
 
@@ -362,11 +362,12 @@ mod tests {
         starcoin_bridge_mock_client::StarcoinMockClient,
         test_utils::{
             get_test_log_and_action, get_test_starcoin_bridge_to_eth_bridge_action, mock_last_finalized_block,
+            StarcoinAddressTestExt, StarcoinEventTestExt, TransactionDigestTestExt,
         },
         types::{EmergencyAction, EmergencyActionType, LimitUpdateAction},
     };
     use ethers::types::{Address as EthAddress, TransactionReceipt};
-    use starcoin_bridge_json_rpc_types::{BcsEvent, StarcoinEvent};
+    use starcoin_bridge_json_rpc_types::StarcoinEvent;
     use starcoin_bridge_types::bridge::{BridgeChainId, TOKEN_ID_USDC};
     use starcoin_bridge_types::{base_types::StarcoinAddress, crypto::get_key_pair};
 
@@ -462,12 +463,12 @@ mod tests {
 
         let mut starcoin_bridge_event_1 = StarcoinEvent::random_for_testing();
         starcoin_bridge_event_1.type_ = StarcoinToEthTokenBridgeV1.get().unwrap().clone();
-        starcoin_bridge_event_1.bcs = BcsEvent::new(bcs::to_bytes(&emitted_event_1).unwrap());
+        starcoin_bridge_event_1.bcs = bcs::to_bytes(&emitted_event_1).unwrap();
         let starcoin_bridge_tx_digest = starcoin_bridge_event_1.id.tx_digest;
 
         let mut starcoin_bridge_event_2 = StarcoinEvent::random_for_testing();
         starcoin_bridge_event_2.type_ = StarcoinToEthTokenBridgeV1.get().unwrap().clone();
-        starcoin_bridge_event_2.bcs = BcsEvent::new(bcs::to_bytes(&emitted_event_1).unwrap());
+        starcoin_bridge_event_2.bcs = bcs::to_bytes(&emitted_event_1).unwrap();
         let starcoin_bridge_event_idx_2 = 1;
         starcoin_bridge_client_mock.add_events_by_tx_digest(starcoin_bridge_tx_digest, vec![starcoin_bridge_event_2.clone()]);
 
@@ -652,4 +653,4 @@ mod tests {
         ));
     }
     // TODO: add tests for BridgeRequestHandler (need to hook up local eth node)
-}*/
+}

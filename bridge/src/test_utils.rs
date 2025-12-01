@@ -31,7 +31,7 @@ use fastcrypto::traits::ToFromBytes;
 use hex_literal::hex;
 use move_core_types::language_storage::TypeTag;
 use starcoin_bridge_config::local_ip_utils;
-use starcoin_bridge_json_rpc_types::StarcoinTransactionBlockEffectsAPI;
+use starcoin_bridge_json_rpc_types::{StarcoinEvent, StarcoinTransactionBlockEffectsAPI};
 use starcoin_bridge_sdk::wallet_context::WalletContext;
 use starcoin_bridge_test_transaction_builder::TestTransactionBuilder;
 use starcoin_bridge_types::base_types::{
@@ -72,6 +72,31 @@ impl TransactionDigestTestExt for TransactionDigest {
         let mut rng = rand::thread_rng();
         let bytes: [u8; 32] = rng.gen();
         bytes // TransactionDigest is just [u8; 32]
+    }
+}
+
+pub trait StarcoinEventTestExt {
+    fn random_for_testing() -> Self;
+}
+
+impl StarcoinEventTestExt for StarcoinEvent {
+    fn random_for_testing() -> Self {
+        use rand::Rng;
+        use std::str::FromStr;
+        use starcoin_bridge_json_rpc_types::EventID;
+        
+        let mut rng = rand::thread_rng();
+        let tx_digest: [u8; 32] = rng.gen();
+        let event_seq: u64 = rng.gen_range(0..1000);
+        let block_number: u64 = rng.gen_range(1..10000);
+        
+        StarcoinEvent {
+            id: EventID { tx_digest, event_seq, block_number },
+            type_: move_core_types::language_storage::StructTag::from_str(
+                "0x1::test::TestEvent"
+            ).unwrap(),
+            bcs: vec![],
+        }
     }
 }
 

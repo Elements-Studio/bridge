@@ -171,8 +171,9 @@ impl StarcoinClientInner for StarcoinMockClient {
     type Error = starcoin_bridge_sdk::error::Error;
 
     fn bridge_address(&self) -> &str {
-        // Return a dummy address for testing
-        "0x0000000000000000000000000000000b"
+        // Return the actual bridge address used in init_all_struct_tags()
+        // This matches BRIDGE_PACKAGE_ID[16..32] = 0x0b8e0206e990e41e913a7f03d1c60675
+        "0x0b8e0206e990e41e913a7f03d1c60675"
     }
 
     // Unwraps in this function: We assume the responses are pre-populated

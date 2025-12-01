@@ -67,19 +67,17 @@ impl StarcoinEvent {
         })
     }
 
-    /// Create a random StarcoinEvent for testing
-    #[cfg(any(test, feature = "test-utils"))]
-    pub fn random_for_testing() -> Self {
-        use rand::Rng;
+    /// Create a dummy StarcoinEvent for testing (deterministic)
+    #[cfg(test)]
+    pub fn dummy_for_testing() -> Self {
         use std::str::FromStr;
         
-        let mut rng = rand::thread_rng();
-        let tx_digest: [u8; 32] = rng.gen();
-        let event_seq: u64 = rng.gen_range(0..1000);
-        let block_number: u64 = rng.gen_range(1..10000);
-        
         Self {
-            id: EventID { tx_digest, event_seq, block_number },
+            id: EventID { 
+                tx_digest: [0u8; 32], 
+                event_seq: 0, 
+                block_number: 1 
+            },
             type_: move_core_types::language_storage::StructTag::from_str(
                 "0x1::test::TestEvent"
             ).unwrap(),

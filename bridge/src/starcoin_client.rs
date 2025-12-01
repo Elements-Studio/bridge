@@ -168,7 +168,9 @@ where
         let event = events
             .get(event_idx as usize)
             .ok_or(BridgeError::NoBridgeEventsInTxPosition)?;
-        if event.type_.address.as_ref() != BRIDGE_PACKAGE_ID.as_ref() {
+        // Compare only the last 16 bytes of BRIDGE_PACKAGE_ID (Starcoin address is 16 bytes)
+        let starcoin_bridge_addr = &BRIDGE_PACKAGE_ID[16..32];
+        if event.type_.address.as_ref() != starcoin_bridge_addr {
             return Err(BridgeError::BridgeEventInUnrecognizedStarcoinPackage);
         }
         let bridge_event = StarcoinBridgeEvent::try_from_starcoin_bridge_event(event)?
