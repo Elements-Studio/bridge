@@ -3,7 +3,6 @@ name = "typed-store-derive"
 version = "0.3.0"
 license = "Apache-2.0"
 description = "macros for the typed-store crate"
-repository = "https://github.com/mystenlabs/mysten-infra"
 edition = "2021"
 publish = false
 

@@ -227,7 +227,6 @@ fn verify_valid_signature() {
     let message: &[u8] = b"Hello, world!";
 
     // Pin a signature using a deterministic private key bytes. This is useful to compare test result with typescript implementation.
-    // See: https://github.com/MystenLabs/starcoin/tree/main/sdk/typescript/test/unit/cryptography/secp256k1-keypair.test.ts
     let signature = kp.sign(message);
     assert_eq!(Hex::encode(signature.clone()), "25d450f191f6d844bf5760c5c7b94bc67acc88be76398129d7f43abdef32dc7f7f1a65b7d65991347650f3dd3fa3b3a7f9892a0608521cbcf811ded433b31f8b");
 

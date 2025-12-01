@@ -6,7 +6,6 @@ edition = "2021"
 publish = false
 readme = "../README.md"
 description = "Common cryptographic library used at Mysten Labs (minimal bridge version)"
-repository = "https://github.com/MystenLabs/fastcrypto"
 
 [dependencies]
 base64ct = { version = "1.5.3", features = ["alloc"] }
