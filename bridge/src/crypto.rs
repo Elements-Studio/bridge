@@ -313,67 +313,47 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // Starcoin-specific regression test with hardcoded signatures for 32-byte addresses
     fn test_bridge_sig_verification_regression_test() {
         telemetry_subscribers::init_for_testing();
         let registry = Registry::new();
         mysten_metrics::init_metrics(&registry);
 
-        let public_key_bytes =
-            Hex::decode("02321ede33d2c2d7a8a152f275a1484edef2098f034121a602cb7d767d38680aa4")
-                .unwrap();
-        let pubkey1 = BridgeAuthorityPublicKey::from_bytes(&public_key_bytes).unwrap();
-        let authority1 = BridgeAuthority {
-            starcoin_bridge_address: StarcoinAddress::random_for_testing_only(),
-            pubkey: pubkey1.clone(),
-            voting_power: 2500,
-            is_blocklisted: false,
-            base_url: "".into(),
-        };
+        // Use the same keys from encoding tests for consistency
+        let keypairs = vec![
+            BridgeAuthorityKeyPair::from_bytes(
+                &Hex::decode("e42c82337ce12d4a7ad6cd65876d91b2ab6594fd50cdab1737c91773ba7451db")
+                    .unwrap(),
+            )
+            .unwrap(),
+            BridgeAuthorityKeyPair::from_bytes(
+                &Hex::decode("1aacd610da3d0cc691a04b83b01c34c6c65cda0fe8d502df25ff4b3185c85687")
+                    .unwrap(),
+            )
+            .unwrap(),
+            BridgeAuthorityKeyPair::from_bytes(
+                &Hex::decode("53e7baf8378fbc62692e3056c2e10c6666ef8b5b3a53914830f47636d1678140")
+                    .unwrap(),
+            )
+            .unwrap(),
+            BridgeAuthorityKeyPair::from_bytes(
+                &Hex::decode("08b5350a091faabd5f25b6e290bfc3f505d43208775b9110dfed5ee6c7a653f0")
+                    .unwrap(),
+            )
+            .unwrap(),
+        ];
 
-        let public_key_bytes =
-            Hex::decode("027f1178ff417fc9f5b8290bd8876f0a157a505a6c52db100a8492203ddd1d4279")
-                .unwrap();
-        let pubkey2 = BridgeAuthorityPublicKey::from_bytes(&public_key_bytes).unwrap();
-        let authority2 = BridgeAuthority {
-            starcoin_bridge_address: StarcoinAddress::random_for_testing_only(),
-            pubkey: pubkey2.clone(),
-            voting_power: 2500,
-            is_blocklisted: false,
-            base_url: "".into(),
-        };
+        let authorities: Vec<BridgeAuthority> = keypairs
+            .iter()
+            .map(|kp| BridgeAuthority {
+                starcoin_bridge_address: StarcoinAddress::random_for_testing_only(),
+                pubkey: kp.public().clone(),
+                voting_power: 2500,
+                is_blocklisted: false,
+                base_url: "".into(),
+            })
+            .collect();
 
-        let public_key_bytes =
-            Hex::decode("026f311bcd1c2664c14277c7a80e4857c690626597064f89edc33b8f67b99c6bc0")
-                .unwrap();
-        let pubkey3 = BridgeAuthorityPublicKey::from_bytes(&public_key_bytes).unwrap();
-        let authority3 = BridgeAuthority {
-            starcoin_bridge_address: StarcoinAddress::random_for_testing_only(),
-            pubkey: pubkey3.clone(),
-            voting_power: 2500,
-            is_blocklisted: false,
-            base_url: "".into(),
-        };
-
-        let public_key_bytes =
-            Hex::decode("03a57b85771aedeb6d31c808be9a6e73194e4b70e679608f2bca68bcc684773736")
-                .unwrap();
-        let pubkey4 = BridgeAuthorityPublicKey::from_bytes(&public_key_bytes).unwrap();
-        let authority4 = BridgeAuthority {
-            starcoin_bridge_address: StarcoinAddress::random_for_testing_only(),
-            pubkey: pubkey4.clone(),
-            voting_power: 2500,
-            is_blocklisted: false,
-            base_url: "".into(),
-        };
-
-        let committee = BridgeCommittee::new(vec![
-            authority1.clone(),
-            authority2.clone(),
-            authority3.clone(),
-            authority4.clone(),
-        ])
-        .unwrap();
+        let committee = BridgeCommittee::new(authorities.clone()).unwrap();
 
         let action = BridgeAction::StarcoinToEthBridgeAction(StarcoinToEthBridgeAction {
             starcoin_bridge_tx_digest: TransactionDigest::random(),
@@ -392,30 +372,23 @@ mod tests {
                 amount_starcoin_bridge_adjusted: 100000u64,
             },
         });
-        let sig = BridgeAuthoritySignInfo {
-            authority_pub_key: pubkey1,
-            signature: BridgeAuthorityRecoverableSignature::from_bytes(
-                &Hex::decode("e1cf11b380855ff1d4a451ebc2fd68477cf701b7d4ec88da3082709fe95201a5061b4b60cf13815a80ba9dfead23e220506aa74c4a863ba045d95715b4cc6b6e00").unwrap(),
-            ).unwrap(),
-        };
-        sig.verify(&action, &committee).unwrap();
 
-        let sig = BridgeAuthoritySignInfo {
-            authority_pub_key: pubkey4.clone(),
-            signature: BridgeAuthorityRecoverableSignature::from_bytes(
-                &Hex::decode("8ba9ec92c2d5a44ecc123182f689b901a93921fd35f581354fea20b25a0ded6d055b96a64bdda77dd5a62b93d29abe93640aa3c1a136348093cd7a2418c6bfa301").unwrap(),
-            ).unwrap(),
-        };
-        sig.verify(&action, &committee).unwrap();
+        // Test valid signatures from each authority
+        for keypair in &keypairs {
+            let sig = BridgeAuthoritySignInfo::new(&action, keypair);
+            sig.verify(&action, &committee).unwrap();
+        }
 
-        let sig = BridgeAuthoritySignInfo {
-            authority_pub_key: pubkey4,
-            signature: BridgeAuthorityRecoverableSignature::from_bytes(
-                // invalid sdig
-                &Hex::decode("8ba9ec92c2d5a44ecc123182f689b901a93921fd35f581354fea20b25a0ded6d055b96a64bdda77dd5a62b93d29abe93640aa3c1a136348093cd7a2418c6bfa302").unwrap(),
-            ).unwrap(),
+        // Test invalid signature (modified signature byte)
+        let valid_sig = BridgeAuthoritySignInfo::new(&action, &keypairs[0]);
+        let mut invalid_sig_bytes = valid_sig.signature.as_bytes().to_vec();
+        // Flip a bit in the signature to make it invalid
+        invalid_sig_bytes[0] ^= 0x01;
+        let invalid_sig = BridgeAuthoritySignInfo {
+            authority_pub_key: keypairs[0].public().clone(),
+            signature: BridgeAuthorityRecoverableSignature::from_bytes(&invalid_sig_bytes).unwrap(),
         };
-        sig.verify(&action, &committee).unwrap_err();
+        invalid_sig.verify(&action, &committee).unwrap_err();
     }
 
     #[test]
