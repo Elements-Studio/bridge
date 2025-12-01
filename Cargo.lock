@@ -10387,6 +10387,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "starcoin-bridge-sql-macro"
+version = "0.1.0"
+dependencies = [
+ "quote 1.0.42",
+ "syn 2.0.111",
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "starcoin-bridge-test-transaction-builder"
 version = "0.1.0"
 dependencies = [
@@ -11439,6 +11448,7 @@ dependencies = [
  "atomic_float",
  "bytes 1.11.0",
  "bytes-varint",
+ "camino",
  "clap 4.5.53",
  "console-subscriber",
  "crossterm",

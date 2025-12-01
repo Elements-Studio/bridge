@@ -554,7 +554,7 @@ pub fn init_for_testing() {
     Lazy::force(&LOGGER);
 }
 
-/*#[cfg(test)]
+#[cfg(test)]
 mod tests {
     use super::*;
     use prometheus::proto::MetricType;
@@ -613,4 +613,4 @@ mod tests {
     fn testing_logger_2() {
         init_for_testing();
     }
-}*/
+}

@@ -56,7 +56,7 @@ impl<T: Send + Clone> Default for AsyncOnceCell<T> {
     }
 }
 
-/*#[cfg(test)]
+#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -71,4 +71,4 @@ mod tests {
         assert_eq!(15, cell.get().await);
         assert_eq!(15, wait.await.unwrap());
     }
-}*/
+}

@@ -33,3 +33,6 @@ bytes-varint = { version = "1.1.0" }
 tonic = { version = "0.12.3" }
 prost = "0.13"
 
+[dev-dependencies]
+camino = "1.1"
+

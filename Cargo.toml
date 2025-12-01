@@ -11,6 +11,7 @@ members = [
     "starcoin-bridge-keys",
     "starcoin-bridge-authority-aggregation",
     "starcoin-bridge-data-ingestion-core",
+    "starcoin-bridge-sql-macro",
     "bridge",
     "bridge-cli",
     "starcoin-rpc-proxy",

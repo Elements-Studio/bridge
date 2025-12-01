@@ -11,5 +11,5 @@ proc-macro = true
 
 [dependencies]
 quote.workspace = true
-syn.workspace = true
+syn = { version = "2.0", features = ["extra-traits", "parsing"] }
 thiserror.workspace = true

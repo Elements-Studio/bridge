@@ -102,7 +102,7 @@ where
     }
 }
 
-/*#[cfg(test)]
+#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -116,4 +116,4 @@ mod tests {
             Err(PrometheusSpanError::ZeroOrNegativeNumBuckets)
         ));
     }
-}*/
+}

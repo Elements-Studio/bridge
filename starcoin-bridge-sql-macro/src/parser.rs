@@ -179,7 +179,7 @@ impl<'l, 's> Parser<'l, 's> {
     }
 }
 
-/*#[cfg(test)]
+#[cfg(test)]
 mod tests {
     use crate::Lexer;
 
@@ -332,4 +332,4 @@ mod tests {
             Error::TypeParse { offset: 7, .. },
         ));
     }
-}*/
+}

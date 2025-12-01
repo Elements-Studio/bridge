@@ -112,7 +112,7 @@ impl<T> Sender<T> {
     }
 
     // Returns a reference to the underlying inflight gauge.
-    /*#[cfg(test)]
+    #[cfg(test)]
     fn inflight(&self) -> &IntGauge {
         self.inflight
             .as_ref()
@@ -124,7 +124,6 @@ impl<T> Sender<T> {
     fn sent(&self) -> &IntGauge {
         self.sent.as_ref().expect("Metrics should have initialized")
     }
-    */
 }
 
 // Derive Clone manually to avoid the `T: Clone` bound
@@ -297,12 +296,12 @@ impl<T> Receiver<T> {
     }
 
     // Returns a reference to the underlying received gauge.
-    // #[cfg(test)]
-    // fn received(&self) -> &IntGauge {
-    //     self.received
-    //         .as_ref()
-    //         .expect("Metrics should have initialized")
-    // }
+    #[cfg(test)]
+    fn received(&self) -> &IntGauge {
+        self.received
+            .as_ref()
+            .expect("Metrics should have initialized")
+    }
 }
 
 impl<T> Unpin for Receiver<T> {}
@@ -369,18 +368,18 @@ impl<T> UnboundedSender<T> {
     }
 
     // Returns a reference to the underlying inflight gauge.
-    // #[cfg(test)]
-    // fn inflight(&self) -> &IntGauge {
-    //     self.inflight
-    //         .as_ref()
-    //         .expect("Metrics should have initialized")
-    // }
+    #[cfg(test)]
+    fn inflight(&self) -> &IntGauge {
+        self.inflight
+            .as_ref()
+            .expect("Metrics should have initialized")
+    }
 
-    // // Returns a reference to the underlying sent gauge.
-    // #[cfg(test)]
-    // fn sent(&self) -> &IntGauge {
-    //     self.sent.as_ref().expect("Metrics should have initialized")
-    // }
+    // Returns a reference to the underlying sent gauge.
+    #[cfg(test)]
+    fn sent(&self) -> &IntGauge {
+        self.sent.as_ref().expect("Metrics should have initialized")
+    }
 }
 
 // Derive Clone manually to avoid the `T: Clone` bound
@@ -494,12 +493,12 @@ impl<T> UnboundedReceiver<T> {
     }
 
     // Returns a reference to the underlying received gauge.
-    // #[cfg(test)]
-    // fn received(&self) -> &IntGauge {
-    //     self.received
-    //         .as_ref()
-    //         .expect("Metrics should have initialized")
-    // }
+    #[cfg(test)]
+    fn received(&self) -> &IntGauge {
+        self.received
+            .as_ref()
+            .expect("Metrics should have initialized")
+    }
 }
 
 impl<T> Unpin for UnboundedReceiver<T> {}
@@ -523,7 +522,6 @@ pub fn unbounded_channel<T>(name: &str) -> (UnboundedSender<T>, UnboundedReceive
     )
 }
 
-/*
 #[cfg(test)]
 mod test {
     use std::task::{Context, Poll};
@@ -849,4 +847,4 @@ mod test {
         assert_eq!(sent.get(), 2);
         assert_eq!(received.get(), 1);
     }
-}*/
+}

@@ -95,7 +95,7 @@ impl TestTransactionBuilder {
     }
 }
 
-/*#[cfg(test)]
+#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -108,4 +108,4 @@ mod tests {
         assert_eq!(tx.sender(), &AccountAddress::ZERO);
         assert_eq!(tx.gas_price(), 1000);
     }
-}*/
+}

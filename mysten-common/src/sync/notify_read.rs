@@ -283,7 +283,7 @@ impl<K: Eq + Hash + Clone, V: Clone> Default for NotifyRead<K, V> {
     }
 }
 
-/*#[cfg(test)]
+#[cfg(test)]
 mod tests {
     use super::*;
     use futures::future::join_all;
@@ -337,4 +337,4 @@ mod tests {
             assert!(pending.lock().is_empty());
         }
     }
-}*/
+}

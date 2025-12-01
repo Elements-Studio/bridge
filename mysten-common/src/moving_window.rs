@@ -104,7 +104,7 @@ impl MovingWindowValue for f64 {
     }
 }
 
-/*#[cfg(test)]
+#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -172,4 +172,4 @@ mod tests {
     fn test_zero_size_panics() {
         let _window = MovingWindow::new(0.0_f64, 0);
     }
-}*/
+}

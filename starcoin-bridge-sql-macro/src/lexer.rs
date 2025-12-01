@@ -76,7 +76,7 @@ impl fmt::Display for Token {
     }
 }
 
-/*#[cfg(test)]
+#[cfg(test)]
 mod tests {
     use super::*;
     use Lexeme as L;
@@ -147,4 +147,4 @@ mod tests {
             ],
         );
     }
-}*/
+}
