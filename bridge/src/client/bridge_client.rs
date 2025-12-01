@@ -317,7 +317,7 @@ mod tests {
     async fn test_bridge_client_request_sign_action() {
         telemetry_subscribers::init_for_testing();
         let registry = Registry::new();
-        mysten_metrics::init_metrics(&registry);
+        starcoin_metrics::init_metrics(&registry);
 
         let mock_handler = BridgeRequestMockHandler::new();
 

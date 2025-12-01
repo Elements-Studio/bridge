@@ -30,7 +30,7 @@ use crate::{
 use arc_swap::ArcSwap;
 use ethers::providers::Provider;
 use ethers::types::Address as EthAddress;
-use mysten_metrics::spawn_logged_monitored_task;
+use starcoin_metrics::spawn_logged_monitored_task;
 use starcoin_bridge_types::{
     bridge::{
         BRIDGE_COMMITTEE_MODULE_NAME, BRIDGE_LIMITER_MODULE_NAME, BRIDGE_MODULE_NAME,
@@ -69,7 +69,7 @@ pub async fn run_bridge_node(
         .await
         .map_err(|e| anyhow::anyhow!("Failed to get eth chain identifier: {:?}", e))?;
     prometheus_registry
-        .register(mysten_metrics::bridge_uptime_metric(
+        .register(starcoin_metrics::bridge_uptime_metric(
             "bridge",
             metadata.version,
             &starcoin_bridge_chain_identifier,
@@ -329,16 +329,16 @@ async fn start_client_components(
     let (bridge_pause_tx, bridge_pause_rx) = tokio::sync::watch::channel(is_bridge_paused);
 
     let (starcoin_bridge_monitor_tx, starcoin_bridge_monitor_rx) =
-        mysten_metrics::metered_channel::channel(
+        starcoin_metrics::metered_channel::channel(
             10000,
-            &mysten_metrics::get_metrics()
+            &starcoin_metrics::get_metrics()
                 .unwrap()
                 .channel_inflight
                 .with_label_values(&["starcoin_bridge_monitor_queue"]),
         );
-    let (eth_monitor_tx, eth_monitor_rx) = mysten_metrics::metered_channel::channel(
+    let (eth_monitor_tx, eth_monitor_rx) = starcoin_metrics::metered_channel::channel(
         10000,
-        &mysten_metrics::get_metrics()
+        &starcoin_metrics::get_metrics()
             .unwrap()
             .channel_inflight
             .with_label_values(&["eth_monitor_queue"]),

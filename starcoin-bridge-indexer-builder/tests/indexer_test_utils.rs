@@ -11,7 +11,7 @@ use prometheus::{IntCounterVec, IntGaugeVec};
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 
-use mysten_metrics::spawn_monitored_task;
+use starcoin_metrics::spawn_monitored_task;
 
 use starcoin_bridge_indexer_builder::indexer_builder::{
     DataMapper, DataSender, Datasource, IndexerProgressStore, Persistent,

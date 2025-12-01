@@ -6587,48 +6587,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "mysten-common"
-version = "0.1.0"
-dependencies = [
- "antithesis_sdk",
- "anyhow",
- "either",
- "fastcrypto",
- "futures 0.3.31",
- "mysten-metrics",
- "once_cell",
- "parking_lot 0.12.5",
- "rand 0.8.5",
- "reqwest",
- "serde_json",
- "snap",
- "starcoin-bridge-macros",
- "tempfile",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "mysten-metrics"
-version = "0.7.0"
-dependencies = [
- "async-trait",
- "axum 0.8.7",
- "dashmap",
- "futures 0.3.31",
- "once_cell",
- "parking_lot 0.12.5",
- "prometheus",
- "prometheus-closure-metric",
- "scopeguard",
- "simple-server-timing-header",
- "tap",
- "tokio",
- "tracing",
- "uuid 1.18.1",
-]
-
-[[package]]
 name = "names"
 version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6748,7 +6706,7 @@ dependencies = [
  "serde",
  "starcoin-crypto",
  "starcoin-logger 1.13.20 (git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge)",
- "starcoin-metrics",
+ "starcoin-metrics 1.13.20",
  "starcoin-service-registry",
  "starcoin-types",
 ]
@@ -10124,8 +10082,6 @@ dependencies = [
  "lru 0.12.5",
  "maplit",
  "move-core-types 0.0.4 (git+https://github.com/starcoinorg/move?rev=babf994a38cda17b84186c7992f92fb3554347f0)",
- "mysten-common",
- "mysten-metrics",
  "num_enum 0.7.5",
  "once_cell",
  "prometheus",
@@ -10143,7 +10099,9 @@ dependencies = [
  "starcoin-bridge-sdk",
  "starcoin-bridge-test-transaction-builder",
  "starcoin-bridge-types",
+ "starcoin-common",
  "starcoin-crypto",
+ "starcoin-metrics 0.7.0",
  "starcoin-vm-types 1.13.20 (git+https://github.com/starcoinorg/starcoin?rev=ba7cd08110d3582361e0862f45109361036b50ce)",
  "strum_macros 0.27.2",
  "tap",
@@ -10367,6 +10325,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "starcoin-common"
+version = "0.1.0"
+dependencies = [
+ "antithesis_sdk",
+ "anyhow",
+ "either",
+ "fastcrypto",
+ "futures 0.3.31",
+ "once_cell",
+ "parking_lot 0.12.5",
+ "rand 0.8.5",
+ "reqwest",
+ "serde_json",
+ "snap",
+ "starcoin-bridge-macros",
+ "starcoin-metrics 0.7.0",
+ "tempfile",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "starcoin-config"
 version = "1.13.20"
 source = "git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge#b3a44275e2145367253a7383e02821e77def6def"
@@ -10395,7 +10375,7 @@ dependencies = [
  "starcoin-gas",
  "starcoin-gas-algebra-ext 1.13.20 (git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge)",
  "starcoin-logger 1.13.20 (git+https://github.com/starcoinorg/starcoin.git?branch=bob%2Fmaster-native-bridge)",
- "starcoin-metrics",
+ "starcoin-metrics 1.13.20",
  "starcoin-system",
  "starcoin-time-service",
  "starcoin-types",
@@ -10533,6 +10513,26 @@ dependencies = [
  "slog",
  "slog-async",
  "slog-term",
+]
+
+[[package]]
+name = "starcoin-metrics"
+version = "0.7.0"
+dependencies = [
+ "async-trait",
+ "axum 0.8.7",
+ "dashmap",
+ "futures 0.3.31",
+ "once_cell",
+ "parking_lot 0.12.5",
+ "prometheus",
+ "prometheus-closure-metric",
+ "scopeguard",
+ "simple-server-timing-header",
+ "tap",
+ "tokio",
+ "tracing",
+ "uuid 1.18.1",
 ]
 
 [[package]]
@@ -12197,8 +12197,6 @@ dependencies = [
  "fdlimit",
  "hdrhistogram",
  "itertools 0.10.5",
- "mysten-common",
- "mysten-metrics",
  "once_cell",
  "prometheus",
  "rand 0.8.5",
@@ -12206,6 +12204,8 @@ dependencies = [
  "rstest",
  "serde",
  "starcoin-bridge-macros",
+ "starcoin-common",
+ "starcoin-metrics 0.7.0",
  "tap",
  "tempfile",
  "thiserror 1.0.69",

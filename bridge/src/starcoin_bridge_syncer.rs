@@ -10,7 +10,7 @@ use crate::{
     retry_with_max_elapsed_time,
     starcoin_bridge_client::{StarcoinClient, StarcoinClientInner},
 };
-use mysten_metrics::spawn_logged_monitored_task;
+use starcoin_metrics::spawn_logged_monitored_task;
 use starcoin_bridge_json_rpc_types::StarcoinEvent;
 use starcoin_bridge_types::base_types::ObjectID;
 use starcoin_bridge_types::{event::EventID, Identifier};
@@ -59,11 +59,11 @@ where
         query_interval: Duration,
     ) -> BridgeResult<(
         Vec<JoinHandle<()>>,
-        mysten_metrics::metered_channel::Receiver<(Identifier, Vec<StarcoinEvent>)>,
+        starcoin_metrics::metered_channel::Receiver<(Identifier, Vec<StarcoinEvent>)>,
     )> {
-        let (events_tx, events_rx) = mysten_metrics::metered_channel::channel(
+        let (events_tx, events_rx) = starcoin_metrics::metered_channel::channel(
             STARCOIN_EVENTS_CHANNEL_SIZE,
-            &mysten_metrics::get_metrics()
+            &starcoin_metrics::get_metrics()
                 .unwrap()
                 .channel_inflight
                 .with_label_values(&["starcoin_bridge_events_queue"]),
@@ -73,7 +73,7 @@ where
         let mut task_handles = vec![];
         for (module, cursor) in self.cursors {
             let metrics = self.metrics.clone();
-            let events_rx_clone: mysten_metrics::metered_channel::Sender<(
+            let events_rx_clone: starcoin_metrics::metered_channel::Sender<(
                 Identifier,
                 Vec<StarcoinEvent>,
             )> = events_tx.clone();
@@ -99,7 +99,7 @@ where
         // The module where interested events are defined.
         module: Identifier,
         initial_cursor: Option<EventID>,
-        events_sender: mysten_metrics::metered_channel::Sender<(Identifier, Vec<StarcoinEvent>)>,
+        events_sender: starcoin_metrics::metered_channel::Sender<(Identifier, Vec<StarcoinEvent>)>,
         starcoin_bridge_client: Arc<StarcoinClient<C>>,
         query_interval: Duration,
         metrics: Arc<BridgeMetrics>,
@@ -181,7 +181,7 @@ mod tests {
     async fn test_starcoin_bridge_syncer_basic() -> anyhow::Result<()> {
         telemetry_subscribers::init_for_testing();
         let registry = Registry::new();
-        mysten_metrics::init_metrics(&registry);
+        starcoin_metrics::init_metrics(&registry);
         let metrics = Arc::new(BridgeMetrics::new(&registry));
         let mock = StarcoinMockClient::default();
         let client = Arc::new(StarcoinClient::new_for_testing(mock.clone()));
@@ -276,7 +276,7 @@ mod tests {
 
     async fn assert_no_more_events(
         interval: Duration,
-        events_rx: &mut mysten_metrics::metered_channel::Receiver<(Identifier, Vec<StarcoinEvent>)>,
+        events_rx: &mut starcoin_metrics::metered_channel::Receiver<(Identifier, Vec<StarcoinEvent>)>,
     ) {
         match timeout(interval * 2, events_rx.recv()).await {
             Err(_e) => (),

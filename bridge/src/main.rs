@@ -3,7 +3,7 @@
 
 use clap::Parser;
 use fastcrypto::traits::KeyPair;
-use mysten_metrics::start_prometheus_server;
+use starcoin_metrics::start_prometheus_server;
 use starcoin_bridge::config::BridgeNodeConfig;
 use starcoin_bridge::node::run_bridge_node;
 use starcoin_bridge::server::BridgeNodePublicMetadata;
@@ -39,7 +39,7 @@ async fn main() -> anyhow::Result<()> {
     let registry_service = start_prometheus_server(metrics_address);
     let prometheus_registry = registry_service.default_registry();
     
-    mysten_metrics::init_metrics(&prometheus_registry);
+    starcoin_metrics::init_metrics(&prometheus_registry);
     info!("Metrics server started at port {}", config.metrics_port);
 
     // Init logging

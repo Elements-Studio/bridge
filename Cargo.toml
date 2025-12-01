@@ -20,8 +20,8 @@ members = [
     "fastcrypto",
     "fastcrypto-derive",
     "shared-crypto",
-    "mysten-common",
-    "mysten-metrics",
+    "starcoin-common",
+    "starcoin-metrics",
     "telemetry-subscribers",
     "typed-store",
     "typed-store-derive",
@@ -76,8 +76,8 @@ arc-swap = "1.7"
 backoff = { version = "0.4", features = ["tokio"] }
 bin-version = { path = "./bin-version" }
 fastcrypto = { path = "./fastcrypto" }
-mysten-common = { path = "./mysten-common" }
-mysten-metrics = { path = "./mysten-metrics" }
+starcoin-common = { path = "./starcoin-common" }
+starcoin-metrics = { path = "./starcoin-metrics" }
 shared-crypto = { path = "./shared-crypto" }
 starcoin-bridge = { path = "./bridge" }
 starcoin-bridge-authority-aggregation = { path = "./starcoin-bridge-authority-aggregation" }

@@ -24,7 +24,7 @@ use crate::{
 use crate::{DbIterator, TypedStoreError};
 use backoff::backoff::Backoff;
 use fastcrypto::hash::{Digest, HashFunction};
-use mysten_common::debug_fatal;
+use starcoin_common::debug_fatal;
 use prometheus::{Histogram, HistogramTimer};
 use rocksdb::properties::num_files_at_level;
 use rocksdb::{checkpoint::Checkpoint, DBPinnableSlice, LiveFile};

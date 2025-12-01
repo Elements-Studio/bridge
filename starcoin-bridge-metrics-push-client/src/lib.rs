@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use client::MetricsPushClient;
-use mysten_metrics::RegistryService;
+use starcoin_metrics::RegistryService;
 use std::time::Duration;
 use starcoin_bridge_types::crypto::{NetworkKeyPair, NetworkKeyPairExt};
 

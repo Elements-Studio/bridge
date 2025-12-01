@@ -15,7 +15,7 @@ mod indexer_test_utils;
 async fn indexer_simple_backfill_task_test() {
     telemetry_subscribers::init_for_testing();
     let registry = Registry::new();
-    mysten_metrics::init_metrics(&registry);
+    starcoin_metrics::init_metrics(&registry);
 
     let data = (0..=10u64).collect::<Vec<_>>();
     let datasource = TestDatasource {
@@ -57,7 +57,7 @@ async fn indexer_simple_backfill_task_test() {
 async fn indexer_partitioned_backfill_task_test() {
     telemetry_subscribers::init_for_testing();
     let registry = Registry::new();
-    mysten_metrics::init_metrics(&registry);
+    starcoin_metrics::init_metrics(&registry);
 
     let data = (0..=50u64).collect::<Vec<_>>();
     let datasource = TestDatasource {
@@ -105,7 +105,7 @@ async fn indexer_partitioned_backfill_task_test() {
 async fn indexer_partitioned_task_with_data_already_in_db_test1() {
     telemetry_subscribers::init_for_testing();
     let registry = Registry::new();
-    mysten_metrics::init_metrics(&registry);
+    starcoin_metrics::init_metrics(&registry);
 
     let data = (0..=50u64).collect::<Vec<_>>();
     let datasource = TestDatasource {
@@ -158,7 +158,7 @@ async fn indexer_partitioned_task_with_data_already_in_db_test1() {
 async fn indexer_partitioned_task_with_data_already_in_db_test2() {
     telemetry_subscribers::init_for_testing();
     let registry = Registry::new();
-    mysten_metrics::init_metrics(&registry);
+    starcoin_metrics::init_metrics(&registry);
 
     let data = (0..=50u64).collect::<Vec<_>>();
     let datasource = TestDatasource {
@@ -213,7 +213,7 @@ async fn indexer_partitioned_task_with_data_already_in_db_test2() {
 async fn indexer_partitioned_task_with_data_already_in_db_test3() {
     telemetry_subscribers::init_for_testing();
     let registry = Registry::new();
-    mysten_metrics::init_metrics(&registry);
+    starcoin_metrics::init_metrics(&registry);
 
     let data = (0..=50u64).collect::<Vec<_>>();
     let datasource = TestDatasource {
@@ -272,7 +272,7 @@ async fn indexer_partitioned_task_with_data_already_in_db_test3() {
 async fn indexer_partitioned_task_with_data_already_in_db_test4() {
     telemetry_subscribers::init_for_testing();
     let registry = Registry::new();
-    mysten_metrics::init_metrics(&registry);
+    starcoin_metrics::init_metrics(&registry);
 
     let data = (0..=50u64).collect::<Vec<_>>();
     let datasource = TestDatasource {
@@ -335,7 +335,7 @@ async fn indexer_partitioned_task_with_data_already_in_db_test4() {
 async fn indexer_with_existing_live_task1() {
     telemetry_subscribers::init_for_testing();
     let registry = Registry::new();
-    mysten_metrics::init_metrics(&registry);
+    starcoin_metrics::init_metrics(&registry);
 
     let data = (0..=50u64).collect::<Vec<_>>();
     let datasource = TestDatasource {
@@ -382,7 +382,7 @@ async fn indexer_with_existing_live_task1() {
 async fn indexer_with_existing_live_task2() {
     telemetry_subscribers::init_for_testing();
     let registry = Registry::new();
-    mysten_metrics::init_metrics(&registry);
+    starcoin_metrics::init_metrics(&registry);
 
     let data = (0..=50u64).collect::<Vec<_>>();
     let datasource = TestDatasource {
@@ -440,7 +440,7 @@ fn assert_ranges(desc_ordered_tasks: &[Task], ranges: Vec<(u64, u64)>) {
 async fn resume_test() {
     telemetry_subscribers::init_for_testing();
     let registry = Registry::new();
-    mysten_metrics::init_metrics(&registry);
+    starcoin_metrics::init_metrics(&registry);
 
     let data = (0..=50u64).collect::<Vec<_>>();
     let datasource = TestDatasource {
@@ -492,7 +492,7 @@ async fn resume_test() {
 async fn resume_with_live_test() {
     telemetry_subscribers::init_for_testing();
     let registry = Registry::new();
-    mysten_metrics::init_metrics(&registry);
+    starcoin_metrics::init_metrics(&registry);
 
     let data = (0..=70u64).collect::<Vec<_>>();
     let datasource = TestDatasource {

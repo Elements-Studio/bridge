@@ -17,7 +17,7 @@ use crate::starcoin_bridge_client::{StarcoinClient, StarcoinClientInner};
 use crate::storage::BridgeOrchestratorTables;
 use crate::types::EthLog;
 use ethers::types::Address as EthAddress;
-use mysten_metrics::spawn_logged_monitored_task;
+use starcoin_metrics::spawn_logged_monitored_task;
 use starcoin_bridge_json_rpc_types::StarcoinEvent;
 use starcoin_bridge_types::Identifier;
 use std::sync::Arc;
@@ -27,11 +27,11 @@ use tracing::{error, info};
 pub struct BridgeOrchestrator<C> {
     _starcoin_bridge_client: Arc<StarcoinClient<C>>,
     starcoin_bridge_events_rx:
-        mysten_metrics::metered_channel::Receiver<(Identifier, Vec<StarcoinEvent>)>,
-    eth_events_rx: mysten_metrics::metered_channel::Receiver<(EthAddress, u64, Vec<EthLog>)>,
+        starcoin_metrics::metered_channel::Receiver<(Identifier, Vec<StarcoinEvent>)>,
+    eth_events_rx: starcoin_metrics::metered_channel::Receiver<(EthAddress, u64, Vec<EthLog>)>,
     store: Arc<BridgeOrchestratorTables>,
-    starcoin_bridge_monitor_tx: mysten_metrics::metered_channel::Sender<StarcoinBridgeEvent>,
-    eth_monitor_tx: mysten_metrics::metered_channel::Sender<EthBridgeEvent>,
+    starcoin_bridge_monitor_tx: starcoin_metrics::metered_channel::Sender<StarcoinBridgeEvent>,
+    eth_monitor_tx: starcoin_metrics::metered_channel::Sender<EthBridgeEvent>,
     metrics: Arc<BridgeMetrics>,
 }
 
@@ -41,14 +41,14 @@ where
 {
     pub fn new(
         starcoin_bridge_client: Arc<StarcoinClient<C>>,
-        starcoin_bridge_events_rx: mysten_metrics::metered_channel::Receiver<(
+        starcoin_bridge_events_rx: starcoin_metrics::metered_channel::Receiver<(
             Identifier,
             Vec<StarcoinEvent>,
         )>,
-        eth_events_rx: mysten_metrics::metered_channel::Receiver<(EthAddress, u64, Vec<EthLog>)>,
+        eth_events_rx: starcoin_metrics::metered_channel::Receiver<(EthAddress, u64, Vec<EthLog>)>,
         store: Arc<BridgeOrchestratorTables>,
-        starcoin_bridge_monitor_tx: mysten_metrics::metered_channel::Sender<StarcoinBridgeEvent>,
-        eth_monitor_tx: mysten_metrics::metered_channel::Sender<EthBridgeEvent>,
+        starcoin_bridge_monitor_tx: starcoin_metrics::metered_channel::Sender<StarcoinBridgeEvent>,
+        eth_monitor_tx: starcoin_metrics::metered_channel::Sender<EthBridgeEvent>,
         metrics: Arc<BridgeMetrics>,
     ) -> Self {
         Self {
@@ -111,12 +111,12 @@ where
 
     async fn run_starcoin_bridge_watcher(
         store: Arc<BridgeOrchestratorTables>,
-        executor_tx: mysten_metrics::metered_channel::Sender<BridgeActionExecutionWrapper>,
-        mut starcoin_bridge_events_rx: mysten_metrics::metered_channel::Receiver<(
+        executor_tx: starcoin_metrics::metered_channel::Sender<BridgeActionExecutionWrapper>,
+        mut starcoin_bridge_events_rx: starcoin_metrics::metered_channel::Receiver<(
             Identifier,
             Vec<StarcoinEvent>,
         )>,
-        monitor_tx: mysten_metrics::metered_channel::Sender<StarcoinBridgeEvent>,
+        monitor_tx: starcoin_metrics::metered_channel::Sender<StarcoinBridgeEvent>,
         metrics: Arc<BridgeMetrics>,
     ) {
         info!("Starting starcoin watcher task");
@@ -216,13 +216,13 @@ where
 
     async fn run_eth_watcher(
         store: Arc<BridgeOrchestratorTables>,
-        executor_tx: mysten_metrics::metered_channel::Sender<BridgeActionExecutionWrapper>,
-        mut eth_events_rx: mysten_metrics::metered_channel::Receiver<(
+        executor_tx: starcoin_metrics::metered_channel::Sender<BridgeActionExecutionWrapper>,
+        mut eth_events_rx: starcoin_metrics::metered_channel::Receiver<(
             ethers::types::Address,
             u64,
             Vec<EthLog>,
         )>,
-        eth_monitor_tx: mysten_metrics::metered_channel::Sender<EthBridgeEvent>,
+        eth_monitor_tx: starcoin_metrics::metered_channel::Sender<EthBridgeEvent>,
         metrics: Arc<BridgeMetrics>,
     ) {
         info!("Starting eth watcher task");
@@ -516,20 +516,20 @@ mod tests {
 
     #[allow(clippy::type_complexity)]
     fn setup() -> (
-        mysten_metrics::metered_channel::Sender<(Identifier, Vec<StarcoinEvent>)>,
-        mysten_metrics::metered_channel::Receiver<(Identifier, Vec<StarcoinEvent>)>,
-        mysten_metrics::metered_channel::Sender<(EthAddress, u64, Vec<EthLog>)>,
-        mysten_metrics::metered_channel::Receiver<(EthAddress, u64, Vec<EthLog>)>,
-        mysten_metrics::metered_channel::Sender<StarcoinBridgeEvent>,
-        mysten_metrics::metered_channel::Receiver<StarcoinBridgeEvent>,
-        mysten_metrics::metered_channel::Sender<EthBridgeEvent>,
-        mysten_metrics::metered_channel::Receiver<EthBridgeEvent>,
+        starcoin_metrics::metered_channel::Sender<(Identifier, Vec<StarcoinEvent>)>,
+        starcoin_metrics::metered_channel::Receiver<(Identifier, Vec<StarcoinEvent>)>,
+        starcoin_metrics::metered_channel::Sender<(EthAddress, u64, Vec<EthLog>)>,
+        starcoin_metrics::metered_channel::Receiver<(EthAddress, u64, Vec<EthLog>)>,
+        starcoin_metrics::metered_channel::Sender<StarcoinBridgeEvent>,
+        starcoin_metrics::metered_channel::Receiver<StarcoinBridgeEvent>,
+        starcoin_metrics::metered_channel::Sender<EthBridgeEvent>,
+        starcoin_metrics::metered_channel::Receiver<EthBridgeEvent>,
         StarcoinClient<StarcoinMockClient>,
         Arc<BridgeOrchestratorTables>,
     ) {
         telemetry_subscribers::init_for_testing();
         let registry = Registry::new();
-        mysten_metrics::init_metrics(&registry);
+        starcoin_metrics::init_metrics(&registry);
 
         init_all_struct_tags();
 
@@ -539,31 +539,31 @@ mod tests {
         let mock_client = StarcoinMockClient::default();
         let starcoin_bridge_client = StarcoinClient::new_for_testing(mock_client.clone());
 
-        let (eth_events_tx, eth_events_rx) = mysten_metrics::metered_channel::channel(
+        let (eth_events_tx, eth_events_rx) = starcoin_metrics::metered_channel::channel(
             100,
-            &mysten_metrics::get_metrics()
+            &starcoin_metrics::get_metrics()
                 .unwrap()
                 .channel_inflight
                 .with_label_values(&["unit_test_eth_events_queue"]),
         );
 
-        let (starcoin_bridge_events_tx, starcoin_bridge_events_rx) = mysten_metrics::metered_channel::channel(
+        let (starcoin_bridge_events_tx, starcoin_bridge_events_rx) = starcoin_metrics::metered_channel::channel(
             100,
-            &mysten_metrics::get_metrics()
+            &starcoin_metrics::get_metrics()
                 .unwrap()
                 .channel_inflight
                 .with_label_values(&["unit_test_starcoin_bridge_events_queue"]),
         );
-        let (starcoin_bridge_monitor_tx, starcoin_bridge_monitor_rx) = mysten_metrics::metered_channel::channel(
+        let (starcoin_bridge_monitor_tx, starcoin_bridge_monitor_rx) = starcoin_metrics::metered_channel::channel(
             10000,
-            &mysten_metrics::get_metrics()
+            &starcoin_metrics::get_metrics()
                 .unwrap()
                 .channel_inflight
                 .with_label_values(&["starcoin_bridge_monitor_queue"]),
         );
-        let (eth_monitor_tx, eth_monitor_rx) = mysten_metrics::metered_channel::channel(
+        let (eth_monitor_tx, eth_monitor_rx) = starcoin_metrics::metered_channel::channel(
             10000,
-            &mysten_metrics::get_metrics()
+            &starcoin_metrics::get_metrics()
                 .unwrap()
                 .channel_inflight
                 .with_label_values(&["eth_monitor_queue"]),
@@ -604,12 +604,12 @@ mod tests {
             self,
         ) -> (
             Vec<tokio::task::JoinHandle<()>>,
-            mysten_metrics::metered_channel::Sender<BridgeActionExecutionWrapper>,
+            starcoin_metrics::metered_channel::Sender<BridgeActionExecutionWrapper>,
         ) {
             let (tx, mut rx) =
-                mysten_metrics::metered_channel::channel::<BridgeActionExecutionWrapper>(
+                starcoin_metrics::metered_channel::channel::<BridgeActionExecutionWrapper>(
                     100,
-                    &mysten_metrics::get_metrics()
+                    &starcoin_metrics::get_metrics()
                         .unwrap()
                         .channel_inflight
                         .with_label_values(&["unit_test_mock_executor"]),

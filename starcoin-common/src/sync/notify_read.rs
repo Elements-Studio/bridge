@@ -4,7 +4,7 @@
 use crate::debug_fatal;
 
 use futures::future::{join_all, Either};
-use mysten_metrics::spawn_monitored_task;
+use starcoin_metrics::spawn_monitored_task;
 use parking_lot::Mutex;
 use parking_lot::MutexGuard;
 use std::collections::hash_map::DefaultHasher;
@@ -161,7 +161,7 @@ impl<K: Eq + Hash + Clone + Unpin + std::fmt::Debug + Send + Sync + 'static, V: 
         keys: &[K],
         fetch: impl FnOnce(&[K]) -> Vec<Option<V>>,
     ) -> Vec<V> {
-        let _metrics_scope = mysten_metrics::monitored_scope(task_name);
+        let _metrics_scope = starcoin_metrics::monitored_scope(task_name);
         let registrations = self.register_all(keys);
 
         let results = fetch(keys);

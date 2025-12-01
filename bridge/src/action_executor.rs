@@ -8,7 +8,7 @@ use crate::retry_with_max_elapsed_time;
 use crate::types::IsBridgePaused;
 use arc_swap::ArcSwap;
 use fastcrypto::traits::ToFromBytes;
-use mysten_metrics::spawn_logged_monitored_task;
+use starcoin_metrics::spawn_logged_monitored_task;
 use shared_crypto::intent::{Intent, IntentMessage};
 use starcoin_bridge_json_rpc_types::{
     StarcoinExecutionStatus, StarcoinTransactionBlockResponse,
@@ -64,7 +64,7 @@ pub trait BridgeActionExecutorTrait {
         self,
     ) -> (
         Vec<tokio::task::JoinHandle<()>>,
-        mysten_metrics::metered_channel::Sender<BridgeActionExecutionWrapper>,
+        starcoin_metrics::metered_channel::Sender<BridgeActionExecutionWrapper>,
     );
 }
 
@@ -89,7 +89,7 @@ where
         self,
     ) -> (
         Vec<tokio::task::JoinHandle<()>>,
-        mysten_metrics::metered_channel::Sender<BridgeActionExecutionWrapper>,
+        starcoin_metrics::metered_channel::Sender<BridgeActionExecutionWrapper>,
     ) {
         let (tasks, sender, _) = self.run_inner();
         (tasks, sender)
@@ -132,22 +132,22 @@ where
         self,
     ) -> (
         Vec<tokio::task::JoinHandle<()>>,
-        mysten_metrics::metered_channel::Sender<BridgeActionExecutionWrapper>,
-        mysten_metrics::metered_channel::Sender<CertifiedBridgeActionExecutionWrapper>,
+        starcoin_metrics::metered_channel::Sender<BridgeActionExecutionWrapper>,
+        starcoin_metrics::metered_channel::Sender<CertifiedBridgeActionExecutionWrapper>,
     ) {
         let key = self.key;
 
-        let (sender, receiver) = mysten_metrics::metered_channel::channel(
+        let (sender, receiver) = starcoin_metrics::metered_channel::channel(
             CHANNEL_SIZE,
-            &mysten_metrics::get_metrics()
+            &starcoin_metrics::get_metrics()
                 .unwrap()
                 .channel_inflight
                 .with_label_values(&["executor_signing_queue"]),
         );
 
-        let (execution_tx, execution_rx) = mysten_metrics::metered_channel::channel(
+        let (execution_tx, execution_rx) = starcoin_metrics::metered_channel::channel(
             CHANNEL_SIZE,
-            &mysten_metrics::get_metrics()
+            &starcoin_metrics::get_metrics()
                 .unwrap()
                 .channel_inflight
                 .with_label_values(&["executor_execution_queue"]),
@@ -194,11 +194,11 @@ where
         starcoin_bridge_client: Arc<StarcoinClient<C>>,
         auth_agg: Arc<ArcSwap<BridgeAuthorityAggregator>>,
         store: Arc<BridgeOrchestratorTables>,
-        signing_queue_sender: mysten_metrics::metered_channel::Sender<BridgeActionExecutionWrapper>,
-        mut signing_queue_receiver: mysten_metrics::metered_channel::Receiver<
+        signing_queue_sender: starcoin_metrics::metered_channel::Sender<BridgeActionExecutionWrapper>,
+        mut signing_queue_receiver: starcoin_metrics::metered_channel::Receiver<
             BridgeActionExecutionWrapper,
         >,
-        execution_queue_sender: mysten_metrics::metered_channel::Sender<
+        execution_queue_sender: starcoin_metrics::metered_channel::Sender<
             CertifiedBridgeActionExecutionWrapper,
         >,
         metrics: Arc<BridgeMetrics>,
@@ -235,10 +235,10 @@ where
     async fn handle_signing_task(
         semaphore: &Arc<Semaphore>,
         auth_agg: &Arc<ArcSwap<BridgeAuthorityAggregator>>,
-        signing_queue_sender: &mysten_metrics::metered_channel::Sender<
+        signing_queue_sender: &starcoin_metrics::metered_channel::Sender<
             BridgeActionExecutionWrapper,
         >,
-        execution_queue_sender: &mysten_metrics::metered_channel::Sender<
+        execution_queue_sender: &starcoin_metrics::metered_channel::Sender<
             CertifiedBridgeActionExecutionWrapper,
         >,
         starcoin_bridge_client: &Arc<StarcoinClient<C>>,
@@ -327,8 +327,8 @@ where
         auth_agg: Arc<ArcSwap<BridgeAuthorityAggregator>>,
         action: BridgeActionExecutionWrapper,
         store: Arc<BridgeOrchestratorTables>,
-        signing_queue_sender: mysten_metrics::metered_channel::Sender<BridgeActionExecutionWrapper>,
-        execution_queue_sender: mysten_metrics::metered_channel::Sender<
+        signing_queue_sender: starcoin_metrics::metered_channel::Sender<BridgeActionExecutionWrapper>,
+        execution_queue_sender: starcoin_metrics::metered_channel::Sender<
             CertifiedBridgeActionExecutionWrapper,
         >,
         metrics: Arc<BridgeMetrics>,
@@ -401,10 +401,10 @@ where
         starcoin_bridge_address: StarcoinAddress,
         gas_object_id: ObjectID,
         store: Arc<BridgeOrchestratorTables>,
-        execution_queue_sender: mysten_metrics::metered_channel::Sender<
+        execution_queue_sender: starcoin_metrics::metered_channel::Sender<
             CertifiedBridgeActionExecutionWrapper,
         >,
-        mut execution_queue_receiver: mysten_metrics::metered_channel::Receiver<
+        mut execution_queue_receiver: starcoin_metrics::metered_channel::Receiver<
             CertifiedBridgeActionExecutionWrapper,
         >,
         bridge_object_arg: ObjectArg,
@@ -449,7 +449,7 @@ where
         starcoin_bridge_address: &StarcoinAddress,
         _gas_object_id: ObjectID,  // Not used in Starcoin - gas comes from account balance
         store: &Arc<BridgeOrchestratorTables>,
-        execution_queue_sender: &mysten_metrics::metered_channel::Sender<
+        execution_queue_sender: &starcoin_metrics::metered_channel::Sender<
             CertifiedBridgeActionExecutionWrapper,
         >,
         bridge_object_arg: &ObjectArg,
@@ -884,7 +884,7 @@ where
 }
 
 pub async fn submit_to_executor(
-    tx: &mysten_metrics::metered_channel::Sender<BridgeActionExecutionWrapper>,
+    tx: &starcoin_metrics::metered_channel::Sender<BridgeActionExecutionWrapper>,
     action: BridgeAction,
 ) -> Result<(), BridgeError> {
     tx.send(BridgeActionExecutionWrapper(action, 0))
@@ -1711,8 +1711,8 @@ mod tests {
 
     #[allow(clippy::type_complexity)]
     async fn setup() -> (
-        mysten_metrics::metered_channel::Sender<BridgeActionExecutionWrapper>,
-        mysten_metrics::metered_channel::Sender<CertifiedBridgeActionExecutionWrapper>,
+        starcoin_metrics::metered_channel::Sender<BridgeActionExecutionWrapper>,
+        starcoin_metrics::metered_channel::Sender<CertifiedBridgeActionExecutionWrapper>,
         StarcoinMockClient,
         tokio::sync::broadcast::Receiver<TransactionDigest>,
         Arc<BridgeOrchestratorTables>,
@@ -1730,7 +1730,7 @@ mod tests {
     ) {
         telemetry_subscribers::init_for_testing();
         let registry = Registry::new();
-        mysten_metrics::init_metrics(&registry);
+        starcoin_metrics::init_metrics(&registry);
         init_all_struct_tags();
 
         let (starcoin_bridge_address, kp): (_, fastcrypto::secp256k1::Secp256k1KeyPair) = get_key_pair();

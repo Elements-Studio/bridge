@@ -1,7 +1,6 @@
 [package]
 name = "starcoin-bridge"
 version.workspace = true
-authors = ["Mysten Labs <build@mystenlabs.com>"]
 license = "Apache-2.0"
 publish = false
 edition = "2021"
@@ -22,7 +21,7 @@ telemetry-subscribers.workspace = true
 prometheus.workspace = true
 async-trait.workspace = true
 typed-store.workspace = true
-mysten-metrics.workspace = true
+starcoin-metrics.workspace = true
 starcoin-bridge-sdk.workspace = true
 starcoin-bridge-keys.workspace = true
 starcoin-bridge-config.workspace = true
@@ -48,7 +47,7 @@ rand.workspace = true
 lru.workspace = true
 shared-crypto.workspace = true
 backoff.workspace = true
-mysten-common.workspace = true
+starcoin-common.workspace = true
 enum_dispatch.workspace = true
 starcoin-bridge-json-rpc-api.workspace = true
 starcoin-bridge-test-transaction-builder.workspace = true

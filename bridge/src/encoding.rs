@@ -425,7 +425,7 @@ mod tests {
     fn test_bridge_message_encoding() -> anyhow::Result<()> {
         telemetry_subscribers::init_for_testing();
         let registry = Registry::new();
-        mysten_metrics::init_metrics(&registry);
+        starcoin_metrics::init_metrics(&registry);
         let nonce = 54321u64;
         let starcoin_bridge_tx_digest = TransactionDigest::random();
         let starcoin_bridge_chain_id = BridgeChainId::StarcoinTestnet;
@@ -499,7 +499,7 @@ mod tests {
     ) -> anyhow::Result<()> {
         telemetry_subscribers::init_for_testing();
         let registry = Registry::new();
-        mysten_metrics::init_metrics(&registry);
+        starcoin_metrics::init_metrics(&registry);
         let starcoin_bridge_tx_digest = TransactionDigest::random();
         let starcoin_bridge_tx_event_index = 1u16;
 
@@ -551,7 +551,7 @@ mod tests {
     fn test_bridge_message_encoding_blocklist_update_v1() {
         telemetry_subscribers::init_for_testing();
         let registry = Registry::new();
-        mysten_metrics::init_metrics(&registry);
+        starcoin_metrics::init_metrics(&registry);
 
         let pub_key_bytes = BridgeAuthorityPublicKeyBytes::from_bytes(
             &Hex::decode("02321ede33d2c2d7a8a152f275a1484edef2098f034121a602cb7d767d38680aa4")
@@ -739,7 +739,7 @@ mod tests {
     ) -> anyhow::Result<()> {
         telemetry_subscribers::init_for_testing();
         let registry = Registry::new();
-        mysten_metrics::init_metrics(&registry);
+        starcoin_metrics::init_metrics(&registry);
         let eth_tx_hash = TxHash::random();
         let eth_event_index = 1u16;
 

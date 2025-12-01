@@ -129,7 +129,7 @@ where
 
     fn spawn(
         mut self,
-        mut rx: mysten_metrics::metered_channel::Receiver<(
+        mut rx: starcoin_metrics::metered_channel::Receiver<(
             K,
             oneshot::Sender<BridgeResult<SignedBridgeAction>>,
         )>,
@@ -213,15 +213,15 @@ where
 }
 
 pub struct BridgeRequestHandler {
-    starcoin_bridge_signer_tx: mysten_metrics::metered_channel::Sender<(
+    starcoin_bridge_signer_tx: starcoin_metrics::metered_channel::Sender<(
         (TransactionDigest, u16),
         oneshot::Sender<BridgeResult<SignedBridgeAction>>,
     )>,
-    eth_signer_tx: mysten_metrics::metered_channel::Sender<(
+    eth_signer_tx: starcoin_metrics::metered_channel::Sender<(
         (TxHash, u16),
         oneshot::Sender<BridgeResult<SignedBridgeAction>>,
     )>,
-    governance_signer_tx: mysten_metrics::metered_channel::Sender<(
+    governance_signer_tx: starcoin_metrics::metered_channel::Sender<(
         BridgeAction,
         oneshot::Sender<BridgeResult<SignedBridgeAction>>,
     )>,
@@ -239,23 +239,23 @@ impl BridgeRequestHandler {
         metrics: Arc<BridgeMetrics>,
     ) -> Self {
         let (starcoin_bridge_signer_tx, starcoin_bridge_rx) =
-            mysten_metrics::metered_channel::channel(
+            starcoin_metrics::metered_channel::channel(
                 1000,
-                &mysten_metrics::get_metrics()
+                &starcoin_metrics::get_metrics()
                     .unwrap()
                     .channel_inflight
                     .with_label_values(&["server_starcoin_bridge_action_signing_queue"]),
             );
-        let (eth_signer_tx, eth_rx) = mysten_metrics::metered_channel::channel(
+        let (eth_signer_tx, eth_rx) = starcoin_metrics::metered_channel::channel(
             1000,
-            &mysten_metrics::get_metrics()
+            &starcoin_metrics::get_metrics()
                 .unwrap()
                 .channel_inflight
                 .with_label_values(&["server_eth_action_signing_queue"]),
         );
-        let (governance_signer_tx, governance_rx) = mysten_metrics::metered_channel::channel(
+        let (governance_signer_tx, governance_rx) = starcoin_metrics::metered_channel::channel(
             1000,
-            &mysten_metrics::get_metrics()
+            &starcoin_metrics::get_metrics()
                 .unwrap()
                 .channel_inflight
                 .with_label_values(&["server_governance_action_signing_queue"]),

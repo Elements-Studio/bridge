@@ -12,7 +12,7 @@ use tokio::task::JoinHandle;
 
 use crate::metrics::IndexerMetricProvider;
 use crate::{Task, Tasks};
-use mysten_metrics::{metered_channel, spawn_monitored_task};
+use starcoin_metrics::{metered_channel, spawn_monitored_task};
 use tap::tap::TapFallible;
 
 type CheckpointData<T> = (u64, Vec<T>);
@@ -391,7 +391,7 @@ pub trait Datasource<T: Send>: Sync + Send {
         );
         let (data_sender, data_rx) = metered_channel::channel(
             checkpoint_channel_size,
-            &mysten_metrics::get_metrics()
+            &starcoin_metrics::get_metrics()
                 .unwrap()
                 .channel_inflight
                 // This metric works now when there is only 1 backfill task running per task name.
@@ -426,7 +426,7 @@ pub trait Datasource<T: Send>: Sync + Send {
             None
         };
 
-        let mut stream = mysten_metrics::metered_channel::ReceiverStream::new(data_rx)
+        let mut stream = starcoin_metrics::metered_channel::ReceiverStream::new(data_rx)
             .ready_chunks(ingestion_batch_size);
         let mut last_saved_checkpoint = None;
         loop {

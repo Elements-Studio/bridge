@@ -220,7 +220,7 @@ mod tests {
     fn test_sign_and_verify_bridge_event_basic() -> anyhow::Result<()> {
         telemetry_subscribers::init_for_testing();
         let registry = Registry::new();
-        mysten_metrics::init_metrics(&registry);
+        starcoin_metrics::init_metrics(&registry);
 
         let (mut authority1, pubkey, secret) = get_test_authority_and_key(5000, 9999);
         let pubkey_bytes = BridgeAuthorityPublicKeyBytes::from(&pubkey);
@@ -316,7 +316,7 @@ mod tests {
     fn test_bridge_sig_verification_regression_test() {
         telemetry_subscribers::init_for_testing();
         let registry = Registry::new();
-        mysten_metrics::init_metrics(&registry);
+        starcoin_metrics::init_metrics(&registry);
 
         // Use the same keys from encoding tests for consistency
         let keypairs = vec![

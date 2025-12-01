@@ -27,8 +27,8 @@ const REFRESH_BRIDGE_RETRY_TIMES: u64 = 3;
 
 pub struct BridgeMonitor<C> {
     starcoin_bridge_client: Arc<StarcoinClient<C>>,
-    starcoin_bridge_monitor_rx: mysten_metrics::metered_channel::Receiver<StarcoinBridgeEvent>,
-    eth_monitor_rx: mysten_metrics::metered_channel::Receiver<EthBridgeEvent>,
+    starcoin_bridge_monitor_rx: starcoin_metrics::metered_channel::Receiver<StarcoinBridgeEvent>,
+    eth_monitor_rx: starcoin_metrics::metered_channel::Receiver<EthBridgeEvent>,
     bridge_auth_agg: Arc<ArcSwap<BridgeAuthorityAggregator>>,
     bridge_paused_watch_tx: tokio::sync::watch::Sender<IsBridgePaused>,
     starcoin_bridge_token_type_tags: Arc<ArcSwap<HashMap<u8, TypeTag>>>,
@@ -41,8 +41,8 @@ where
 {
     pub fn new(
         starcoin_bridge_client: Arc<StarcoinClient<C>>,
-        starcoin_bridge_monitor_rx: mysten_metrics::metered_channel::Receiver<StarcoinBridgeEvent>,
-        eth_monitor_rx: mysten_metrics::metered_channel::Receiver<EthBridgeEvent>,
+        starcoin_bridge_monitor_rx: starcoin_metrics::metered_channel::Receiver<StarcoinBridgeEvent>,
+        eth_monitor_rx: starcoin_metrics::metered_channel::Receiver<EthBridgeEvent>,
         bridge_auth_agg: Arc<ArcSwap<BridgeAuthorityAggregator>>,
         bridge_paused_watch_tx: tokio::sync::watch::Sender<IsBridgePaused>,
         starcoin_bridge_token_type_tags: Arc<ArcSwap<HashMap<u8, TypeTag>>>,
@@ -1137,10 +1137,10 @@ mod tests {
 
     #[allow(clippy::type_complexity)]
     fn setup() -> (
-        mysten_metrics::metered_channel::Sender<StarcoinBridgeEvent>,
-        mysten_metrics::metered_channel::Receiver<StarcoinBridgeEvent>,
-        mysten_metrics::metered_channel::Sender<EthBridgeEvent>,
-        mysten_metrics::metered_channel::Receiver<EthBridgeEvent>,
+        starcoin_metrics::metered_channel::Sender<StarcoinBridgeEvent>,
+        starcoin_metrics::metered_channel::Receiver<StarcoinBridgeEvent>,
+        starcoin_metrics::metered_channel::Sender<EthBridgeEvent>,
+        starcoin_metrics::metered_channel::Receiver<EthBridgeEvent>,
         StarcoinMockClient,
         Arc<StarcoinClient<StarcoinMockClient>>,
         tokio::sync::watch::Sender<IsBridgePaused>,
@@ -1150,22 +1150,22 @@ mod tests {
     ) {
         telemetry_subscribers::init_for_testing();
         let registry = Registry::new();
-        mysten_metrics::init_metrics(&registry);
+        starcoin_metrics::init_metrics(&registry);
         init_all_struct_tags();
         let bridge_metrics = Arc::new(BridgeMetrics::new_for_testing());
 
         let starcoin_bridge_client_mock = StarcoinMockClient::default();
         let starcoin_bridge_client = Arc::new(StarcoinClient::new_for_testing(starcoin_bridge_client_mock.clone()));
-        let (starcoin_bridge_monitor_tx, starcoin_bridge_monitor_rx) = mysten_metrics::metered_channel::channel(
+        let (starcoin_bridge_monitor_tx, starcoin_bridge_monitor_rx) = starcoin_metrics::metered_channel::channel(
             10000,
-            &mysten_metrics::get_metrics()
+            &starcoin_metrics::get_metrics()
                 .unwrap()
                 .channel_inflight
                 .with_label_values(&["starcoin_bridge_monitor_queue"]),
         );
-        let (eth_monitor_tx, eth_monitor_rx) = mysten_metrics::metered_channel::channel(
+        let (eth_monitor_tx, eth_monitor_rx) = starcoin_metrics::metered_channel::channel(
             10000,
-            &mysten_metrics::get_metrics()
+            &starcoin_metrics::get_metrics()
                 .unwrap()
                 .channel_inflight
                 .with_label_values(&["eth_monitor_queue"]),

@@ -6,7 +6,7 @@ use crate::metrics::IndexerMetricProvider;
 use crate::Task;
 use anyhow::Error;
 use async_trait::async_trait;
-use mysten_metrics::{metered_channel, spawn_monitored_task};
+use starcoin_metrics::{metered_channel, spawn_monitored_task};
 use prometheus::IntGauge;
 use std::path::PathBuf;
 use std::sync::Arc;

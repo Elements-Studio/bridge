@@ -1,5 +1,5 @@
 [package]
-name = "mysten-common"
+name = "starcoin-common"
 license = "Apache-2.0"
 version = "0.1.0"
 edition = "2021"
@@ -15,7 +15,7 @@ futures = "0.3.28"
 parking_lot = "0.12.1"
 reqwest.workspace = true
 fastcrypto.workspace = true
-mysten-metrics = { path = "../mysten-metrics" }
+starcoin-metrics = { path = "../starcoin-metrics" }
 starcoin-bridge-macros = { workspace = true }
 antithesis_sdk = "0.2.6"
 tempfile = "3.20.0"

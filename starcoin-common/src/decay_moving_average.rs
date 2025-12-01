@@ -74,7 +74,7 @@ impl DecayMovingAverage {
     // # Example: Decay Moving Max
     // ```
     // fn update_moving_max(new_value: f64) {
-    //     use mysten_common::decay_moving_average::DecayMovingAverage;
+    //     use starcoin_common::decay_moving_average::DecayMovingAverage;
     //     let mut decay_max = DecayMovingAverage::new(0.0, 0.9);
     //
     //     // New maximum encountered - immediately jump to it

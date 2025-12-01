@@ -306,7 +306,7 @@ mod tests {
     async fn test_get_finalized_bridge_action_maybe() {
         telemetry_subscribers::init_for_testing();
         let registry = Registry::new();
-        mysten_metrics::init_metrics(&registry);
+        starcoin_metrics::init_metrics(&registry);
         let mock_provider = EthMockProvider::new();
         mock_last_finalized_block(&mock_provider, 777);
 
@@ -380,7 +380,7 @@ mod tests {
     async fn test_get_finalized_bridge_action_maybe_unrecognized_contract() {
         telemetry_subscribers::init_for_testing();
         let registry = Registry::new();
-        mysten_metrics::init_metrics(&registry);
+        starcoin_metrics::init_metrics(&registry);
         let mock_provider = EthMockProvider::new();
         mock_last_finalized_block(&mock_provider, 777);
 

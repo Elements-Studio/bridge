@@ -7,7 +7,7 @@
 
 use anyhow::Result;
 use async_trait::async_trait;
-use mysten_metrics::spawn_logged_monitored_task;
+use starcoin_metrics::spawn_logged_monitored_task;
 use std::sync::Arc;
 use tokio::time::Duration;
 use tokio::time::MissedTickBehavior;

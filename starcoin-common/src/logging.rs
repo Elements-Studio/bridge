@@ -98,7 +98,7 @@ macro_rules! debug_fatal {
                 let stacktrace = std::backtrace::Backtrace::capture();
                 tracing::error!(debug_fatal = true, stacktrace = ?stacktrace, $msg $(, $arg)*);
                 let location = concat!(file!(), ':', line!());
-                if let Some(metrics) = mysten_metrics::get_metrics() {
+                if let Some(metrics) = starcoin_metrics::get_metrics() {
                     metrics.system_invariant_violations.with_label_values(&[location]).inc();
                 }
                 if $crate::in_antithesis() {
