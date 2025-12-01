@@ -496,7 +496,18 @@ async fn handle_add_tokens_on_starcoin(
         let token_type_names = token_type_names
             .split(',')
             .map(|s| {
-                TypeTag::from_str(s).map_err(|err| {
+                // Add 0x prefix if missing for address parsing
+                let normalized = if s.contains("::") {
+                    let parts: Vec<&str> = s.splitn(2, "::").collect();
+                    if parts.len() == 2 && !parts[0].starts_with("0x") {
+                        format!("0x{}::{}", parts[0], parts[1])
+                    } else {
+                        s.to_string()
+                    }
+                } else {
+                    s.to_string()
+                };
+                TypeTag::from_str(&normalized).map_err(|err| {
                     BridgeError::InvalidBridgeClientRequest(format!(
                         "Invalid token type name: {:?}",
                         err
@@ -757,19 +768,19 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore] // Move parser has issues with 16-byte Starcoin addresses in TypeTag format
     async fn test_bridge_server_handle_add_tokens_on_starcoin_bridge_action_path() {
         let client = setup();
 
+        // Use 16-byte Starcoin address format (32 hex chars = 16 bytes)
         let action = BridgeAction::AddTokensOnStarcoinAction(AddTokensOnStarcoinAction {
             nonce: 266,
             chain_id: BridgeChainId::StarcoinCustom,
             native: false,
             token_ids: vec![100, 101, 102],
             token_type_names: vec![
-                TypeTag::from_str("0x1234567890abcdef1234567890abcdef::my_coin::MyCoin1").unwrap(),
-                TypeTag::from_str("0x1234567890abcdef1234567890abcdef::my_coin::MyCoin2").unwrap(),
-                TypeTag::from_str("0x1234567890abcdef1234567890abcdef::my_coin::MyCoin3").unwrap(),
+                TypeTag::from_str("0x00000000000000000000000000000001::my_coin::MyCoin1").unwrap(),
+                TypeTag::from_str("0x00000000000000000000000000000001::my_coin::MyCoin2").unwrap(),
+                TypeTag::from_str("0x00000000000000000000000000000001::my_coin::MyCoin3").unwrap(),
             ],
             token_prices: vec![100_000_0000, 200_000_0000, 300_000_0000],
         });

@@ -314,7 +314,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore] // TODO: Fix signature verification issues in this test
     async fn test_bridge_client_request_sign_action() {
         telemetry_subscribers::init_for_testing();
         let registry = Registry::new();
