@@ -34,35 +34,35 @@ The Starcoin Bridge is a decentralized cross-chain bridge that allows users to t
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                         Bridge System                               │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  ┌──────────────┐           ┌──────────────┐                        │
-│  │   Ethereum   │           │   Starcoin   │                        │
-│  │   Network    │           │   Network    │                        │
-│  │              │           │              │                        │
-│  │ ┌──────────┐ │           │ ┌──────────┐ │                        │
-│  │ │  Bridge  │ │           │ │  Bridge  │ │                        │
-│  │ │ Contract │ │           │ │  Module  │ │                        │
-│  │ └──────────┘ │           │ └──────────┘ │                        │
-│  └──────┬───────┘           └───────┬──────┘                        │
-│         │                           │                               │
-│         │ Events                    │ Events                        │
-│         │                           │                               │
-│         └───────────┐   ┌───────────┘                               │
-│                     │   │                                           │
-│                     ▼   ▼                                           │
-│              ┌─────────────────┐                                    │
-│              │  Bridge Server  │                                    │
-│              │   (Validator)   │                                    │
-│              ├─────────────────┤                                    │
-│              │ • Event Monitor │                                    │
-│              │ • Signature Gen │                                    │
-│              │ • Action Exec   │                                    │
-│              └─────────────────┘                                    │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────────────┐
+│                          Bridge System                                │
+├───────────────────────────────────────────────────────────────────────┤
+│                                                                       │
+│    ┌──────────────┐                     ┌──────────────┐              │
+│    │   Ethereum   │                     │   Starcoin   │              │
+│    │   Network    │                     │   Network    │              │
+│    │              │                     │              │              │
+│    │ ┌──────────┐ │                     │ ┌──────────┐ │              │
+│    │ │  Bridge  │ │                     │ │  Bridge  │ │              │
+│    │ │ Contract │ │                     │ │  Module  │ │              │
+│    │ └──────────┘ │                     │ └──────────┘ │              │
+│    └──────┬───────┘                     └───────┬──────┘              │
+│           │                                     │                     │
+│           │ Events                       Events │                     │
+│           │                                     │                     │
+│           └─────────────┐     ┌─────────────────┘                     │
+│                         │     │                                       │
+│                         ▼     ▼                                       │
+│                  ┌─────────────────┐                                  │
+│                  │  Bridge Server  │                                  │
+│                  │   (Validator)   │                                  │
+│                  ├─────────────────┤                                  │
+│                  │ • Event Monitor │                                  │
+│                  │ • Signature Gen │                                  │
+│                  │ • Action Exec   │                                  │
+│                  └─────────────────┘                                  │
+│                                                                       │
+└───────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Components
@@ -93,83 +93,63 @@ The Starcoin Bridge is a decentralized cross-chain bridge that allows users to t
 
 ## Quick Start
 
-The bridge deployment involves setting up two chains independently:
-
-1. **Ethereum side** (automated): ETH network + Bridge configuration
-2. **Starcoin side** (manual): Starcoin dev node + Move contracts
-
 ### Prerequisites
 
 - Docker and Docker Compose
 - Rust toolchain (cargo)
-- Starcoin binary
-- Move Package Manager (mpm)
+- Starcoin binary (`starcoin`)
+- Move Package Manager (`mpm`)
 
-### Step 1: ETH Setup (Automated)
+### One-Click Deployment
+
+Set environment variables and run:
 
 ```bash
+export STARCOIN_PATH=/path/to/starcoin
+export STARCOIN_DATA_DIR=/tmp
+export MPM_PATH=/path/to/mpm
+
 cd bridge
+./setup.sh -y   # -y for auto-confirm, omit for interactive mode
+```
+
+This script will:
+1. Start Starcoin dev node (background)
+2. Deploy ETH network + contracts
+3. Deploy Move contracts to Starcoin
+4. Start Bridge server (foreground)
+
+### Bridge Transfers
+
+Use the transfer script for cross-chain operations:
+
+```bash
+# ETH → Starcoin: Transfer 0.5 ETH (unit: ETH)
+./scripts/bridge_transfer.sh eth-to-stc 0.5
+
+# Starcoin → ETH: Transfer 0.1 ETH (unit: ETH)
+./scripts/bridge_transfer.sh stc-to-eth 0.1
+```
+
+> **Note**: For Starcoin→ETH, the bridge only approves on Starcoin. You need to manually claim on Ethereum.
+
+### Manual Deployment (Step by Step)
+
+If you prefer manual control:
+
+```bash
+# Step 1: Deploy ETH
 make setup-eth-and-config
-```
 
-This single command:
-- Stops existing ETH containers and cleans configs
-- Deploys ETH network via Docker (Anvil on port 8545)
-- Deploys bridge contracts
-- Generates validator/client keys
-- Creates `server-config.yaml` and `cli-config.yaml`
-
-### Step 2: Starcoin Setup (Manual)
-
-#### Terminal 1: Start Starcoin Dev Node
-
-**First time deployment:**
-```bash
-make start-starcoin-dev-node-clean
-```
-
-**Resume existing node:**
-```bash
+# Step 2: Start Starcoin (Terminal 1, keep open)
 make start-starcoin-dev-node
-```
 
-> Keep this terminal open - Starcoin runs in foreground
-
-#### Terminal 2: Deploy Move Contracts
-
-```bash
-# Build contracts
-make build-starcoin-contracts
-
-# Deploy to Starcoin (skip if already deployed in resume mode)
+# Step 3: Deploy contracts (Terminal 2)
 make deploy-starcoin-contracts
-```
 
-### Step 3: Start Bridge Server
-
-#### Terminal 3: Run Bridge
-
-```bash
+# Step 4: Start bridge (Terminal 3)
 make run-bridge-server
 ```
-
-The bridge will:
-- Connect to ETH RPC (localhost:8545)
-- Connect to Starcoin RPC (localhost:9850)
-- Start listening on port 9191
-- Enable metrics on port 9184
-
-### Step 4: Test Bridge Transfers
-
-```bash
-# ETH → Starcoin transfer (fully automated)
-./scripts/bridge_transfer.sh eth-to-stc <amount>
-
-# Starcoin → ETH transfer (approve only, manual claim needed)
-./scripts/bridge_transfer.sh stc-to-eth <amount>
-```
-
-For Starcoin→ETH transfers, after approval, you'll need to manually claim on Ethereum using the bridge CLI or contract interaction.
 
 ## Configuration
 
@@ -324,130 +304,42 @@ bridge/
     └── docker-compose.yml               # ETH network setup
 ```
 
-## Common Commands
+## Make Commands Reference
 
-### Help & Status
 ```bash
-make help                          # Show all available commands
-make status                        # Check deployment status
-make bridge-info                   # Display bridge configuration
-```
+# ETH network
+make setup-eth-and-config      # Deploy ETH network + generate configs
 
-### ETH Network
-```bash
-make deploy-eth-network            # Start ETH network (Docker)
-make stop-eth-network              # Stop ETH containers
-make clean-eth-and-config          # Clean all ETH configs
-make logs-eth                      # View ETH node logs
-```
+# Starcoin network  
+make start-starcoin-dev-node   # Start Starcoin dev node
 
-### Starcoin Network
-```bash
-make start-starcoin-dev-node-clean # Start fresh Starcoin node
-make start-starcoin-dev-node       # Resume Starcoin node
-make stop-starcoin-dev-node        # Stop Starcoin node
-```
+# Contracts
+make deploy-starcoin-contracts # Build and deploy Move contracts
 
-### Bridge Management
-```bash
-make run-bridge-server             # Start bridge server
-make build-starcoin-contracts      # Build Move contracts
-make deploy-starcoin-contracts     # Deploy Move contracts
+# Bridge
+make run-bridge-server         # Start bridge server
+
+# Status
+make status                    # Check deployment status
 ```
 
 ## Troubleshooting
 
-### ETH Network Not Starting
 ```bash
-# Check Docker status
-docker ps -a | grep bridge
+# Check status
+make status
 
-# View logs
-make logs-deployer
+# Clean restart ETH
+make clean-eth-and-config && make setup-eth-and-config
 
-# Clean restart
-make clean-eth-and-config
-make setup-eth-and-config
-```
-
-### Starcoin Node Issues
-```bash
-# Check if port is in use
-lsof -i :9850
-
-# Stop existing processes
+# Clean restart Starcoin  
 make stop-starcoin-dev-node
+rm -rf /tmp/dev
+make start-starcoin-dev-node
 
-# Clean restart
-make start-starcoin-dev-node-clean
-```
-
-### Bridge Can't Connect
-```bash
-# Verify ETH is running
-curl http://localhost:8545
-
-# Verify Starcoin is running
-curl -X POST http://127.0.0.1:9850 \
-  -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","method":"node.info","params":[],"id":1}'
-
-# Check bridge config
-cat bridge-config/server-config.yaml
-```
-
-### Move Contract Deployment Failed
-```bash
-# Verify Starcoin is running
-ps aux | grep starcoin | grep dev
-
-# Rebuild and redeploy
-make build-starcoin-contracts
-make deploy-starcoin-contracts
-```
-
-## API Reference
-
-### ETH Deployment Info API
-```bash
-# Get deployment information
-curl http://localhost:8080/deployment.json | jq
-
-# Get specific contract address
-curl -s http://localhost:8080/deployment.json | jq '.contracts.SuiBridge'
-```
-
-### Bridge RPC (Port 9191)
-The bridge server exposes JSON-RPC endpoints for querying bridge status and submitting transactions.
-
-### Metrics (Port 9184)
-Prometheus-compatible metrics are available at `http://localhost:9184/metrics`
-
-## Development
-
-### Building from Source
-
-```bash
-# Build bridge server
-cargo build --release --bin starcoin-bridge
-
-# Build CLI
-cargo build --release --bin bridge-cli
-
-# Run tests
-cargo test --workspace
-```
-
-### Environment Variables
-
-```bash
-# Starcoin configuration
-STARCOIN_PATH=/path/to/starcoin    # Starcoin binary path
-MPM_PATH=/path/to/mpm              # Move Package Manager path
-STARCOIN_RPC=http://127.0.0.1:9850 # Starcoin RPC URL
-
-# Bridge configuration
-RUST_LOG=info,starcoin_bridge=debug # Logging level
+# Verify connectivity
+curl http://localhost:8545                    # ETH RPC
+curl -X POST http://127.0.0.1:9850 -d '{}'    # Starcoin RPC
 ```
 
 ## Security Considerations
