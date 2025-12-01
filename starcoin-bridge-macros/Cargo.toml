@@ -1,7 +1,6 @@
 [package]
 name = "starcoin-bridge-macros"
 version = "0.1.0"
-authors = ["Starcoin Contributors"]
 license = "Apache-2.0"
 publish = false
 edition = "2021"

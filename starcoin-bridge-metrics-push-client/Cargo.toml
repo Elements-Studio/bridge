@@ -1,6 +1,5 @@
 [package]
 name = "starcoin-bridge-metrics-push-client"
-authors = ["Mysten Labs <build@mystenlabs.com>"]
 license = "Apache-2.0"
 version = "0.1.0"
 edition = "2021"

@@ -2,7 +2,6 @@
 name = "typed-store"
 version = "0.4.0"
 license = "Apache-2.0"
-authors = ["Francois Garillot <francois@mystenlabs.com>"]
 description = "a typed database interface"
 repository = "https://github.com/mystenlabs/mysten-infra"
 edition = "2021"
@@ -47,9 +46,3 @@ once_cell = "1.18.0"
 rstest = "0.16.0"
 rand = "0.8.5"
 uint = "0.9.4"
-
-# Most packages should depend on starcoin-bridge-simulator instead of directly on msim, but for typed-store
-# that creates a circular dependency.
-[target.'cfg(msim)'.dependencies]
-msim = { git = "https://github.com/MystenLabs/mysten-sim.git", rev = "45b88cffa3f50d6f2022d0b422ca4a077ac96a98", package = "msim" }
-
