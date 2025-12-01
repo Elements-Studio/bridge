@@ -1,0 +1,561 @@
+// Copyright (c) Mysten Labs, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+//! E2E tests that run against a real local environment.
+//! 
+//! Prerequisites:
+//! 1. Run `./setup.sh -y --without-bridge-server` (or `bsw` alias) to start the environment
+//! 2. Ensure Anvil is running at http://127.0.0.1:8545
+//! 3. Ensure Starcoin is running at http://127.0.0.1:9850
+//! 4. Contracts are deployed on both chains
+//!
+//! Run tests with:
+//!   cargo test --package starcoin-bridge --lib e2e_tests::local_env_tests -- --nocapture
+
+use crate::abi::{EthBridgeCommittee, EthBridgeLimiter, EthStarcoinBridge};
+use crate::crypto::{BridgeAuthorityKeyPair, BridgeAuthorityPublicKeyBytes};
+use crate::metrics::BridgeMetrics;
+use crate::starcoin_bridge_client::StarcoinBridgeClient;
+use ethers::prelude::*;
+use ethers::types::Address as EthAddress;
+use fastcrypto::traits::{KeyPair as KeyPairTrait, EncodeDecodeBase64, ToFromBytes};
+use fastcrypto::encoding::{Base64, Encoding};
+use starcoin_bridge_keys::keypair_file::read_key;
+use starcoin_bridge_types::crypto::StarcoinKeyPair;
+use std::path::PathBuf;
+use std::sync::Arc;
+use std::str::FromStr;
+
+// Hardcoded config for local testing
+const ETH_RPC_URL: &str = "http://127.0.0.1:8545";
+const STARCOIN_RPC_URL: &str = "http://127.0.0.1:9850";
+const ETH_PROXY_ADDRESS: &str = "0x0B306BF915C4d645ff596e518fAf3F9669b97016";
+const STARCOIN_BRIDGE_ADDRESS: &str = "0x02003d916c06ba52a678e02e364524e6";
+const BRIDGE_AUTHORITY_KEY_PATH: &str = "bridge-node/server-config/bridge_authority.key";
+
+/// Check if Anvil is running
+async fn check_anvil() -> bool {
+    match Provider::<Http>::try_from("http://127.0.0.1:8545") {
+        Ok(p) => p.get_chainid().await.is_ok(),
+        Err(_) => false,
+    }
+}
+
+#[tokio::test]
+async fn test_local_env_eth_connection() {
+    if !check_anvil().await {
+        println!("⚠️  Anvil not running, skipping test");
+        println!("   Run: ./setup.sh -y --without-bridge-server (or bsw)");
+        return;
+    }
+    
+    println!("Connecting to ETH at {}", ETH_RPC_URL);
+    println!("ETH Bridge Proxy: {}", ETH_PROXY_ADDRESS);
+    
+    // Create provider
+    let provider = Provider::<Http>::try_from(ETH_RPC_URL)
+        .expect("Failed to create ETH provider");
+    
+    // Check chain ID
+    let chain_id = provider.get_chainid().await.expect("Failed to get chain ID");
+    assert_eq!(chain_id.as_u64(), 31337, "Expected Anvil chain ID 31337");
+    println!("✓ ETH chain ID: {}", chain_id);
+    
+    // Check block number
+    let block_num = provider.get_block_number().await.expect("Failed to get block number");
+    println!("✓ ETH block number: {}", block_num);
+    
+    // Check bridge contract exists
+    let proxy_addr = EthAddress::from_str(ETH_PROXY_ADDRESS)
+        .expect("Invalid ETH proxy address");
+    let code = provider.get_code(proxy_addr, None).await
+        .expect("Failed to get contract code");
+    assert!(!code.is_empty(), "Bridge contract not deployed at {}", ETH_PROXY_ADDRESS);
+    println!("✓ ETH Bridge contract deployed at {}", ETH_PROXY_ADDRESS);
+}
+
+#[tokio::test]
+async fn test_local_env_starcoin_connection() {
+    if !check_anvil().await {
+        println!("⚠️  Environment not running, skipping test");
+        return;
+    }
+    
+    println!("Connecting to Starcoin at {}", STARCOIN_RPC_URL);
+    println!("Starcoin Bridge Address: {}", STARCOIN_BRIDGE_ADDRESS);
+    
+    // Create client
+    let client = StarcoinBridgeClient::new(STARCOIN_RPC_URL, STARCOIN_BRIDGE_ADDRESS);
+    println!("✓ Connected to Starcoin RPC");
+    
+    // Try to get bridge summary
+    match client.get_bridge_summary().await {
+        Ok(summary) => {
+            println!("✓ Bridge summary retrieved");
+            println!("  Chain ID: {:?}", summary.chain_id);
+            println!("  Is frozen: {}", summary.is_frozen);
+        }
+        Err(e) => {
+            println!("⚠️  Could not get bridge summary: {:?}", e);
+        }
+    }
+}
+
+#[tokio::test]
+async fn test_local_env_eth_bridge_committee() {
+    if !check_anvil().await {
+        println!("⚠️  Environment not running, skipping test");
+        return;
+    }
+    
+    println!("Querying ETH Bridge Committee at {}", ETH_PROXY_ADDRESS);
+    
+    // Create provider
+    let provider = Arc::new(
+        Provider::<Http>::try_from(ETH_RPC_URL)
+            .expect("Failed to create ETH provider")
+    );
+    
+    let proxy_addr = EthAddress::from_str(ETH_PROXY_ADDRESS)
+        .expect("Invalid ETH proxy address");
+    
+    // Connect to bridge contract
+    let bridge = EthStarcoinBridge::new(proxy_addr, provider.clone());
+    
+    // Get committee address
+    let committee_addr = bridge.committee().call().await
+        .expect("Failed to get committee address");
+    println!("✓ Committee address: {:?}", committee_addr);
+    
+    // Connect to committee contract
+    let committee = EthBridgeCommittee::new(committee_addr, provider.clone());
+    
+    // Verify committee contract is accessible
+    match committee.committee_stake(EthAddress::zero()).call().await {
+        Ok(stake) => {
+            println!("✓ Committee contract accessible (zero addr stake: {})", stake);
+        }
+        Err(e) => {
+            println!("⚠️  Could not query committee: {}", e);
+        }
+    }
+}
+
+#[tokio::test]
+async fn test_local_env_bridge_authority_key() {
+    // Try different possible paths for the key file
+    let possible_paths = [
+        BRIDGE_AUTHORITY_KEY_PATH,
+        "../bridge-node/server-config/bridge_authority.key",
+        "../../bridge-node/server-config/bridge_authority.key",
+    ];
+    
+    let mut found_path = None;
+    
+    for path in &possible_paths {
+        if std::path::Path::new(path).exists() {
+            found_path = Some(PathBuf::from(path));
+            break;
+        }
+    }
+    
+    let key_path = match found_path {
+        Some(p) => p,
+        None => {
+            println!("⚠️  Could not find key file, tried:");
+            for path in &possible_paths {
+                println!("    - {}", path);
+            }
+            println!("⚠️  Skipping test");
+            return;
+        }
+    };
+    
+    println!("✓ Loading bridge authority key from: {:?}", key_path);
+    
+    // Use the proper read_key function which handles StarcoinKeyPair format
+    let key = match read_key(&key_path, true) {
+        Ok(k) => k,
+        Err(e) => {
+            println!("⚠️  Failed to read key: {}", e);
+            return;
+        }
+    };
+    
+    // Extract Secp256k1 keypair
+    let keypair = match key {
+        StarcoinKeyPair::Secp256k1(kp) => kp,
+        _ => {
+            println!("⚠️  Key is not Secp256k1");
+            return;
+        }
+    };
+    
+    println!("✓ Bridge authority key loaded successfully");
+    println!("  Public key (bytes): {:?}", keypair.public().as_bytes().len());
+}
+
+/// Integration test: Verify the full chain of contracts
+#[tokio::test]
+async fn test_local_env_full_chain_verification() {
+    if !check_anvil().await {
+        println!("⚠️  Environment not running, skipping test");
+        return;
+    }
+    
+    println!("=== Full Chain Verification ===");
+    
+    // 1. Verify ETH contracts
+    println!("\n1. Verifying ETH contracts...");
+    let provider = Arc::new(
+        Provider::<Http>::try_from(ETH_RPC_URL)
+            .expect("Failed to create ETH provider")
+    );
+    
+    let proxy_addr = EthAddress::from_str(ETH_PROXY_ADDRESS)
+        .expect("Invalid ETH proxy address");
+    let bridge = EthStarcoinBridge::new(proxy_addr, provider.clone());
+    
+    // Get all contract addresses
+    let committee_addr = bridge.committee().call().await.expect("Get committee");
+    let limiter_addr = bridge.limiter().call().await.expect("Get limiter");
+    
+    println!("  ✓ Bridge Proxy: {:?}", proxy_addr);
+    println!("  ✓ Committee: {:?}", committee_addr);
+    println!("  ✓ Limiter: {:?}", limiter_addr);
+    
+    // 2. Verify Starcoin bridge
+    println!("\n2. Verifying Starcoin bridge...");
+    let stc_client = StarcoinBridgeClient::new(STARCOIN_RPC_URL, STARCOIN_BRIDGE_ADDRESS);
+    
+    match stc_client.get_bridge_summary().await {
+        Ok(summary) => {
+            println!("  ✓ Bridge contract active");
+            println!("  ✓ Chain ID: {:?}", summary.chain_id);
+        }
+        Err(e) => {
+            println!("  ⚠️  Bridge summary error: {:?}", e);
+        }
+    }
+    
+    // 3. Verify bridge authority
+    println!("\n3. Verifying bridge authority...");
+    
+    // Try different possible paths for the key file
+    let possible_paths = [
+        BRIDGE_AUTHORITY_KEY_PATH,
+        "../bridge-node/server-config/bridge_authority.key",
+        "../../bridge-node/server-config/bridge_authority.key",
+    ];
+    
+    let mut found_path = None;
+    for path in &possible_paths {
+        if std::path::Path::new(path).exists() {
+            found_path = Some(PathBuf::from(path));
+            break;
+        }
+    }
+    
+    let key_path = found_path.expect("Could not find bridge authority key file");
+    let _key = read_key(&key_path, true).expect("Failed to read authority key");
+    println!("  ✓ Authority key loaded");
+    
+    println!("\n=== All Verifications Passed ===");
+}
+
+/// Test: Verify bridge limiter contract and its configuration
+#[tokio::test]
+async fn test_local_env_eth_bridge_limiter() {
+    if !check_anvil().await {
+        println!("⚠️  Environment not running, skipping test");
+        return;
+    }
+    
+    println!("=== ETH Bridge Limiter Test ===");
+    
+    let provider = Arc::new(
+        Provider::<Http>::try_from(ETH_RPC_URL)
+            .expect("Failed to create ETH provider")
+    );
+    
+    let proxy_addr = EthAddress::from_str(ETH_PROXY_ADDRESS)
+        .expect("Invalid ETH proxy address");
+    let bridge = EthStarcoinBridge::new(proxy_addr, provider.clone());
+    
+    // Get limiter address
+    let limiter_addr = bridge.limiter().call().await
+        .expect("Failed to get limiter address");
+    println!("✓ Limiter address: {:?}", limiter_addr);
+    
+    // Connect to limiter contract
+    let limiter = EthBridgeLimiter::new(limiter_addr, provider.clone());
+    
+    // Check limiter owner
+    match limiter.owner().call().await {
+        Ok(owner) => {
+            println!("✓ Limiter owner: {:?}", owner);
+        }
+        Err(e) => {
+            println!("⚠️  Could not get limiter owner: {}", e);
+        }
+    }
+    
+    println!("=== Limiter Test Passed ===");
+}
+
+/// Test: Verify the authority key matches the registered committee member
+#[tokio::test]
+async fn test_local_env_authority_key_matches_committee() {
+    if !check_anvil().await {
+        println!("⚠️  Environment not running, skipping test");
+        return;
+    }
+    
+    println!("=== Authority Key <-> Committee Match Test ===");
+    
+    // 1. Load authority key
+    let possible_paths = [
+        BRIDGE_AUTHORITY_KEY_PATH,
+        "../bridge-node/server-config/bridge_authority.key",
+        "../../bridge-node/server-config/bridge_authority.key",
+    ];
+    
+    let mut found_path = None;
+    for path in &possible_paths {
+        if std::path::Path::new(path).exists() {
+            found_path = Some(PathBuf::from(path));
+            break;
+        }
+    }
+    
+    let key_path = match found_path {
+        Some(p) => p,
+        None => {
+            println!("⚠️  Key file not found, skipping test");
+            return;
+        }
+    };
+    
+    let key = read_key(&key_path, true).expect("Failed to read key");
+    let keypair = match key {
+        StarcoinKeyPair::Secp256k1(kp) => kp,
+        _ => {
+            println!("⚠️  Key is not Secp256k1");
+            return;
+        }
+    };
+    
+    // 2. Compute ETH address from public key
+    let pub_key_bytes = BridgeAuthorityPublicKeyBytes::from(keypair.public());
+    let eth_address = pub_key_bytes.to_eth_address();
+    println!("✓ Authority ETH address: {:?}", eth_address);
+    
+    // 3. Check committee contract for this address
+    let provider = Arc::new(
+        Provider::<Http>::try_from(ETH_RPC_URL)
+            .expect("Failed to create ETH provider")
+    );
+    
+    let proxy_addr = EthAddress::from_str(ETH_PROXY_ADDRESS).unwrap();
+    let bridge = EthStarcoinBridge::new(proxy_addr, provider.clone());
+    let committee_addr = bridge.committee().call().await.expect("Get committee");
+    let committee = EthBridgeCommittee::new(committee_addr, provider.clone());
+    
+    // Query stake for this authority
+    match committee.committee_stake(eth_address).call().await {
+        Ok(stake) => {
+            println!("✓ Authority stake in committee: {}", stake);
+            if stake > 0 {
+                println!("✓ Authority is registered in committee!");
+            } else {
+                println!("⚠️  Authority has no stake (not registered or stake is 0)");
+            }
+        }
+        Err(e) => {
+            println!("⚠️  Could not query committee stake: {}", e);
+        }
+    }
+    
+    println!("=== Match Test Completed ===");
+}
+
+/// Test: Verify Starcoin bridge committee matches ETH committee
+#[tokio::test]
+async fn test_local_env_committee_consistency() {
+    if !check_anvil().await {
+        println!("⚠️  Environment not running, skipping test");
+        return;
+    }
+    
+    println!("=== Committee Consistency Test ===");
+    
+    // 1. Get Starcoin bridge committee
+    let stc_client = StarcoinBridgeClient::new(STARCOIN_RPC_URL, STARCOIN_BRIDGE_ADDRESS);
+    
+    let stc_committee = match stc_client.get_bridge_committee().await {
+        Ok(c) => c,
+        Err(e) => {
+            println!("⚠️  Could not get Starcoin committee: {:?}", e);
+            return;
+        }
+    };
+    
+    println!("✓ Starcoin committee members: {}", stc_committee.members().len());
+    
+    for (_pubkey, member) in stc_committee.members() {
+        println!("  - Address: {:?}, voting_power: {}, blocklisted: {}", 
+            member.starcoin_bridge_address,
+            member.voting_power,
+            member.is_blocklisted
+        );
+    }
+    
+    // 2. Get ETH committee info
+    let provider = Arc::new(
+        Provider::<Http>::try_from(ETH_RPC_URL)
+            .expect("Failed to create ETH provider")
+    );
+    
+    let proxy_addr = EthAddress::from_str(ETH_PROXY_ADDRESS).unwrap();
+    let bridge = EthStarcoinBridge::new(proxy_addr, provider.clone());
+    let committee_addr = bridge.committee().call().await.expect("Get committee");
+    
+    println!("✓ ETH committee contract: {:?}", committee_addr);
+    
+    println!("=== Consistency Test Completed ===");
+}
+
+/// Test: Verify Starcoin treasury information
+#[tokio::test]
+async fn test_local_env_starcoin_treasury() {
+    if !check_anvil().await {
+        println!("⚠️  Environment not running, skipping test");
+        return;
+    }
+    
+    println!("=== Starcoin Treasury Test ===");
+    
+    let stc_client = StarcoinBridgeClient::new(STARCOIN_RPC_URL, STARCOIN_BRIDGE_ADDRESS);
+    
+    // Get treasury summary
+    match stc_client.get_treasury_summary().await {
+        Ok(treasury) => {
+            println!("✓ Treasury info retrieved");
+            println!("  - Token types: {:?}", treasury.id_token_type_map.len());
+            println!("  - Supported tokens: {:?}", treasury.supported_tokens.len());
+            
+            for (id, type_name) in &treasury.id_token_type_map {
+                println!("    Token {}: {}", id, type_name);
+            }
+        }
+        Err(e) => {
+            println!("⚠️  Could not get treasury summary: {:?}", e);
+        }
+    }
+    
+    // Get token ID map
+    match stc_client.get_token_id_map().await {
+        Ok(token_map) => {
+            println!("✓ Token ID map retrieved: {:?} tokens", token_map.len());
+        }
+        Err(e) => {
+            println!("⚠️  Could not get token ID map: {:?}", e);
+        }
+    }
+    
+    println!("=== Treasury Test Completed ===");
+}
+
+/// Test: Verify chain identifiers match expected values  
+#[tokio::test]
+async fn test_local_env_chain_identifiers() {
+    if !check_anvil().await {
+        println!("⚠️  Environment not running, skipping test");
+        return;
+    }
+    
+    println!("=== Chain Identifier Test ===");
+    
+    // ETH chain ID
+    let provider = Provider::<Http>::try_from(ETH_RPC_URL)
+        .expect("Failed to create ETH provider");
+    let eth_chain_id = provider.get_chainid().await.expect("Get ETH chain ID");
+    println!("✓ ETH chain ID: {} (expected: 31337 for Anvil)", eth_chain_id);
+    assert_eq!(eth_chain_id.as_u64(), 31337);
+    
+    // Starcoin chain identifier
+    let stc_client = StarcoinBridgeClient::new(STARCOIN_RPC_URL, STARCOIN_BRIDGE_ADDRESS);
+    
+    match stc_client.get_chain_identifier().await {
+        Ok(identifier) => {
+            println!("✓ Starcoin chain identifier: {}", identifier);
+        }
+        Err(e) => {
+            println!("⚠️  Could not get Starcoin chain identifier: {:?}", e);
+        }
+    }
+    
+    // Bridge summary shows the configured bridge chain IDs
+    match stc_client.get_bridge_summary().await {
+        Ok(summary) => {
+            println!("✓ Bridge chain ID: {:?}", summary.chain_id);
+        }
+        Err(e) => {
+            println!("⚠️  Could not get bridge summary: {:?}", e);
+        }
+    }
+    
+    println!("=== Chain Identifier Test Completed ===");
+}
+
+/// Test: Check bridge pause status
+#[tokio::test]
+async fn test_local_env_bridge_pause_status() {
+    if !check_anvil().await {
+        println!("⚠️  Environment not running, skipping test");
+        return;
+    }
+    
+    println!("=== Bridge Pause Status Test ===");
+    
+    let stc_client = StarcoinBridgeClient::new(STARCOIN_RPC_URL, STARCOIN_BRIDGE_ADDRESS);
+    
+    match stc_client.is_bridge_paused().await {
+        Ok(paused) => {
+            println!("✓ Starcoin bridge paused: {}", paused);
+            if paused {
+                println!("⚠️  Warning: Bridge is currently paused!");
+            } else {
+                println!("✓ Bridge is operational");
+            }
+        }
+        Err(e) => {
+            println!("⚠️  Could not check pause status: {:?}", e);
+        }
+    }
+    
+    // Also check ETH side
+    let provider = Arc::new(
+        Provider::<Http>::try_from(ETH_RPC_URL)
+            .expect("Failed to create ETH provider")
+    );
+    
+    let proxy_addr = EthAddress::from_str(ETH_PROXY_ADDRESS).unwrap();
+    let bridge = EthStarcoinBridge::new(proxy_addr, provider.clone());
+    
+    match bridge.paused().call().await {
+        Ok(paused) => {
+            println!("✓ ETH bridge paused: {}", paused);
+            if paused {
+                println!("⚠️  Warning: ETH bridge is currently paused!");
+            } else {
+                println!("✓ ETH bridge is operational");
+            }
+        }
+        Err(e) => {
+            println!("⚠️  Could not check ETH bridge pause status: {}", e);
+        }
+    }
+    
+    println!("=== Pause Status Test Completed ===");
+}

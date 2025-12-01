@@ -2,15 +2,16 @@
 # ============================================================
 # Starcoin Bridge - One-Click Setup Script
 # ============================================================
-# Usage: ./setup.sh [-y]
-#   -y    Skip confirmation prompts (auto-confirm deletions)
+# Usage: ./setup.sh [-y] [--without-bridge-server]
+#   -y                      Skip confirmation prompts (auto-confirm deletions)
+#   --without-bridge-server Skip starting the bridge server at the end
 #
 # Steps:
 #   1. Kill existing starcoin processes
 #   2. Start Starcoin dev node (background)
 #   3. Setup ETH network + config (auto-confirm)
 #   4. Deploy Move contracts
-#   5. Start Bridge server (foreground, blocking)
+#   5. Start Bridge server (foreground, blocking) - optional
 # ============================================================
 #
 # ⚠️  ATTENTION: Set these environment variables before running!
@@ -23,18 +24,31 @@
 #   export STARCOIN_PATH=~/starcoin-vm1/target/debug/starcoin
 #   export STARCOIN_DATA_DIR=/tmp
 #   export MPM_PATH=~/starcoin-vm1/target/debug/mpm
-#   ./setup.sh        # Interactive mode (asks for confirmation)
-#   ./setup.sh -y     # Auto-confirm mode (no prompts)
+#   ./setup.sh                        # Interactive mode (asks for confirmation)
+#   ./setup.sh -y                     # Auto-confirm mode (no prompts)
+#   ./setup.sh -y --without-bridge-server  # Setup only, no bridge server
 # ============================================================
 
 set -e
 
 # Parse arguments
 FORCE_YES=0
-while getopts "y" opt; do
-    case $opt in
-        y) FORCE_YES=1 ;;
-        *) echo "Usage: $0 [-y]"; exit 1 ;;
+WITHOUT_BRIDGE_SERVER=0
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -y)
+            FORCE_YES=1
+            shift
+            ;;
+        --without-bridge-server)
+            WITHOUT_BRIDGE_SERVER=1
+            shift
+            ;;
+        *)
+            echo "Usage: $0 [-y] [--without-bridge-server]"
+            exit 1
+            ;;
     esac
 done
 
@@ -243,6 +257,21 @@ echo ""
 # ============================================================
 # Step 4: Start Bridge Server (Foreground - Blocking)
 # ============================================================
+if [ "$WITHOUT_BRIDGE_SERVER" = "1" ]; then
+    echo -e "${GREEN}╔════════════════════════════════════════╗${NC}"
+    echo -e "${GREEN}║  ✅ Setup Complete!                    ║${NC}"
+    echo -e "${GREEN}╚════════════════════════════════════════╝${NC}"
+    echo ""
+    echo -e "${YELLOW}Environment is ready. Bridge server was not started.${NC}"
+    echo -e "${YELLOW}To start the bridge server manually:${NC}"
+    echo -e "  ${GREEN}make run-bridge-server${NC}"
+    echo ""
+    echo -e "${YELLOW}Services running:${NC}"
+    echo -e "  • Anvil (ETH): http://127.0.0.1:8545"
+    echo -e "  • Starcoin:    $STARCOIN_RPC"
+    exit 0
+fi
+
 echo -e "${YELLOW}Step 4: Starting Bridge server (foreground)...${NC}"
 echo -e "${BLUE}Press Ctrl+C to stop the bridge server${NC}"
 echo ""

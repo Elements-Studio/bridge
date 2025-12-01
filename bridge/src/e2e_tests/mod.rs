@@ -5,5 +5,9 @@
 mod basic;
 #[cfg(test)]
 mod complex;
-*/
+
 pub mod test_utils;
+*/
+
+#[cfg(test)]
+mod local_env_tests;
