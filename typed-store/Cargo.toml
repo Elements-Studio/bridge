@@ -45,3 +45,4 @@ once_cell = "1.18.0"
 rstest = "0.16.0"
 rand = "0.8.5"
 uint = "0.9.4"
+tokio = { workspace = true, features = ["test-util"] }

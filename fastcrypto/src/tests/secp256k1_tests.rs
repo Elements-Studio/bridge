@@ -27,7 +27,7 @@ use crate::{
     encoding::{Encoding, Hex},
     hash::{HashFunction, Sha256},
     secp256k1::{Secp256k1KeyPair, Secp256k1PrivateKey, Secp256k1PublicKey, Secp256k1Signature},
-    signature_service::SignatureService,
+    // signature_service::SignatureService, // Removed in minimal bridge version
     test_helpers,
     traits::{EncodeDecodeBase64, KeyPair, ToFromBytes, VerifyingKey},
 };
@@ -410,6 +410,8 @@ fn fail_to_verify_if_upper_s() {
         .is_ok());
 }
 
+// SignatureService removed in minimal bridge version
+/*
 #[tokio::test]
 async fn signature_service() {
     // Get a keypair.
@@ -427,6 +429,7 @@ async fn signature_service() {
     // Verify the signature we received.
     assert!(pk.verify(digest.as_ref(), &signature).is_ok());
 }
+*/
 
 #[test]
 fn test_sk_zeroization_on_drop() {

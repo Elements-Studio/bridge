@@ -18,7 +18,7 @@ rand = { version = "0.8.5", features = ["std"] }
 rust_secp256k1 = { version = "0.27.0", package = "secp256k1", features = ["recovery", "rand-std", "bitcoin_hashes", "global-context"] }
 serde = { version = "1.0.152", features = ["derive"] }
 serde_with = { version = "3", default-features = false, features = ["alloc", "macros"] }
-signature = { version = "2.0.0" }
+signature = { version = "2.0.0", features = ["rand_core"] }
 tokio = { version = "1.24.1", features = ["sync", "rt", "macros"] }
 generic-array = { version = "0.14.6", features = ["serde"] }
 typenum = "1.16.0"

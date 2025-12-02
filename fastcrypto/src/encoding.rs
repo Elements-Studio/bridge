@@ -141,10 +141,10 @@ impl_serde_as_for_encoding!(Hex);
 
 impl Hex {
     // Create a hex encoding from a string.
-    /*#[cfg(test)]
+    #[cfg(test)]
     pub fn from_string(s: &str) -> Self {
         Hex(s.to_string())
-    }*/
+    }
     // Decodes this hex encoding to bytes.
     pub fn to_vec(&self) -> FastCryptoResult<Vec<u8>> {
         Self::decode(&self.0)

@@ -3,9 +3,10 @@
 
 use crate::encoding::{Base64, Encoding};
 use crate::hash::{
-    Blake2b256, Digest, EllipticCurveMultisetHash, HashFunction, Keccak256, MultisetHash, Sha256,
+    Blake2b256, Digest, HashFunction, Keccak256, Sha256,
     Sha3_256, Sha3_512, Sha512,
 };
+// EllipticCurveMultisetHash and MultisetHash removed in minimal bridge version
 use std::io::Write;
 
 #[test]
@@ -137,6 +138,8 @@ fn test_blake2b_256() {
     );
 }
 
+// EllipticCurveMultisetHash removed in minimal bridge version (requires Ristretto255)
+/*
 #[test]
 fn test_accumulator() {
     let mut accumulator = EllipticCurveMultisetHash::default();
@@ -197,6 +200,7 @@ fn test_accumulator() {
         hex::decode("66687aadf862bd776c8fc18b8e9f8e20089714856ee233b3902a591d0d5f2925").unwrap()
     );
 }
+*/
 
 #[test]
 fn test_digest_debug() {
@@ -204,6 +208,8 @@ fn test_digest_debug() {
     assert_eq!(format!("{:?}", digest), Base64::encode(digest.as_ref()));
 }
 
+// EllipticCurveMultisetHash removed in minimal bridge version
+/*
 #[test]
 fn test_accumulator_debug() {
     assert_eq!(
@@ -211,3 +217,4 @@ fn test_accumulator_debug() {
         "Accumulator"
     );
 }
+*/

@@ -13,7 +13,7 @@ use crate::{
     encoding::Base64,
     hash::{HashFunction, Sha256, Sha3_256},
     hmac::hkdf_generate_from_ikm,
-    signature_service::SignatureService,
+    // signature_service::SignatureService, // Removed in minimal bridge version
     test_helpers,
     traits::{AggregateAuthenticator, EncodeDecodeBase64, KeyPair, ToFromBytes, VerifyingKey},
 };
@@ -706,6 +706,8 @@ fn public_key_ordering() {
     );
 }
 
+// SignatureService removed in minimal bridge version
+/*
 #[tokio::test]
 async fn signature_service() {
     // Get a keypair.
@@ -723,6 +725,7 @@ async fn signature_service() {
     // Verify the signature we received.
     assert!(pk.verify(digest.as_ref(), &signature).is_ok());
 }
+*/
 
 // Checks if the private keys zeroed out
 #[test]
