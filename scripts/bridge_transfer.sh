@@ -11,7 +11,7 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-BRIDGE_DIR="/Volumes/SSD/chidanta/bridge"
+BRIDGE_DIR="$(pwd)"
 STARCOIN_RPC="http://localhost:9850"
 ETH_RPC="http://localhost:8545"
 POLL_INTERVAL=3
