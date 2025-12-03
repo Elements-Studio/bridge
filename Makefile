@@ -5,7 +5,7 @@
 # Prerequisites: Foundry (anvil, forge, cast), Rust, Starcoin CLI, mpm
 # ============================================================
 
-.PHONY: help deploy-eth-network deploy-native deploy-docker start stop restart logs clean info test init-bridge-config deploy-sui register test-bridge stop-eth-network clean-eth-and-config setup-eth-and-config status logs-deployer start-starcoin-dev-node start-starcoin-dev-node-clean run-bridge-server build-starcoin-contracts deploy-starcoin-contracts stop-starcoin-dev-node build-bridge-cli view-bridge deposit-eth deposit-eth-test withdraw-to-eth withdraw-to-eth-test init-cli-config fund-starcoin-bridge-account
+.PHONY: help deploy-eth-network deploy-native deploy-docker start stop restart logs clean info test init-bridge-config deploy-sui register test-bridge stop-eth-network clean-eth-and-config setup-eth-and-config status logs-deployer start-starcoin-dev-node start-starcoin-dev-node-clean run-bridge-server build-starcoin-contracts deploy-starcoin-contracts stop-starcoin-dev-node build-bridge-cli view-bridge deposit-eth deposit-eth-test withdraw-to-eth withdraw-to-eth-test init-cli-config fund-starcoin-bridge-account stop-all
 
 # ============================================================
 # Colors for terminal output
@@ -129,7 +129,7 @@ restart-anvil: ## Restart Anvil with clean state (like docker-compose down -v &&
 
 deploy-eth-contracts: start-anvil ## Deploy ETH contracts using local forge
 	@echo "$(YELLOW)Deploying ETH contracts...$(NC)"
-	@cd contracts/evm && forge script script/deploy_bridge.s.sol \
+	@cd contracts/evm && PRIVATE_KEY=$(ANVIL_PRIVATE_KEY) forge script script/deploy_bridge.s.sol \
 		--rpc-url $(ETH_RPC_URL) \
 		--private-key $(ANVIL_PRIVATE_KEY) \
 		--broadcast \
@@ -242,7 +242,7 @@ setup-eth-and-config: ## Complete ETH setup (clean + deploy + generate config). 
 	@$(MAKE) restart-anvil
 	# Deploy contracts with forge
 	@echo "   Deploying contracts..."
-	@cd contracts/evm && forge script script/deploy_bridge.s.sol \
+	@cd contracts/evm && PRIVATE_KEY=$(ANVIL_PRIVATE_KEY) forge script script/deploy_bridge.s.sol \
 		--rpc-url $(ETH_RPC_URL) \
 		--private-key $(ANVIL_PRIVATE_KEY) \
 		--broadcast \
@@ -445,7 +445,28 @@ start-starcoin-dev-node: ## Start Starcoin dev node with existing data (resume m
 stop-starcoin-dev-node: ## Stop Starcoin dev node processes
 	@echo "$(YELLOW)Stopping Starcoin dev node...$(NC)"
 	@pkill -f "starcoin.*dev.*console" 2>/dev/null || true
+	@pkill -f "starcoin.*-n dev" 2>/dev/null || true
 	@echo "$(GREEN)✓ Starcoin node stopped$(NC)"
+
+stop-all: ## Stop all nodes (Starcoin, Anvil, Bridge server)
+	@echo "$(YELLOW)╔════════════════════════════════════════╗$(NC)"
+	@echo "$(YELLOW)║  Stopping All Bridge Nodes             ║$(NC)"
+	@echo "$(YELLOW)╚════════════════════════════════════════╝$(NC)"
+	@echo ""
+	@echo "$(BLUE)[1/3] Stopping Bridge Server...$(NC)"
+	@pkill -9 -f "starcoin-bridge" 2>/dev/null && echo "$(GREEN)✓ Bridge server stopped$(NC)" || echo "$(YELLOW)⚠ Bridge server not running$(NC)"
+	@echo ""
+	@echo "$(BLUE)[2/3] Stopping Anvil (ETH node)...$(NC)"
+	@$(MAKE) stop-anvil 2>/dev/null || true
+	@echo ""
+	@echo "$(BLUE)[3/3] Stopping Starcoin dev node...$(NC)"
+	@$(MAKE) stop-starcoin-dev-node 2>/dev/null || true
+	@echo ""
+	@echo "$(GREEN)╔════════════════════════════════════════╗$(NC)"
+	@echo "$(GREEN)║  ✅ All Nodes Stopped                  ║$(NC)"
+	@echo "$(GREEN)╚════════════════════════════════════════╝$(NC)"
+	@echo ""
+	@echo "$(YELLOW)Or use the script: ./scripts/stop-all.sh$(NC)"
 
 # ============================================================
 # Move Contracts Build & Deploy
@@ -783,19 +804,33 @@ run-bridge-server: ## Start bridge server (requires ETH network + Starcoin node 
 		exit 1; \
 	fi
 	@echo "$(GREEN)✓ ETH node running$(NC)"
+	@if ! $(STARCOIN_PATH) -c $(STARCOIN_RPC) chain info >/dev/null 2>&1; then \
+		echo "$(RED)✗ Starcoin node not running or unreachable$(NC)"; \
+		echo "$(YELLOW)Run: make start-starcoin-dev-node or check STARCOIN_RPC=$(STARCOIN_RPC)$(NC)"; \
+		exit 1; \
+	fi
+	@echo "$(GREEN)✓ Starcoin node running$(NC)"
 	# Always rebuild bridge binary to use latest code
 	@echo "$(YELLOW)Building bridge binary...$(NC)"
-	@cargo build --bin starcoin-bridge --quiet
+	@cargo build --bin starcoin-bridge --bin starcoin-bridge-cli --quiet
 	@echo "$(GREEN)✓ Bridge binary built$(NC)"
+	# Ensure bridge client account is initialized on Starcoin
+	@echo "$(YELLOW)Ensuring bridge client account is initialized...$(NC)"
+	@$(MAKE) fund-starcoin-bridge-account 2>&1 | grep -E "Bridge account|Funded|Funding|STC|✓|✗" || true
 	@echo ""
 	# Show configuration summary
 	@echo "$(YELLOW)Bridge Configuration:$(NC)"
 	@ETH_ADDR=$$(grep "Ethereum address:" bridge-config/server-config.yaml | awk '{print $$4}' || echo "N/A"); \
 	ETH_PROXY=$$(grep "eth-bridge-proxy-address:" bridge-config/server-config.yaml | awk '{print $$2}'); \
+	STARCOIN_CLIENT_KEY=$$(grep "bridge-client-key-path:" bridge-config/server-config.yaml | awk '{print $$2}'); \
+	if [ -f "$$STARCOIN_CLIENT_KEY" ]; then \
+		STARCOIN_CLIENT_ADDR=$$(./target/debug/starcoin-bridge-cli examine-key "$$STARCOIN_CLIENT_KEY" 2>/dev/null | grep "Starcoin address:" | awk '{print $$NF}' || echo "N/A"); \
+		echo "  Bridge Client Starcoin Address: $$STARCOIN_CLIENT_ADDR"; \
+	fi; \
 	echo "  Bridge Authority ETH Address: $$ETH_ADDR"; \
 	echo "  ETH Proxy Contract: $$ETH_PROXY"; \
 	echo "  ETH RPC: http://localhost:8545"; \
-	echo "  Starcoin RPC: ws://127.0.0.1:9870"
+	echo "  Starcoin RPC: $(STARCOIN_RPC)"
 	@echo ""
 	# Start bridge server with logging
 	@echo "$(GREEN)Starting bridge server...$(NC)"
