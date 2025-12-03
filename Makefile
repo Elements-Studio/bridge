@@ -42,10 +42,8 @@ endef
 # ============================================================
 # Configuration Variables (override with env vars)
 # ============================================================
-# Parent directory for dev node
-STARCOIN_DEV_PARENT_DIR ?= /tmp
 # Dev node data directory
-STARCOIN_DEV_DIR ?= $(STARCOIN_DEV_PARENT_DIR)/dev
+STARCOIN_DEV_DIR ?= $(STARCOIN_DATA_DIR)/dev
 # IPC socket for RPC
 STARCOIN_RPC ?= $(STARCOIN_DEV_DIR)/starcoin.ipc
 # Account vaults directory
@@ -440,7 +438,7 @@ start-starcoin-dev-node: ## Start Starcoin dev node with existing data (resume m
 	fi
 	@echo "$(YELLOW)Starting Starcoin console...$(NC)"
 	@echo "$(YELLOW)Using: $(STARCOIN_PATH)$(NC)"
-	@$(STARCOIN_PATH) -n dev -d $(STARCOIN_DEV_PARENT_DIR) console
+	@$(STARCOIN_PATH) -n dev -d $(STARCOIN_DATA_DIR) console
 
 stop-starcoin-dev-node: ## Stop Starcoin dev node processes
 	@echo "$(YELLOW)Stopping Starcoin dev node...$(NC)"
