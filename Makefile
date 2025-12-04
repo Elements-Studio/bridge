@@ -43,17 +43,13 @@ endef
 # Configuration Variables (override with env vars)
 # ============================================================
 # Parent directory for dev node
-STARCOIN_DEV_PARENT_DIR ?= /tmp
+STARCOIN_DATA_DIR ?= /tmp
 # Dev node data directory
-STARCOIN_DEV_DIR ?= $(STARCOIN_DEV_PARENT_DIR)/dev
+STARCOIN_DEV_DIR = $(STARCOIN_DATA_DIR)/dev
 # IPC socket for RPC
-STARCOIN_RPC ?= $(STARCOIN_DEV_DIR)/starcoin.ipc
-# Account vaults directory
-STARCOIN_ACCOUNT_DIR ?= $(STARCOIN_DEV_DIR)/account_vaults
+STARCOIN_RPC = $(STARCOIN_DEV_DIR)/starcoin.ipc
 # Move contracts location
 MOVE_CONTRACT_DIR ?= ../stc-bridge-move
-# Deployed bridge address
-BRIDGE_ADDRESS ?= 0x246b237c16c761e9478783dd83f7004a
 
 # ============================================================
 # Help & Documentation
@@ -66,7 +62,6 @@ help: ## Show this help message
 	@echo '  MPM_PATH             Path to mpm binary (default: mpm)'
 	@echo '  STARCOIN_RPC         Starcoin RPC URL (default: ws://127.0.0.1:9870)'
 	@echo '  MOVE_CONTRACT_DIR    Move contracts directory (default: ../stc-bridge-move)'
-	@echo '  BRIDGE_ADDRESS       Bridge contract address (default: 0x246b237c16c761e9478783dd83f7004a)'
 	@echo ''
 	@echo '$(YELLOW)Available targets:$(NC)'
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-25s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -444,7 +439,7 @@ start-starcoin-dev-node: ## Start Starcoin dev node with existing data (resume m
 	fi
 	@echo "$(YELLOW)Starting Starcoin console...$(NC)"
 	@echo "$(YELLOW)Using: $(STARCOIN_PATH)$(NC)"
-	@$(STARCOIN_PATH) -n dev -d $(STARCOIN_DEV_PARENT_DIR) console
+	@$(STARCOIN_PATH) -n dev -d $(STARCOIN_DATA_DIR) console
 
 stop-starcoin-dev-node: ## Stop Starcoin dev node processes
 	@echo "$(YELLOW)Stopping Starcoin dev node...$(NC)"
