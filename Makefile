@@ -13,7 +13,25 @@
 GREEN  := \033[0;32m
 YELLOW := \033[1;33m
 RED    := \033[0;31m
+BLUE   := \033[0;34m
 NC     := \033[0m # No Color
+
+# ============================================================
+# Debug Command Execution Helper
+# Usage: $(call debug_exec,command_description,actual_command)
+# ============================================================
+define debug_exec
+	@echo "$(BLUE)[DEBUG] Executing:$(NC)" >&2; \
+	echo "  $(2)" >&2; \
+	OUTPUT=$$($(2) 2>&1); \
+	EXIT_CODE=$$?; \
+	echo "$(BLUE)[DEBUG] Response:$(NC)" >&2; \
+	echo "$$OUTPUT" >&2; \
+	if [ $$EXIT_CODE -ne 0 ]; then \
+		echo "$(YELLOW)⚠ Command exited with code $$EXIT_CODE$(NC)" >&2; \
+	fi; \
+	exit $$EXIT_CODE
+endef
 
 # ============================================================
 # Safe Delete Function - Requires user confirmation (unless FORCE_YES=1)
@@ -871,9 +889,13 @@ fund-eth-account: ## Fund ETH account from Anvil default account
 		exit 1; \
 	fi; \
 	echo "$(YELLOW)Funding $$ETH_ADDRESS with 100 ETH...$(NC)"; \
-	cast send $$ETH_ADDRESS --value 100ether --private-key $(ANVIL_PRIVATE_KEY) --rpc-url $(ETH_RPC_URL) > /dev/null 2>&1 && \
-	echo "$(GREEN)✓ Funded 100 ETH to $$ETH_ADDRESS$(NC)" || \
-	echo "$(YELLOW)⚠ Funding failed (may already have balance)$(NC)"
+	echo "$(BLUE)[DEBUG] Executing:$(NC)"; \
+	echo "  cast send $$ETH_ADDRESS --value 100ether --private-key $(ANVIL_PRIVATE_KEY) --rpc-url $(ETH_RPC_URL)"; \
+	if cast send $$ETH_ADDRESS --value 100ether --private-key $(ANVIL_PRIVATE_KEY) --rpc-url $(ETH_RPC_URL) 2>&1 | tee /tmp/cast_send.log; then \
+		echo "$(GREEN)✓ Funded 100 ETH to $$ETH_ADDRESS$(NC)"; \
+	else \
+		echo "$(YELLOW)⚠ Funding failed (may already have balance)$(NC)"; \
+	fi
 
 # Deposit ETH to Starcoin (ETH -> Starcoin)
 # AMOUNT: in ETH (e.g., 0.1)
@@ -891,25 +913,23 @@ deposit-eth-core: build-bridge-cli
 	@RECIPIENT=$$($(BRIDGE_CLI) examine-key bridge-node/server-config/bridge_client.key 2>/dev/null | grep "Starcoin address:" | awk '{print $$NF}'); \
 	if [ -n "$$RECIPIENT" ]; then \
 		echo "$(YELLOW)Ensuring recipient account exists: $$RECIPIENT$(NC)"; \
-		$(STARCOIN_PATH) -c $(STARCOIN_RPC) dev get-coin -v 1000000 $$RECIPIENT 2>&1 | grep -v "^[0-9].*INFO" || true; \
-	fi
-	@# Fund recipient account with STC so it exists on chain (required for token transfer)
-	@RECIPIENT=$$($(BRIDGE_CLI) examine-key bridge-node/server-config/bridge_client.key 2>/dev/null | grep "Starcoin address:" | awk '{print $$NF}'); \
-	if [ -n "$$RECIPIENT" ]; then \
-		echo "$(YELLOW)Ensuring recipient account exists: $$RECIPIENT$(NC)"; \
+		echo "$(BLUE)[DEBUG] Executing:$(NC)"; \
+		echo "  $(STARCOIN_PATH) -c $(STARCOIN_RPC) dev get-coin -v 1000000 $$RECIPIENT"; \
 		$(STARCOIN_PATH) -c $(STARCOIN_RPC) dev get-coin -v 1000000 $$RECIPIENT 2>&1 | grep -v "^[0-9].*INFO" || true; \
 	fi
 	@RECIPIENT=$$($(BRIDGE_CLI) examine-key bridge-node/server-config/bridge_client.key 2>/dev/null | grep "Starcoin address:" | awk '{print $$NF}'); \
 	AMOUNT_VAL=$${AMOUNT:-0.1}; \
 	echo "$(YELLOW)Depositing $$AMOUNT_VAL ETH to Starcoin...$(NC)"; \
 	echo "$(YELLOW)Recipient: $$RECIPIENT$(NC)"; \
+	echo "$(BLUE)[DEBUG] Executing:$(NC)"; \
+	echo "  $(BRIDGE_CLI) client --config-path $(CLI_CONFIG) deposit-native-ether-on-eth --ether-amount $$AMOUNT_VAL --target-chain 2 --starcoin-bridge-recipient-address $$RECIPIENT"; \
 	NO_PROXY=localhost,127.0.0.1 $(BRIDGE_CLI) client \
 		--config-path $(CLI_CONFIG) \
 		deposit-native-ether-on-eth \
 		--ether-amount $$AMOUNT_VAL \
 		--target-chain 2 \
-		--starcoin-bridge-recipient-address $$RECIPIENT
-	@echo "$(GREEN)✓ Deposit transaction submitted$(NC)"
+		--starcoin-bridge-recipient-address $$RECIPIENT; \
+	echo "$(GREEN)✓ Deposit transaction submitted$(NC)"
 
 # Fund the bridge server's Starcoin account with STC for gas
 fund-starcoin-bridge-account: build-bridge-cli ## Fund the bridge server account with STC for gas fees
@@ -925,9 +945,13 @@ fund-starcoin-bridge-account: build-bridge-cli ## Fund the bridge server account
 	fi; \
 	echo "$(YELLOW)Bridge account: $$BRIDGE_ACCOUNT$(NC)"; \
 	echo "$(YELLOW)Getting STC for bridge account...$(NC)"; \
-	$(STARCOIN_PATH) -c $(STARCOIN_RPC) dev get-coin -v 10000000 $$BRIDGE_ACCOUNT 2>&1 | grep -v "^[0-9].*INFO" && \
-	echo "$(GREEN)✓ Funded bridge account for account initialization$(NC)" || \
-	echo "$(YELLOW)⚠ Funding may have failed (account might already have balance)$(NC)"
+	echo "$(BLUE)[DEBUG] Executing:$(NC)"; \
+	echo "  $(STARCOIN_PATH) -c $(STARCOIN_RPC) dev get-coin -v 10000000 $$BRIDGE_ACCOUNT"; \
+	if $(STARCOIN_PATH) -c $(STARCOIN_RPC) dev get-coin -v 10000000 $$BRIDGE_ACCOUNT 2>&1 | grep -v "^[0-9].*INFO"; then \
+		echo "$(GREEN)✓ Funded bridge account for account initialization$(NC)"; \
+	else \
+		echo "$(YELLOW)⚠ Funding may have failed (account might already have balance)$(NC)"; \
+	fi
 
 # Quick deposit test with default amount (ETH -> Starcoin)
 deposit-eth-test: build-bridge-cli fund-eth-account fund-starcoin-bridge-account ## Quick test: deposit 0.1 ETH to Starcoin
@@ -946,14 +970,16 @@ withdraw-to-eth: build-bridge-cli init-cli-config ## Withdraw tokens from Starco
 	echo "$(YELLOW)Withdrawing $$AMOUNT_VAL $$TOKEN_VAL to ETH...$(NC)"; \
 	echo "$(YELLOW)Coin type: $$COIN_TYPE$(NC)"; \
 	echo "$(YELLOW)ETH Recipient: $$ETH_RECIPIENT$(NC)"; \
+	echo "$(BLUE)[DEBUG] Executing:$(NC)"; \
+	echo "  $(BRIDGE_CLI) client --config-path $(CLI_CONFIG) deposit-on-starcoin --amount $$AMOUNT_VAL --coin-type $$COIN_TYPE --target-chain 12 --recipient-address $$ETH_RECIPIENT"; \
 	NO_PROXY=localhost,127.0.0.1 $(BRIDGE_CLI) client \
 		--config-path $(CLI_CONFIG) \
 		deposit-on-starcoin \
 		--amount $$AMOUNT_VAL \
 		--coin-type "$$COIN_TYPE" \
 		--target-chain 12 \
-		--recipient-address $$ETH_RECIPIENT
-	@echo "$(GREEN)✓ Withdraw transaction submitted$(NC)"
+		--recipient-address $$ETH_RECIPIENT; \
+	echo "$(GREEN)✓ Withdraw transaction submitted$(NC)"
 
 # Quick withdraw test with default amount
 withdraw-to-eth-test: build-bridge-cli ## Quick test: withdraw 0.01 ETH from Starcoin to ETH

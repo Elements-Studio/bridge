@@ -71,9 +71,14 @@ get_starcoin_balances() {
     echo -e "${BLUE}=== Starcoin Token Balances for $addr ===${NC}"
     
     # Get all resources
-    local resources=$(curl -s -X POST -H "Content-Type: application/json" \
-        -d "{\"jsonrpc\":\"2.0\",\"method\":\"state.list_resource\",\"params\":[\"$addr\",{\"decode\":true}],\"id\":1}" \
-        "$STARCOIN_RPC" | jq -r '.result.resources // {}')
+    local request="{\"jsonrpc\":\"2.0\",\"method\":\"state.list_resource\",\"params\":[\"$addr\",{\"decode\":true}],\"id\":1}"
+    echo -e "${BLUE}[DEBUG] Executing: curl -s -X POST $STARCOIN_RPC -H 'Content-Type: application/json' -d '$request'${NC}"
+    
+    local result=$(curl -s -X POST -H "Content-Type: application/json" \
+        -d "$request" \
+        "$STARCOIN_RPC" | tee >(cat >&2))
+    
+    local resources=$(echo "$result" | jq -r '.result.resources // {}')
     
     # Parse STC balance
     local stc_balance=$(echo "$resources" | jq -r '.["0x00000000000000000000000000000001::Account::Balance<0x00000000000000000000000000000001::STC::STC>"]?.json?.token?.value // "0"')
@@ -104,19 +109,11 @@ get_bridge_token_balance() {
     local resource_type="0x00000000000000000000000000000001::Account::Balance<${bridge_addr}::${token}::${token}>"
     local request="{\"jsonrpc\":\"2.0\",\"method\":\"state.get_resource\",\"params\":[\"$addr\",\"$resource_type\",{\"decode\":true}],\"id\":1}"
     
-    echo -e "${BLUE}[DEBUG] Starcoin wETH Balance Query:${NC}" >&2
-    echo -e "  curl -s -X POST -H 'Content-Type: application/json' \\" >&2
-    echo -e "    -d '$request' \\" >&2
-    echo -e "    $STARCOIN_RPC" >&2
+    echo -e "${BLUE}[DEBUG] Executing: curl -s -X POST $STARCOIN_RPC -H 'Content-Type: application/json' -d '$request'${NC}" >&2
     
-    local result=$(curl -s -X POST -H "Content-Type: application/json" \
+    curl -s -X POST -H "Content-Type: application/json" \
         -d "$request" \
-        "$STARCOIN_RPC")
-    
-    echo -e "${BLUE}[DEBUG] Response:${NC}" >&2
-    echo "$result" | jq '.' >&2
-    
-    echo "$result" | jq -r '.result.json.token.value // "0"'
+        "$STARCOIN_RPC" | tee >(cat >&2) | jq -r '.result.json.token.value // "0"'
 }
 
 # Get ETH token balances
@@ -125,9 +122,14 @@ get_eth_balances() {
     echo -e "${BLUE}=== ETH Balances for $addr ===${NC}"
     
     # Get ETH balance using python for big number handling
-    local eth_balance_hex=$(curl -s -X POST -H "Content-Type: application/json" \
-        -d "{\"jsonrpc\":\"2.0\",\"method\":\"eth_getBalance\",\"params\":[\"$addr\",\"latest\"],\"id\":1}" \
-        "$ETH_RPC" | jq -r '.result // "0x0"')
+    local request="{\"jsonrpc\":\"2.0\",\"method\":\"eth_getBalance\",\"params\":[\"$addr\",\"latest\"],\"id\":1}"
+    echo -e "${BLUE}[DEBUG] Executing: curl -s -X POST $ETH_RPC -H 'Content-Type: application/json' -d '$request'${NC}"
+    
+    local result=$(curl -s -X POST -H "Content-Type: application/json" \
+        -d "$request" \
+        "$ETH_RPC" | tee >(cat >&2))
+    
+    local eth_balance_hex=$(echo "$result" | jq -r '.result // "0x0"')
     
     local eth_balance=$(python3 -c "print(f'{int(\"$eth_balance_hex\", 16) / 1e18:.6f}')" 2>/dev/null || echo "0")
     echo -e "  ETH: ${GREEN}${eth_balance} ETH${NC}"
@@ -135,10 +137,12 @@ get_eth_balances() {
 
 # Get latest Starcoin transaction status
 get_latest_stc_tx_status() {
-    local result=$(curl -s -X POST -H "Content-Type: application/json" \
-        -d '{"jsonrpc":"2.0","method":"chain.info","params":[],"id":1}' \
-        "$STARCOIN_RPC")
-    echo "$result" | jq -r '.result.head.number // "0"'
+    local request='{"jsonrpc":"2.0","method":"chain.info","params":[],"id":1}'
+    echo -e "${BLUE}[DEBUG] Executing: curl -s -X POST $STARCOIN_RPC -H 'Content-Type: application/json' -d '$request'${NC}" >&2
+    
+    curl -s -X POST -H "Content-Type: application/json" \
+        -d "$request" \
+        "$STARCOIN_RPC" | tee >(cat >&2) | jq -r '.result.head.number // "0"'
 }
 
 # Check bridge transfer record
@@ -151,9 +155,12 @@ check_bridge_record() {
         return 1
     fi
     
+    local request="{\"jsonrpc\":\"2.0\",\"method\":\"state.get_resource\",\"params\":[\"$bridge_addr\",\"${bridge_addr}::Bridge::Bridge\",{\"decode\":true}],\"id\":1}"
+    echo -e "${BLUE}[DEBUG] Executing: curl -s -X POST $STARCOIN_RPC -H 'Content-Type: application/json' -d '$request'${NC}" >&2
+    
     local result=$(curl -s -X POST -H "Content-Type: application/json" \
-        -d "{\"jsonrpc\":\"2.0\",\"method\":\"state.get_resource\",\"params\":[\"$bridge_addr\",\"${bridge_addr}::Bridge::Bridge\",{\"decode\":true}],\"id\":1}" \
-        "$STARCOIN_RPC")
+        -d "$request" \
+        "$STARCOIN_RPC" | tee >(cat >&2))
     
     local record=$(echo "$result" | jq -r ".result.json.inner.token_transfer_records.data[] | select(.key.source_chain == $source_chain and .key.bridge_seq_num == $seq_num)")
     
@@ -259,16 +266,11 @@ main() {
         local initial_eth_balance=$(get_bridge_token_balance "$stc_addr" "ETH")
         local initial_eth_balance_eth=$(python3 -c "print(f'{$initial_eth_balance / 1e8:g}')" 2>/dev/null || echo "0")
         
-        echo -e "${BLUE}[DEBUG] ETH Wallet Balance Query:${NC}"
         local eth_request="{\"jsonrpc\":\"2.0\",\"method\":\"eth_getBalance\",\"params\":[\"$eth_addr\",\"latest\"],\"id\":1}"
-        echo -e "  curl -s -X POST -H 'Content-Type: application/json' \\" 
-        echo -e "    -d '$eth_request' \\" 
-        echo -e "    $ETH_RPC" 
+        echo -e "${BLUE}[DEBUG] Executing: curl -s -X POST $ETH_RPC -H 'Content-Type: application/json' -d '$eth_request'${NC}" 
         local initial_eth_wallet=$(curl -s -X POST -H "Content-Type: application/json" \
             -d "$eth_request" \
-            "$ETH_RPC")
-        echo -e "${BLUE}[DEBUG] Response:${NC}"
-        echo "$initial_eth_wallet" | jq '.'
+            "$ETH_RPC" | tee >(cat >&2))
         initial_eth_wallet=$(echo "$initial_eth_wallet" | jq -r '.result // "0x0"')
         local eth_before=$(python3 -c "print(f'{int(\"$initial_eth_wallet\", 16) / 1e18:g}')" 2>/dev/null || echo "0")
         
@@ -290,11 +292,16 @@ main() {
         echo ""
         
         # Record initial balances AFTER funding
+        echo -e "${BLUE}[DEBUG] Getting Starcoin wETH balance...${NC}"
         local initial_eth_balance=$(get_bridge_token_balance "$stc_addr" "ETH")
         local initial_eth_balance_eth=$(python3 -c "print(f'{$initial_eth_balance / 1e8:g}')" 2>/dev/null || echo "0")
+        
+        local eth_request="{\"jsonrpc\":\"2.0\",\"method\":\"eth_getBalance\",\"params\":[\"$eth_addr\",\"latest\"],\"id\":1}"
+        echo -e "${BLUE}[DEBUG] Executing: curl -s -X POST $ETH_RPC -H 'Content-Type: application/json' -d '$eth_request'${NC}"
         local initial_eth_wallet=$(curl -s -X POST -H "Content-Type: application/json" \
-            -d "{\"jsonrpc\":\"2.0\",\"method\":\"eth_getBalance\",\"params\":[\"$eth_addr\",\"latest\"],\"id\":1}" \
-            "$ETH_RPC" | jq -r '.result // "0x0"')
+            -d "$eth_request" \
+            "$ETH_RPC" | tee >(cat >&2))
+        initial_eth_wallet=$(echo "$initial_eth_wallet" | jq -r '.result // "0x0"')
         local eth_before=$(python3 -c "print(f'{int(\"$initial_eth_wallet\", 16) / 1e18:g}')" 2>/dev/null || echo "0")
         
         echo -e "${BLUE}=== Before Transfer ===${NC}"
@@ -324,14 +331,10 @@ main() {
             
             echo -e "${BLUE}[DEBUG] Getting final ETH Wallet balance...${NC}"
             local eth_request="{\"jsonrpc\":\"2.0\",\"method\":\"eth_getBalance\",\"params\":[\"$eth_addr\",\"latest\"],\"id\":1}"
-            echo -e "  curl -s -X POST -H 'Content-Type: application/json' \\" 
-            echo -e "    -d '$eth_request' \\" 
-            echo -e "    $ETH_RPC" 
+            echo -e "${BLUE}[DEBUG] Executing: curl -s -X POST $ETH_RPC -H 'Content-Type: application/json' -d '$eth_request'${NC}" 
             local final_eth_wallet=$(curl -s -X POST -H "Content-Type: application/json" \
                 -d "$eth_request" \
-                "$ETH_RPC")
-            echo -e "${BLUE}[DEBUG] Response:${NC}"
-            echo "$final_eth_wallet" | jq '.'
+                "$ETH_RPC" | tee >(cat >&2))
             final_eth_wallet=$(echo "$final_eth_wallet" | jq -r '.result // "0x0"')
             local eth_after=$(python3 -c "print(f'{int(\"$final_eth_wallet\", 16) / 1e18:g}')" 2>/dev/null || echo "0")
             
@@ -350,11 +353,17 @@ main() {
             echo -e "${YELLOW}[5/5] Starcoin approve complete!${NC}"
             
             # Get final balances
+            echo -e "${BLUE}[DEBUG] Getting final Starcoin wETH balance...${NC}"
             local final_eth_balance=$(get_bridge_token_balance "$stc_addr" "ETH")
             local final_eth_balance_eth=$(python3 -c "print(f'{$final_eth_balance / 1e8:g}')" 2>/dev/null || echo "0")
+            
+            echo -e "${BLUE}[DEBUG] Getting final ETH Wallet balance...${NC}"
+            local eth_request="{\"jsonrpc\":\"2.0\",\"method\":\"eth_getBalance\",\"params\":[\"$eth_addr\",\"latest\"],\"id\":1}"
+            echo -e "${BLUE}[DEBUG] Executing: curl -s -X POST $ETH_RPC -H 'Content-Type: application/json' -d '$eth_request'${NC}"
             local final_eth_wallet=$(curl -s -X POST -H "Content-Type: application/json" \
-                -d "{\"jsonrpc\":\"2.0\",\"method\":\"eth_getBalance\",\"params\":[\"$eth_addr\",\"latest\"],\"id\":1}" \
-                "$ETH_RPC" | jq -r '.result // "0x0"')
+                -d "$eth_request" \
+                "$ETH_RPC" | tee >(cat >&2))
+            final_eth_wallet=$(echo "$final_eth_wallet" | jq -r '.result // "0x0"')
             local eth_after=$(python3 -c "print(f'{int(\"$final_eth_wallet\", 16) / 1e18:g}')" 2>/dev/null || echo "0")
             
             echo -e "${BLUE}=== After Approve ===${NC}"
