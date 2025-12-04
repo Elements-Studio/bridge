@@ -119,7 +119,7 @@ stop-anvil: ## Stop local Anvil node
 		kill $$(cat $(ANVIL_PID_FILE)) 2>/dev/null || true; \
 		rm -f $(ANVIL_PID_FILE); \
 	fi
-	@pkill -9 -f "anvil.*8545" 2>/dev/null || true
+	@pgrep -x anvil > /dev/null 2>&1 && pkill -9 -x anvil || true
 	@echo "$(GREEN)✓ Anvil stopped$(NC)"
 
 restart-anvil: ## Restart Anvil with clean state (like docker-compose down -v && up)
@@ -127,7 +127,7 @@ restart-anvil: ## Restart Anvil with clean state (like docker-compose down -v &&
 	@$(MAKE) stop-anvil
 	@rm -rf $(ANVIL_DATA_DIR)
 	@mkdir -p $(ANVIL_DATA_DIR)
-	@pkill -9 -f "anvil.*8545" 2>/dev/null || true
+	@pgrep -x anvil > /dev/null 2>&1 && pkill -9 -x anvil || true
 	@sleep 1
 	@anvil --host 127.0.0.1 --port 8545 --chain-id 31337 --silent > $(ANVIL_DATA_DIR)/anvil.log 2>&1 & \
 	echo $$! > $(ANVIL_PID_FILE); \
