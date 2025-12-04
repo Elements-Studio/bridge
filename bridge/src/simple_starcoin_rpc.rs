@@ -55,6 +55,13 @@ impl SimpleStarcoinRpcClient {
     }
 
     async fn call(&self, method: &str, params: Vec<Value>) -> Result<Value> {
+        self.call_with_log(method, params, false).await
+    }
+
+    /// Call RPC with optional verbose logging
+    /// verbose=true: INFO level with full JSON request/response
+    /// verbose=false: No logging (silent mode for background polling)
+    async fn call_with_log(&self, method: &str, params: Vec<Value>, verbose: bool) -> Result<Value> {
         let id = self.request_id.fetch_add(1, Ordering::SeqCst);
         let request = JsonRpcRequest {
             jsonrpc: "2.0".to_string(),
@@ -62,6 +69,12 @@ impl SimpleStarcoinRpcClient {
             params,
             id,
         };
+
+        // Only log if verbose mode is enabled
+        if verbose {
+            let request_json = serde_json::to_string_pretty(&request).unwrap_or_default();
+            tracing::info!("[RPC] >>> {}\n{}", method, request_json);
+        }
 
         let response = self
             .http_client
@@ -71,21 +84,26 @@ impl SimpleStarcoinRpcClient {
             .await?;
 
         if !response.status().is_success() {
-            return Err(anyhow!(
-                "HTTP error: {} - {}",
-                response.status(),
-                response.text().await?
-            ));
+            let status = response.status();
+            let error_text = response.text().await?;
+            tracing::error!("[RPC] <<< HTTP error {} \n{}", status, error_text);
+            return Err(anyhow!("HTTP error: {} - {}", status, error_text));
         }
 
         let response_text = response.text().await?;
+        
+        if verbose {
+            tracing::info!("[RPC] <<< {}\n{}", method, response_text);
+        }
+
         let rpc_response: JsonRpcResponse = serde_json::from_str(&response_text)?;
 
         if let Some(error) = rpc_response.error {
-            // Log request and response only on error
-            tracing::warn!(
-                "RPC error - Request: {} | Response: {}",
-                serde_json::to_string(&request).unwrap_or_default(),
+            // Always log RPC errors
+            let request_json = serde_json::to_string_pretty(&request).unwrap_or_default();
+            tracing::error!(
+                "[RPC] RPC error - Request:\n{}\nResponse:\n{}",
+                request_json,
                 &response_text
             );
             return Err(anyhow!("RPC error {}: {}", error.code, error.message));
@@ -241,9 +259,10 @@ impl SimpleStarcoinRpcClient {
             .await
     }
 
-    // Submit transaction
+    // Submit transaction with verbose logging
     pub async fn submit_transaction(&self, signed_txn: &str) -> Result<Value> {
-        self.call("txpool.submit_hex_transaction", vec![json!(signed_txn)])
+        // Use verbose logging for transaction submission (shows full JSON request/response)
+        self.call_with_log("txpool.submit_hex_transaction", vec![json!(signed_txn)], true)
             .await
     }
 
@@ -265,6 +284,12 @@ impl SimpleStarcoinRpcClient {
             TransactionPayload as NativeTransactionPayload,
         };
 
+        tracing::info!(
+            "[RPC] >>> sign_and_submit_transaction(sender={:?}, seq={}, chain_id={}, gas={}/{})",
+            raw_txn.sender, raw_txn.sequence_number, raw_txn.chain_id.0,
+            raw_txn.max_gas_amount, raw_txn.gas_unit_price
+        );
+
         // Convert our RawUserTransaction to Starcoin native RawUserTransaction
         // StarcoinAddress is [u8; 16], AccountAddress::new expects [u8; 16]
         let sender = AccountAddress::new(*raw_txn.sender);
@@ -272,6 +297,11 @@ impl SimpleStarcoinRpcClient {
         // Convert payload - need to rebuild with starcoin_vm_types types
         let native_payload = match &raw_txn.payload {
             starcoin_bridge_types::transaction::TransactionPayload::ScriptFunction(sf) => {
+                tracing::info!(
+                    "[RPC]     payload: {:?}::{}::{}, type_args={:?}, args_count={}",
+                    sf.module.address(), sf.module.name(), sf.function, sf.ty_args, sf.args.len()
+                );
+                
                 // Rebuild ModuleId with starcoin_vm_types types
                 let module_addr = AccountAddress::new(**sf.module.address());
                 let module_name = Identifier::new(sf.module.name().as_str())
@@ -343,7 +373,7 @@ impl SimpleStarcoinRpcClient {
         let signed_txn_hex = hex::encode(&signed_txn_bytes);
 
         tracing::debug!(
-            "Submitting transaction hex (len={}): {}...",
+            "[RPC]     tx_hex(len={}): {}...",
             signed_txn_hex.len(),
             &signed_txn_hex[..std::cmp::min(100, signed_txn_hex.len())]
         );
@@ -355,6 +385,71 @@ impl SimpleStarcoinRpcClient {
             .as_str()
             .map(|s| s.to_string())
             .unwrap_or_else(|| format!("{:?}", result));
+
+        // Poll for transaction execution status (max 30 seconds)
+        let mut executed = false;
+        for i in 0..30 {
+            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+            
+            // Use verbose logging only on first successful query
+            let txn_info_result = if i == 0 {
+                self.get_transaction_info_verbose(&txn_hash_str).await
+            } else {
+                self.get_transaction_info(&txn_hash_str).await
+            };
+            
+            if let Ok(txn_info) = txn_info_result {
+                if !txn_info.is_null() {
+                    let status = txn_info
+                        .get("status")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("Unknown");
+                    
+                    // Only log when status changes or is final
+                    if status == "Executed" || status == "executed" {
+                        // Print full JSON response for successful execution
+                        tracing::info!(
+                            "[RPC] <<< chain.get_transaction_info({}) after {}s:\\n{}",
+                            txn_hash_str, i + 1,
+                            serde_json::to_string_pretty(&txn_info).unwrap_or_default()
+                        );
+                        tracing::info!(
+                            "[RPC] ✓ Transaction EXECUTED successfully! txn_hash={}",
+                            txn_hash_str
+                        );
+                        executed = true;
+                        break;
+                    } else if status.contains("Discard") || status.contains("error") || status.contains("Error") {
+                        // Print full JSON response for failed execution
+                        tracing::error!(
+                            "[RPC] <<< chain.get_transaction_info({}) FAILED:\\n{}",
+                            txn_hash_str,
+                            serde_json::to_string_pretty(&txn_info).unwrap_or_default()
+                        );
+                        executed = true;
+                        break;
+                    }
+                }
+            }
+            
+            if i > 0 && i % 5 == 0 {
+                tracing::debug!(
+                    "[RPC] Still waiting for transaction execution... ({}s)",
+                    i
+                );
+            }
+        }
+        
+        if !executed {
+            tracing::warn!(
+                "[RPC] ⚠ Transaction not confirmed after 30s: txn_hash={}",
+                txn_hash_str
+            );
+            tracing::warn!(
+                "[RPC] Transaction may still be pending. Check manually with: starcoin chain get-txn {}",
+                txn_hash_str
+            );
+        }
 
         Ok(txn_hash_str)
     }
@@ -428,6 +523,7 @@ impl SimpleStarcoinRpcClient {
             "type_args": type_args,
             "args": args
         });
+        // Use normal logging, verbose logging is handled by specific callers
         self.call("contract.call_v2", vec![contract_call]).await
     }
 
@@ -452,10 +548,18 @@ impl SimpleStarcoinRpcClient {
         Err(anyhow!("Transaction not confirmed after timeout"))
     }
 
-    /// Get transaction info
+    /// Get transaction info (uses DEBUG logging to avoid spam during polling)
     pub async fn get_transaction_info(&self, txn_hash: &str) -> Result<Value> {
-        self.call("chain.get_transaction_info", vec![json!(txn_hash)])
-            .await
+        let result = self.call("chain.get_transaction_info", vec![json!(txn_hash)])
+            .await?;
+        Ok(result)
+    }
+
+    /// Get transaction info with verbose INFO logging (for first query)
+    pub async fn get_transaction_info_verbose(&self, txn_hash: &str) -> Result<Value> {
+        let result = self.call_with_log("chain.get_transaction_info", vec![json!(txn_hash)], true)
+            .await?;
+        Ok(result)
     }
 }
 

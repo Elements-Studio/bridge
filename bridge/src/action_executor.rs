@@ -594,23 +594,46 @@ where
         };
 
         // Sign and submit approve transaction (don't wait for confirmation)
-        info!("Signing and submitting Starcoin approve transaction");
+        info!(
+            "[APPROVE] Preparing to submit approve transaction for action_key={:?}",
+            action_key
+        );
+        info!(
+            "[APPROVE] Transaction params: sender={:?}, seq={}, source_chain={}, bridge_seq_num={}, token_type={}",
+            sender_address, seq_number, source_chain, seq_num, token_type
+        );
 
         let approve_result = starcoin_bridge_client
             .sign_and_submit_transaction(starcoin_bridge_key, raw_txn)
             .await;
 
+        info!(
+            "[APPROVE] Transaction submission result: {:?}",
+            approve_result
+        );
+
         match approve_result {
             Ok(txn_hash) => {
-                info!(?txn_hash, "Starcoin approve transaction submitted");
+                info!(
+                    "[APPROVE] ✓ Transaction submitted successfully! txn_hash={}, action_key={:?}",
+                    txn_hash, action_key
+                );
             }
             Err(err) => {
                 let err_str = format!("{:?}", err);
                 // SEQUENCE_NUMBER_TOO_OLD means a previous tx was already executed
                 if !err_str.contains("SEQUENCE_NUMBER_TOO_OLD") {
                     error!(
-                        ?action_key,
-                        "Failed to submit approve transaction: {:?}", err
+                        "[APPROVE] ✗ Failed to submit approve transaction! action_key={:?}",
+                        action_key
+                    );
+                    error!(
+                        "[APPROVE] Error details: {:?}",
+                        err
+                    );
+                    error!(
+                        "[APPROVE] Transaction params: sender={:?}, seq={}, source_chain={}, seq_num={}",
+                        sender_address, seq_number, source_chain, seq_num
                     );
                     metrics.err_starcoin_bridge_transaction_submission.inc();
                     // Retry later
@@ -637,7 +660,10 @@ where
         }
 
         // Poll on-chain status until Approved (max 60 seconds)
-        info!("Polling on-chain status for approve confirmation...");
+        info!(
+            "[APPROVE] Polling on-chain status for confirmation (source_chain={}, seq_num={})...",
+            source_chain, seq_num
+        );
         let mut approved = false;
         for i in 0..60 {
             tokio::time::sleep(std::time::Duration::from_secs(1)).await;
@@ -646,18 +672,28 @@ where
                 .get_token_transfer_action_onchain_status_until_success(source_chain, seq_num)
                 .await;
 
+            if i == 0 || i % 5 == 0 {
+                info!(
+                    "[APPROVE] Poll iteration {}/60: on-chain status = {:?}",
+                    i, status
+                );
+            }
+
             match status {
                 BridgeActionStatus::Approved => {
                     info!(
-                        ?action_key,
-                        "Transfer approved on chain, proceeding to claim"
+                        "[APPROVE] ✓ Transfer APPROVED on chain after {}s! action_key={:?}, source_chain={}, seq_num={}",
+                        i, action_key, source_chain, seq_num
                     );
                     metrics.eth_starcoin_bridge_token_transfer_approved.inc();
                     approved = true;
                     break;
                 }
                 BridgeActionStatus::Claimed => {
-                    info!(?action_key, "Transfer already claimed on chain");
+                    info!(
+                        "[APPROVE] ✓ Transfer already CLAIMED on chain! action_key={:?}, source_chain={}, seq_num={}",
+                        action_key, source_chain, seq_num
+                    );
                     metrics.eth_starcoin_bridge_token_transfer_approved.inc();
                     metrics.eth_starcoin_bridge_token_transfer_claimed.inc();
                     store
@@ -682,8 +718,14 @@ where
 
         if !approved {
             error!(
-                ?action_key,
-                "Approve transaction not confirmed after 60 seconds, will retry"
+                "[APPROVE] ✗ Approve transaction NOT confirmed after 60 seconds!"
+            );
+            error!(
+                "[APPROVE] action_key={:?}, source_chain={}, seq_num={}",
+                action_key, source_chain, seq_num
+            );
+            error!(
+                "[APPROVE] Will retry this transaction..."
             );
             let metrics_clone = metrics.clone();
             let sender_clone = execution_queue_sender.clone();
@@ -706,8 +748,17 @@ where
         // This is consistent with Sui Bridge behavior.
         if matches!(action, BridgeAction::StarcoinToEthBridgeAction(_)) {
             info!(
-                ?action_key,
-                "Starcoin→ETH approve confirmed. User must claim on ETH chain."
+                "[STARCOIN→ETH] ✓ Approve phase COMPLETE! action_key={:?}",
+                action_key
+            );
+            info!(
+                "[STARCOIN→ETH] User must now claim tokens on Ethereum by calling:"
+            );
+            info!(
+                "[STARCOIN→ETH]   Bridge.transferBridgedTokensWithSignatures(signatures, message)"
+            );
+            info!(
+                "[STARCOIN→ETH]   Or use: make claim-on-eth"
             );
             metrics.starcoin_bridge_eth_token_transfer_approved.inc();
             store
@@ -751,7 +802,13 @@ where
                         tokio::time::sleep(std::time::Duration::from_millis(500)).await;
                     }
                     Err(e) => {
-                        error!("Failed to get sequence number for claim: {:?}", e);
+                        error!(
+                            "[CLAIM] ✗ Failed to get sequence number for claim transaction!"
+                        );
+                        error!(
+                            "[CLAIM] Error: {:?}, sender={:?}, approve_seq={}",
+                            e, sender_address, seq_number
+                        );
                         store
                             .remove_pending_actions(&[action.digest()])
                             .unwrap_or_else(|e| {
@@ -767,7 +824,13 @@ where
         let claim_block_timestamp_ms = match starcoin_bridge_client.get_block_timestamp().await {
             Ok(ts) => ts,
             Err(e) => {
-                error!("Failed to get block timestamp for claim: {:?}", e);
+                error!(
+                    "[CLAIM] ✗ Failed to get block timestamp for claim transaction!"
+                );
+                error!(
+                    "[CLAIM] Error: {:?}",
+                    e
+                );
                 store
                     .remove_pending_actions(&[action.digest()])
                     .unwrap_or_else(|e| {
@@ -779,8 +842,15 @@ where
 
         // Build claim transaction
         info!(
-            source_chain,
-            seq_num, token_type, claim_seq_number, "Building claim transaction with parameters"
+            "[CLAIM] Building claim transaction with parameters:"
+        );
+        info!(
+            "[CLAIM]   bridge_address={:?}, sender={:?}, claim_seq={}",
+            starcoin_bridge_address, sender_address, claim_seq_number
+        );
+        info!(
+            "[CLAIM]   source_chain={}, bridge_seq_num={}, token_type={}, timestamp={}",
+            source_chain, seq_num, token_type, claim_block_timestamp_ms
         );
         let claim_txn = match StarcoinBridgeTransactionBuilder::build_claim_and_transfer(
             *starcoin_bridge_address,
@@ -795,7 +865,17 @@ where
         ) {
             Ok(txn) => txn,
             Err(err) => {
-                error!("Failed to build claim transaction: {:?}", err);
+                error!(
+                    "[CLAIM] ✗ Failed to build claim transaction!"
+                );
+                error!(
+                    "[CLAIM] Error: {:?}",
+                    err
+                );
+                error!(
+                    "[CLAIM] Params: source_chain={}, seq_num={}, token_type={}, claim_seq={}",
+                    source_chain, seq_num, token_type, claim_seq_number
+                );
                 store
                     .remove_pending_actions(&[action.digest()])
                     .unwrap_or_else(|e| {
@@ -806,15 +886,18 @@ where
         };
 
         // Submit claim transaction
-        info!("Submitting claim transaction");
+        info!("[CLAIM] Submitting claim transaction to Starcoin...");
         match starcoin_bridge_client
             .sign_and_submit_transaction(starcoin_bridge_key, claim_txn)
             .await
         {
             Ok(claim_txn_hash) => {
                 info!(
-                    ?claim_txn_hash,
-                    "Claim transaction submitted, waiting for confirmation..."
+                    "[CLAIM] ✓ Transaction submitted successfully! claim_txn_hash={}, action_key={:?}",
+                    claim_txn_hash, action_key
+                );
+                info!(
+                    "[CLAIM] Polling for claim confirmation (max 30s)..."
                 );
 
                 // Poll for claim confirmation (max 30 seconds)
@@ -826,21 +909,32 @@ where
                             seq_num,
                         )
                         .await;
+                    
+                    if i == 0 || i % 5 == 0 {
+                        info!(
+                            "[CLAIM] Poll iteration {}/30: on-chain status = {:?}",
+                            i, status
+                        );
+                    }
+                    
                     if status == BridgeActionStatus::Claimed {
                         info!(
-                            ?claim_txn_hash,
-                            "Claim confirmed on chain - bridge transfer complete!"
+                            "[CLAIM] ✓ CLAIMED on chain after {}s! claim_txn_hash={}, bridge transfer COMPLETE!",
+                            i, claim_txn_hash
                         );
                         metrics.eth_starcoin_bridge_token_transfer_claimed.inc();
                         break;
                     }
-                    if i % 10 == 0 {
-                        info!("Waiting for claim confirmation... ({}s)", i);
-                    }
                 }
             }
             Err(err) => {
-                error!("Failed to submit claim transaction: {:?}", err);
+                error!(
+                    "[CLAIM] ✗ Failed to submit claim transaction! error={:?}, action_key={:?}",
+                    err, action_key
+                );
+                error!(
+                    "[CLAIM] Note: Approve succeeded, but claim failed. User can retry claim manually."
+                );
                 // Approve succeeded, claim can be retried manually or by watchdog
             }
         }

@@ -416,11 +416,12 @@ where
                     .with_label_values(&["get_token_transfer_action_onchain_status"])
                     .inc();
                 error!(
-                    source_chain_id,
-                    seq_number, "Failed to get token transfer action onchain status"
+                    "[QUERY] Failed to get token transfer action onchain status: source_chain={}, seq_num={}",
+                    source_chain_id, seq_number
                 );
                 continue;
             };
+            
             return status;
         }
     }

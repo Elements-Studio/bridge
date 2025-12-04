@@ -94,11 +94,8 @@ pub fn generate_bridge_client_key_and_write_to_file(
         let (_, kp): (_, Ed25519KeyPair) = get_key_pair();
         StarcoinKeyPair::Ed25519(kp)
     };
-    // StarcoinKeyPair.public() returns Vec<u8>, convert to StarcoinAddress (AccountAddress = 16 bytes)
-    let pub_bytes = kp.public();
-    let starcoin_bridge_address =
-        StarcoinAddress::from_bytes(&pub_bytes[..16.min(pub_bytes.len())])
-            .unwrap_or(StarcoinAddress::ZERO);
+    // Use proper Starcoin address derivation (SHA3-256 hash algorithm)
+    let starcoin_bridge_address = kp.starcoin_address();
     println!(
         "Corresponding Starcoin address by this key: {:?}",
         starcoin_bridge_address

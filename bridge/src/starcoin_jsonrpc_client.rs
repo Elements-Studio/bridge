@@ -562,6 +562,8 @@ impl StarcoinClientInner for StarcoinJsonRpcClient {
             format!("{}u64", seq_number),     // bridge_seq_num as u64
         ];
 
+        let args_display = format!("[{}u8, {}u64]", source_chain_id, seq_number);
+        
         match self
             .call_bridge_function("query_token_transfer_status", vec![], args)
             .await
@@ -576,15 +578,18 @@ impl StarcoinClientInner for StarcoinJsonRpcClient {
                     .map(|n| n as u8)
                     .unwrap_or(TRANSFER_STATUS_NOT_FOUND);
 
-                tracing::debug!(
-                    "Query transfer status response: {:?}, parsed status: {}",
-                    response,
-                    status
+                let parsed_status = Self::parse_transfer_status(status);
+                tracing::info!(
+                    "[RPC] >>> query_token_transfer_status({}) => [{}] ({:?})",
+                    args_display, status, parsed_status
                 );
-                Ok(Self::parse_transfer_status(status))
+                Ok(parsed_status)
             }
             Err(e) => {
-                tracing::warn!("Failed to query transfer status: {:?}", e);
+                tracing::warn!(
+                    "[RPC] >>> query_token_transfer_status({}) => ERROR: {:?}",
+                    args_display, e
+                );
                 // If function call fails (e.g., function not found), return NotFound
                 Ok(BridgeActionStatus::NotFound)
             }
