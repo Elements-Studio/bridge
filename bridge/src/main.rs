@@ -3,11 +3,11 @@
 
 use clap::Parser;
 use fastcrypto::traits::KeyPair;
-use starcoin_metrics::start_prometheus_server;
 use starcoin_bridge::config::BridgeNodeConfig;
 use starcoin_bridge::node::run_bridge_node;
 use starcoin_bridge::server::BridgeNodePublicMetadata;
 use starcoin_bridge_config::Config;
+use starcoin_metrics::start_prometheus_server;
 use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr},
     path::PathBuf,
@@ -31,14 +31,14 @@ struct Args {
 async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
     let config = BridgeNodeConfig::load(&args.config_path).unwrap();
-    
+
     // JSON-RPC client is fully async compatible - no runtime conflicts!
-    
+
     let metrics_address =
         SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), config.metrics_port);
     let registry_service = start_prometheus_server(metrics_address);
     let prometheus_registry = registry_service.default_registry();
-    
+
     starcoin_metrics::init_metrics(&prometheus_registry);
     info!("Metrics server started at port {}", config.metrics_port);
 
@@ -49,7 +49,7 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     let metadata = BridgeNodePublicMetadata::new(VERSION, config.metrics_key_pair.public().clone());
-    
+
     // Metrics push functionality disabled due to rustls/subtle version conflicts with starcoin
     /*
     if let Some(metrics_config) = &config.metrics {
@@ -63,5 +63,7 @@ async fn main() -> anyhow::Result<()> {
     */
 
     let handle = run_bridge_node(config, metadata, prometheus_registry).await?;
-    handle.await.map_err(|e| anyhow::anyhow!("Task join error: {}", e))
+    handle
+        .await
+        .map_err(|e| anyhow::anyhow!("Task join error: {}", e))
 }

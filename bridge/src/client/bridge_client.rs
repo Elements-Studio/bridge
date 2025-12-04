@@ -249,7 +249,9 @@ mod tests {
     use prometheus::Registry;
     use starcoin_bridge_types::bridge::{BridgeChainId, TOKEN_ID_BTC, TOKEN_ID_USDT};
     use starcoin_bridge_types::TypeTag;
-    use starcoin_bridge_types::{base_types::StarcoinAddress, crypto::get_key_pair, digests::TransactionDigest};
+    use starcoin_bridge_types::{
+        base_types::StarcoinAddress, crypto::get_key_pair, digests::TransactionDigest,
+    };
 
     #[tokio::test]
     async fn test_bridge_client() {
@@ -259,8 +261,15 @@ mod tests {
 
         let pubkey_bytes = BridgeAuthorityPublicKeyBytes::from(&pubkey);
         let committee = Arc::new(BridgeCommittee::new(vec![authority.clone()]).unwrap());
-        let action =
-            get_test_starcoin_bridge_to_eth_bridge_action(None, Some(1), Some(1), Some(100), None, None, None);
+        let action = get_test_starcoin_bridge_to_eth_bridge_action(
+            None,
+            Some(1),
+            Some(1),
+            Some(100),
+            None,
+            None,
+            None,
+        );
 
         // Ok
         let client = BridgeClient::new(pubkey_bytes.clone(), committee).unwrap();
@@ -348,7 +357,12 @@ mod tests {
         );
         let sig = BridgeAuthoritySignInfo::new(&action, &secret);
         let signed_event = SignedBridgeAction::new_from_data_and_sig(action.clone(), sig.clone());
-        mock_handler.add_starcoin_bridge_event_response(tx_digest, event_idx, Ok(signed_event.clone()), None);
+        mock_handler.add_starcoin_bridge_event_response(
+            tx_digest,
+            event_idx,
+            Ok(signed_event.clone()),
+            None,
+        );
 
         // success
         client
@@ -369,7 +383,12 @@ mod tests {
         let wrong_sig = BridgeAuthoritySignInfo::new(&action2, &secret);
         let wrong_signed_action =
             SignedBridgeAction::new_from_data_and_sig(action2.clone(), wrong_sig.clone());
-        mock_handler.add_starcoin_bridge_event_response(tx_digest, event_idx, Ok(wrong_signed_action), None);
+        mock_handler.add_starcoin_bridge_event_response(
+            tx_digest,
+            event_idx,
+            Ok(wrong_signed_action),
+            None,
+        );
         let err = client
             .request_sign_bridge_action(action.clone())
             .await
@@ -379,7 +398,12 @@ mod tests {
         // The action matches but the signature is wrong, fail
         let wrong_signed_action =
             SignedBridgeAction::new_from_data_and_sig(action.clone(), wrong_sig);
-        mock_handler.add_starcoin_bridge_event_response(tx_digest, event_idx, Ok(wrong_signed_action), None);
+        mock_handler.add_starcoin_bridge_event_response(
+            tx_digest,
+            event_idx,
+            Ok(wrong_signed_action),
+            None,
+        );
         let err = client
             .request_sign_bridge_action(action.clone())
             .await
@@ -396,7 +420,12 @@ mod tests {
             BridgeCommittee::new(vec![authority_blocklisted.clone(), authority2.clone()]).unwrap(),
         );
         client.update_committee(committee2);
-        mock_handler.add_starcoin_bridge_event_response(tx_digest, event_idx, Ok(signed_event), None);
+        mock_handler.add_starcoin_bridge_event_response(
+            tx_digest,
+            event_idx,
+            Ok(signed_event),
+            None,
+        );
 
         let err = client
             .request_sign_bridge_action(action.clone())
@@ -411,7 +440,12 @@ mod tests {
         // signed by a different authority in committee would fail
         let sig2 = BridgeAuthoritySignInfo::new(&action, &secret2);
         let signed_event2 = SignedBridgeAction::new_from_data_and_sig(action.clone(), sig2.clone());
-        mock_handler.add_starcoin_bridge_event_response(tx_digest, event_idx, Ok(signed_event2), None);
+        mock_handler.add_starcoin_bridge_event_response(
+            tx_digest,
+            event_idx,
+            Ok(signed_event2),
+            None,
+        );
         let err = client
             .request_sign_bridge_action(action.clone())
             .await
@@ -423,7 +457,12 @@ mod tests {
         let secret3 = Arc::pin(kp3);
         let sig3 = BridgeAuthoritySignInfo::new(&action, &secret3);
         let signed_event3 = SignedBridgeAction::new_from_data_and_sig(action.clone(), sig3);
-        mock_handler.add_starcoin_bridge_event_response(tx_digest, event_idx, Ok(signed_event3), None);
+        mock_handler.add_starcoin_bridge_event_response(
+            tx_digest,
+            event_idx,
+            Ok(signed_event3),
+            None,
+        );
         let err = client
             .request_sign_bridge_action(action.clone())
             .await
@@ -435,42 +474,45 @@ mod tests {
     fn test_bridge_action_path_regression_tests() {
         let starcoin_bridge_tx_digest = TransactionDigest::random();
         let starcoin_bridge_tx_event_index = 5;
-        let action = BridgeAction::StarcoinToEthBridgeAction(crate::types::StarcoinToEthBridgeAction {
-            starcoin_bridge_tx_digest,
-            starcoin_bridge_tx_event_index,
-            starcoin_bridge_event: EmittedStarcoinToEthTokenBridgeV1 {
-                starcoin_bridge_chain_id: BridgeChainId::StarcoinCustom,
-                nonce: 1,
-                starcoin_bridge_address: StarcoinAddress::random_for_testing_only(),
-                eth_chain_id: BridgeChainId::EthSepolia,
-                eth_address: EthAddress::random(),
-                token_id: TOKEN_ID_USDT,
-                amount_starcoin_bridge_adjusted: 1,
-            },
-        });
+        let action =
+            BridgeAction::StarcoinToEthBridgeAction(crate::types::StarcoinToEthBridgeAction {
+                starcoin_bridge_tx_digest,
+                starcoin_bridge_tx_event_index,
+                starcoin_bridge_event: EmittedStarcoinToEthTokenBridgeV1 {
+                    starcoin_bridge_chain_id: BridgeChainId::StarcoinCustom,
+                    nonce: 1,
+                    starcoin_bridge_address: StarcoinAddress::random_for_testing_only(),
+                    eth_chain_id: BridgeChainId::EthSepolia,
+                    eth_address: EthAddress::random(),
+                    token_id: TOKEN_ID_USDT,
+                    amount_starcoin_bridge_adjusted: 1,
+                },
+            });
         assert_eq!(
             BridgeClient::bridge_action_to_path(&action),
             format!(
                 "sign/bridge_tx/starcoin/eth/{}/{}",
-                Hex::encode(starcoin_bridge_tx_digest), starcoin_bridge_tx_event_index
+                Hex::encode(starcoin_bridge_tx_digest),
+                starcoin_bridge_tx_event_index
             )
         );
 
         let eth_tx_hash = TxHash::random();
         let eth_event_index = 6;
-        let action = BridgeAction::EthToStarcoinBridgeAction(crate::types::EthToStarcoinBridgeAction {
-            eth_tx_hash,
-            eth_event_index,
-            eth_bridge_event: EthToStarcoinTokenBridgeV1 {
-                eth_chain_id: BridgeChainId::EthSepolia,
-                nonce: 1,
-                eth_address: EthAddress::random(),
-                starcoin_bridge_chain_id: BridgeChainId::StarcoinCustom,
-                starcoin_bridge_address: StarcoinAddress::random_for_testing_only(),
-                token_id: TOKEN_ID_USDT,
-                starcoin_bridge_adjusted_amount: 1,
-            },
-        });
+        let action =
+            BridgeAction::EthToStarcoinBridgeAction(crate::types::EthToStarcoinBridgeAction {
+                eth_tx_hash,
+                eth_event_index,
+                eth_bridge_event: EthToStarcoinTokenBridgeV1 {
+                    eth_chain_id: BridgeChainId::EthSepolia,
+                    nonce: 1,
+                    eth_address: EthAddress::random(),
+                    starcoin_bridge_chain_id: BridgeChainId::StarcoinCustom,
+                    starcoin_bridge_address: StarcoinAddress::random_for_testing_only(),
+                    token_id: TOKEN_ID_USDT,
+                    starcoin_bridge_adjusted_amount: 1,
+                },
+            });
 
         assert_eq!(
             BridgeClient::bridge_action_to_path(&action),
@@ -590,18 +632,22 @@ mod tests {
             "sign/upgrade_evm_contract/12/123/0606060606060606060606060606060606060606/0909090909090909090909090909090909090909/5cd8a76b000000000000000000000000000000000000000000000000000000000000002a",
         );
 
-        let action = BridgeAction::AddTokensOnStarcoinAction(crate::types::AddTokensOnStarcoinAction {
-            nonce: 3,
-            chain_id: BridgeChainId::StarcoinCustom,
-            native: false,
-            token_ids: vec![99, 100, 101],
-            token_type_names: vec![
-                TypeTag::from_str("0x00000000000000000000000000000abc::my_coin::MyCoin1").unwrap(),
-                TypeTag::from_str("0x00000000000000000000000000000abc::my_coin::MyCoin2").unwrap(),
-                TypeTag::from_str("0x00000000000000000000000000000abc::my_coin::MyCoin3").unwrap(),
-            ],
-            token_prices: vec![1_000_000_000, 2_000_000_000, 3_000_000_000],
-        });
+        let action =
+            BridgeAction::AddTokensOnStarcoinAction(crate::types::AddTokensOnStarcoinAction {
+                nonce: 3,
+                chain_id: BridgeChainId::StarcoinCustom,
+                native: false,
+                token_ids: vec![99, 100, 101],
+                token_type_names: vec![
+                    TypeTag::from_str("0x00000000000000000000000000000abc::my_coin::MyCoin1")
+                        .unwrap(),
+                    TypeTag::from_str("0x00000000000000000000000000000abc::my_coin::MyCoin2")
+                        .unwrap(),
+                    TypeTag::from_str("0x00000000000000000000000000000abc::my_coin::MyCoin3")
+                        .unwrap(),
+                ],
+                token_prices: vec![1_000_000_000, 2_000_000_000, 3_000_000_000],
+            });
         assert_eq!(
             BridgeClient::bridge_action_to_path(&action),
             "sign/add_tokens_on_starcoin/2/3/0/99,100,101/00000000000000000000000000000abc::my_coin::MyCoin1,00000000000000000000000000000abc::my_coin::MyCoin2,00000000000000000000000000000abc::my_coin::MyCoin3/1000000000,2000000000,3000000000",

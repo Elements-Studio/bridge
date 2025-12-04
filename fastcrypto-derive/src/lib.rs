@@ -11,8 +11,8 @@ use proc_macro::TokenStream;
 use quote::quote;
 use syn::DeriveInput;
 
-// Derive the `SilentDisplay` trait, which is an implementation of `Display` that does not print the contents of the struct.
-// This is useful for structs that contain sensitive data, such as private keys.
+/// Derive the `SilentDisplay` trait, which is an implementation of `Display` that does not print the contents of the struct.
+/// This is useful for structs that contain sensitive data, such as private keys.
 #[proc_macro_derive(SilentDisplay)]
 pub fn silent_display(source: TokenStream) -> TokenStream {
     let ast: DeriveInput = syn::parse(source).expect("Incorrect macro input");
@@ -29,9 +29,9 @@ pub fn silent_display(source: TokenStream) -> TokenStream {
     gen.into()
 }
 
+/// Derive the `SilentDebug` trait, which is an implementation of `Debug` that does not print the contents of the struct.
+/// This is useful for structs that contain sensitive data, such as private keys.
 #[proc_macro_derive(SilentDebug)]
-// Derive the `SilentDebug` trait, which is an implementation of `Debug` that does not print the contents of the struct.
-// This is useful for structs that contain sensitive data, such as private keys.
 pub fn silent_debug(source: TokenStream) -> TokenStream {
     let ast: DeriveInput = syn::parse(source).expect("Incorrect macro input");
     let name = &ast.ident;
@@ -47,8 +47,8 @@ pub fn silent_debug(source: TokenStream) -> TokenStream {
     gen.into()
 }
 
-// Extend implementations of Add, Sub, Mul<GroupElement::ScalarType> and Neg into implementations of
-// Add, Sub, Neg, AddAssign, SubAssign and MulAssign for all combinations of borrowed and owned inputs.
+/// Extend implementations of Add, Sub, Mul<GroupElement::ScalarType> and Neg into implementations of
+/// Add, Sub, Neg, AddAssign, SubAssign and MulAssign for all combinations of borrowed and owned inputs.
 #[proc_macro_derive(GroupOpsExtend)]
 pub fn group_ops(source: TokenStream) -> TokenStream {
     let ast: DeriveInput = syn::parse(source).expect("Incorrect macro input");

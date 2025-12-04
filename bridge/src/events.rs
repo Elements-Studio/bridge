@@ -21,14 +21,13 @@ use move_core_types::language_storage::StructTag;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 use starcoin_bridge_json_rpc_types::StarcoinEvent;
-use starcoin_bridge_types::base_types::TransactionDigest;
 use starcoin_bridge_types::base_types::StarcoinAddress;
+use starcoin_bridge_types::base_types::TransactionDigest;
 use starcoin_bridge_types::bridge::BridgeChainId;
 use starcoin_bridge_types::bridge::MoveTypeBridgeMessageKey;
 use starcoin_bridge_types::bridge::MoveTypeCommitteeMember;
 use starcoin_bridge_types::bridge::MoveTypeCommitteeMemberRegistration;
 use starcoin_bridge_types::collection_types::VecMap;
-use starcoin_bridge_types::parse_starcoin_bridge_type_tag;
 use starcoin_bridge_types::parse_token_code_bytes_to_type_tag;
 use starcoin_bridge_types::TypeTag;
 use starcoin_bridge_types::BRIDGE_PACKAGE_ID;
@@ -455,34 +454,43 @@ impl StarcoinBridgeEvent {
     }
 }
 
-/*#[cfg(test)]
+#[cfg(test)]
 pub mod tests {
-    use std::collections::HashSet;
-
     use super::*;
     use crate::crypto::BridgeAuthorityKeyPair;
-    use crate::e2e_tests::test_utils::BridgeTestClusterBuilder;
     use crate::types::BridgeAction;
     use crate::types::StarcoinToEthBridgeAction;
     use ethers::types::Address as EthAddress;
-    use starcoin_bridge_json_rpc_types::BcsEvent;
-    use starcoin_bridge_json_rpc_types::StarcoinEvent;
-    use starcoin_bridge_types::base_types::ObjectID;
+    use move_core_types::identifier::Identifier;
+    use rand::RngCore;
+    use starcoin_bridge_json_rpc_types::{EventID, StarcoinEvent};
     use starcoin_bridge_types::base_types::StarcoinAddress;
     use starcoin_bridge_types::bridge::BridgeChainId;
     use starcoin_bridge_types::bridge::TOKEN_ID_STARCOIN;
     use starcoin_bridge_types::crypto::get_key_pair;
-    use starcoin_bridge_types::digests::TransactionDigest;
-    use starcoin_bridge_types::event::EventID;
-    use starcoin_bridge_types::Identifier;
 
-    // Returns a test StarcoinEvent and corresponding BridgeAction
-    pub fn get_test_starcoin_bridge_event_and_action(identifier: Identifier) -> (StarcoinEvent, BridgeAction) {
+    /// Generate a random 32-byte digest
+    fn random_digest() -> [u8; 32] {
+        let mut bytes = [0u8; 32];
+        rand::thread_rng().fill_bytes(&mut bytes);
+        bytes
+    }
+
+    /// Returns a test StarcoinEvent and corresponding BridgeAction
+    pub fn get_test_starcoin_bridge_event_and_action(
+        _identifier: Identifier,
+    ) -> (StarcoinEvent, BridgeAction) {
         init_all_struct_tags(); // Ensure all tags are initialized
+
+        // Create a random starcoin address for testing
+        let mut addr_bytes = [0u8; 16];
+        rand::thread_rng().fill_bytes(&mut addr_bytes);
+        let starcoin_addr = StarcoinAddress::new(addr_bytes);
+
         let sanitized_event = EmittedStarcoinToEthTokenBridgeV1 {
             nonce: 1,
             starcoin_bridge_chain_id: BridgeChainId::StarcoinTestnet,
-            starcoin_bridge_address: StarcoinAddress::random_for_testing_only(),
+            starcoin_bridge_address: starcoin_addr,
             eth_chain_id: BridgeChainId::EthSepolia,
             eth_address: EthAddress::random(),
             token_id: TOKEN_ID_STARCOIN,
@@ -498,7 +506,7 @@ pub mod tests {
             amount_starcoin_bridge_adjusted: sanitized_event.amount_starcoin_bridge_adjusted,
         };
 
-        let tx_digest = TransactionDigest::random();
+        let tx_digest = random_digest();
         let event_idx = 10u16;
         let bridge_action = BridgeAction::StarcoinToEthBridgeAction(StarcoinToEthBridgeAction {
             starcoin_bridge_tx_digest: tx_digest,
@@ -507,60 +515,52 @@ pub mod tests {
         });
         let event = StarcoinEvent {
             type_: StarcoinToEthTokenBridgeV1.get().unwrap().clone(),
-            bcs: BcsEvent::new(bcs::to_bytes(&emitted_event).unwrap()),
+            bcs: bcs::to_bytes(&emitted_event).unwrap(),
             id: EventID {
                 tx_digest,
                 event_seq: event_idx as u64,
+                block_number: 1,
             },
-
-            // The following fields do not matter as of writing,
-            // but if tests start to fail, it's worth checking these fields.
-            package_id: ObjectID::ZERO,
-            transaction_module: identifier.clone(),
-            sender: StarcoinAddress::random_for_testing_only(),
-            parsed_json: serde_json::json!({"test": "test"}),
-            timestamp_ms: None,
         };
         (event, bridge_action)
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
-    async fn test_bridge_events_when_init() {
-        telemetry_subscribers::init_for_testing();
-        init_all_struct_tags();
-        let mut bridge_test_cluster = BridgeTestClusterBuilder::new()
-            .with_eth_env(false)
-            .with_bridge_cluster(false)
-            .with_num_validators(2)
-            .build()
-            .await;
-
-        let events = bridge_test_cluster
-            .new_bridge_events(
-                HashSet::from_iter([
-                    CommitteeMemberRegistration.get().unwrap().clone(),
-                    CommitteeUpdateEvent.get().unwrap().clone(),
-                    TokenRegistrationEvent.get().unwrap().clone(),
-                    NewTokenEvent.get().unwrap().clone(),
-                ]),
-                false,
-            )
-            .await;
-        let mut mask = 0u8;
-        for event in events.iter() {
-            match StarcoinBridgeEvent::try_from_starcoin_bridge_event(event).unwrap().unwrap() {
-                StarcoinBridgeEvent::CommitteeMemberRegistration(_event) => mask |= 0x1,
-                StarcoinBridgeEvent::CommitteeUpdateEvent(_event) => mask |= 0x2,
-                StarcoinBridgeEvent::TokenRegistrationEvent(_event) => mask |= 0x4,
-                StarcoinBridgeEvent::NewTokenEvent(_event) => mask |= 0x8,
-                _ => panic!("Got unexpected event: {:?}", event),
-            }
-        }
-        // assert all the above events are emitted
-        assert_eq!(mask, 0xF);
-
-        // TODO: trigger other events and make sure they are converted correctly
-    }
+    // TODO: Re-enable when BridgeTestClusterBuilder is implemented with Starcoin test infrastructure
+    // #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
+    // async fn test_bridge_events_when_init() {
+    //     telemetry_subscribers::init_for_testing();
+    //     init_all_struct_tags();
+    //     let mut bridge_test_cluster = BridgeTestClusterBuilder::new()
+    //         .with_eth_env(false)
+    //         .with_bridge_cluster(false)
+    //         .with_num_validators(2)
+    //         .build()
+    //         .await;
+    //
+    //     let events = bridge_test_cluster
+    //         .new_bridge_events(
+    //             HashSet::from_iter([
+    //                 CommitteeMemberRegistration.get().unwrap().clone(),
+    //                 CommitteeUpdateEvent.get().unwrap().clone(),
+    //                 TokenRegistrationEvent.get().unwrap().clone(),
+    //                 NewTokenEvent.get().unwrap().clone(),
+    //             ]),
+    //             false,
+    //         )
+    //         .await;
+    //     let mut mask = 0u8;
+    //     for event in events.iter() {
+    //         match StarcoinBridgeEvent::try_from_starcoin_bridge_event(event).unwrap().unwrap() {
+    //             StarcoinBridgeEvent::CommitteeMemberRegistration(_event) => mask |= 0x1,
+    //             StarcoinBridgeEvent::CommitteeUpdateEvent(_event) => mask |= 0x2,
+    //             StarcoinBridgeEvent::TokenRegistrationEvent(_event) => mask |= 0x4,
+    //             StarcoinBridgeEvent::NewTokenEvent(_event) => mask |= 0x8,
+    //             _ => panic!("Got unexpected event: {:?}", event),
+    //         }
+    //     }
+    //     // assert all the above events are emitted
+    //     assert_eq!(mask, 0xF);
+    // }
 
     #[test]
     fn test_conversion_for_committee_member_url_update_event() {
@@ -588,14 +588,17 @@ pub mod tests {
         .unwrap_err();
     }
 
-    // TODO: add conversion tests for other events
-
     #[test]
     fn test_0_starcoin_bridge_amount_conversion_for_starcoin_bridge_event() {
+        // Create a random starcoin address for testing
+        let mut addr_bytes = [0u8; 16];
+        rand::thread_rng().fill_bytes(&mut addr_bytes);
+        let starcoin_addr = StarcoinAddress::new(addr_bytes);
+
         let emitted_event = MoveTokenDepositedEvent {
             seq_num: 1,
             source_chain: BridgeChainId::StarcoinTestnet as u8,
-            sender_address: StarcoinAddress::random_for_testing_only().to_vec(),
+            sender_address: starcoin_addr.to_vec(),
             target_chain: BridgeChainId::EthSepolia as u8,
             target_address: EthAddress::random().as_bytes().to_vec(),
             token_type: TOKEN_ID_STARCOIN,
@@ -603,7 +606,7 @@ pub mod tests {
         };
         match EmittedStarcoinToEthTokenBridgeV1::try_from(emitted_event).unwrap_err() {
             BridgeError::ZeroValueBridgeTransfer(_) => (),
-            other => panic!("Expected Generic error, got: {:?}", other),
+            other => panic!("Expected ZeroValueBridgeTransfer error, got: {:?}", other),
         }
     }
-}*/
+}

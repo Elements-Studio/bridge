@@ -1,6 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+#![allow(unused_imports, unused_variables, dead_code)]
+
 use anyhow::anyhow;
 use clap::*;
 use ethers::providers::Middleware;
@@ -713,16 +715,22 @@ async fn deposit_on_starcoin(
     );
 
     // Get sequence number from chain
-    let sequence_number = rpc_client.get_sequence_number(&sender_hex).await
+    let sequence_number = rpc_client
+        .get_sequence_number(&sender_hex)
+        .await
         .map_err(|e| anyhow!("Failed to get sequence number: {:?}", e))?;
 
     // Get current block timestamp for transaction expiration
-    let block_timestamp_ms = rpc_client.get_block_timestamp().await
+    let block_timestamp_ms = rpc_client
+        .get_block_timestamp()
+        .await
         .map_err(|e| anyhow!("Failed to get block timestamp: {:?}", e))?;
 
     // Get chain ID from Starcoin node (e.g., 254 for dev, 251 for halley)
     // Note: This is different from bridge_summary.chain_id which is the Bridge chain ID
-    let chain_id = rpc_client.get_chain_id().await
+    let chain_id = rpc_client
+        .get_chain_id()
+        .await
         .map_err(|e| anyhow!("Failed to get chain ID: {:?}", e))?;
 
     info!(
@@ -740,11 +748,16 @@ async fn deposit_on_starcoin(
 
     // Parse module address from config (starcoin_bridge_proxy_address is where the bridge contract is deployed)
     let module_address = {
-        let addr_str = config.starcoin_bridge_proxy_address.trim_start_matches("0x");
+        let addr_str = config
+            .starcoin_bridge_proxy_address
+            .trim_start_matches("0x");
         let bytes = Hex::decode(addr_str)
             .map_err(|e| anyhow!("Invalid bridge proxy address hex: {:?}", e))?;
         if bytes.len() != 16 {
-            return Err(anyhow!("Invalid bridge proxy address length: expected 16 bytes, got {}", bytes.len()));
+            return Err(anyhow!(
+                "Invalid bridge proxy address length: expected 16 bytes, got {}",
+                bytes.len()
+            ));
         }
         let mut arr = [0u8; 16];
         arr.copy_from_slice(&bytes);
@@ -762,7 +775,8 @@ async fn deposit_on_starcoin(
         recipient_address.as_bytes().to_vec(),
         amount,
         coin_type,
-    ).map_err(|e| anyhow!("Failed to build transaction: {:?}", e))?;
+    )
+    .map_err(|e| anyhow!("Failed to build transaction: {:?}", e))?;
 
     info!(
         sender = ?raw_txn.sender(),
@@ -774,7 +788,9 @@ async fn deposit_on_starcoin(
     // Use sign_and_submit_transaction which uses Starcoin native types for proper BCS serialization
     // This is the same path used by the bridge server for approve/claim transactions
     info!("Signing and submitting transaction to Starcoin...");
-    let txn_hash = rpc_client.sign_and_submit_transaction(&config.starcoin_bridge_key, raw_txn).await
+    let txn_hash = rpc_client
+        .sign_and_submit_transaction(&config.starcoin_bridge_key, raw_txn)
+        .await
         .map_err(|e| anyhow!("Failed to sign and submit transaction: {:?}", e))?;
 
     info!(

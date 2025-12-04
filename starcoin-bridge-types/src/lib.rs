@@ -9,6 +9,8 @@
 //! while adapting to Starcoin's account-based model.
 
 #![allow(dead_code, unused_variables)]
+#![allow(clippy::too_many_arguments)]
+#![allow(clippy::large_enum_variant)]
 
 use serde::{Deserialize, Serialize};
 
@@ -91,6 +93,7 @@ pub mod committee {
     pub use starcoin_bridge_vm_types::bridge::committee::*;
 }
 
+#[allow(hidden_glob_reexports)]
 pub mod crypto {
     pub use starcoin_bridge_vm_types::bridge::crypto::*;
 
@@ -118,7 +121,7 @@ pub mod crypto {
             // Create a copy by serializing and deserializing
             use fastcrypto::traits::ToFromBytes;
             let bytes = self.as_bytes();
-            Ed25519KeyPair::from_bytes(&bytes).expect("Failed to copy keypair")
+            Ed25519KeyPair::from_bytes(bytes).expect("Failed to copy keypair")
         }
     }
 
@@ -158,10 +161,10 @@ pub mod crypto {
         /// 3. Take the last 16 bytes as the AccountAddress
         pub fn starcoin_address(&self) -> move_core_types::account_address::AccountAddress {
             use sha3::{Digest, Sha3_256};
-            
+
             // Get public key bytes
             let pubkey_bytes = self.public();
-            
+
             // Create preimage: pubkey || scheme_flag
             // Ed25519 = 0x00, Secp256k1 = 0x01
             let scheme_flag: u8 = match self {
@@ -170,14 +173,14 @@ pub mod crypto {
             };
             let mut preimage = pubkey_bytes;
             preimage.push(scheme_flag);
-            
+
             // Hash with SHA3-256
             let hash = Sha3_256::digest(&preimage);
-            
+
             // Take last 16 bytes as address
             let mut addr_bytes = [0u8; 16];
             addr_bytes.copy_from_slice(&hash[16..32]);
-            
+
             move_core_types::account_address::AccountAddress::new(addr_bytes)
         }
 
@@ -186,7 +189,10 @@ pub mod crypto {
             use fastcrypto::traits::KeyPair;
             match self {
                 StarcoinKeyPair::Ed25519(kp) => {
-                    let sig = fastcrypto::traits::Signer::<fastcrypto::ed25519::Ed25519Signature>::sign(kp, msg);
+                    let sig =
+                        fastcrypto::traits::Signer::<fastcrypto::ed25519::Ed25519Signature>::sign(
+                            kp, msg,
+                        );
                     (kp.public().as_bytes().to_vec(), sig.as_bytes().to_vec())
                 }
                 StarcoinKeyPair::Secp256k1(kp) => {
@@ -320,25 +326,13 @@ pub mod collection_types {
 pub mod quorum_driver_types {
     use serde::{Deserialize, Serialize};
 
-    #[derive(Clone, Debug, Serialize, Deserialize)]
+    #[derive(Clone, Debug, Serialize, Deserialize, Default)]
     pub struct ExecuteTransactionRequestV3 {
         pub transaction: Vec<u8>,
         pub include_events: bool,
         pub include_input_objects: bool,
         pub include_output_objects: bool,
         pub include_auxiliary_data: bool,
-    }
-
-    impl Default for ExecuteTransactionRequestV3 {
-        fn default() -> Self {
-            Self {
-                transaction: Vec::new(),
-                include_events: false,
-                include_input_objects: false,
-                include_output_objects: false,
-                include_auxiliary_data: false,
-            }
-        }
     }
 
     #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -578,7 +572,10 @@ pub mod transaction {
         /// Serialize to BCS bytes manually to ensure correct format
         pub fn to_bcs_bytes(&self) -> Vec<u8> {
             match self {
-                TransactionAuthenticator::Ed25519 { public_key, signature } => {
+                TransactionAuthenticator::Ed25519 {
+                    public_key,
+                    signature,
+                } => {
                     // BCS format: variant_index (1 byte for small enum) + public_key (32 bytes) + signature (64 bytes)
                     let mut bytes = Vec::with_capacity(1 + 32 + 64);
                     bytes.push(0u8); // variant index for Ed25519
@@ -586,10 +583,13 @@ pub mod transaction {
                     bytes.extend_from_slice(signature);
                     bytes
                 }
-                TransactionAuthenticator::MultiEd25519 { public_key, signature } => {
+                TransactionAuthenticator::MultiEd25519 {
+                    public_key,
+                    signature,
+                } => {
                     let mut bytes = Vec::new();
                     bytes.push(1u8); // variant index for MultiEd25519
-                    // Vec<u8> needs length prefix
+                                     // Vec<u8> needs length prefix
                     bytes.extend_from_slice(&(public_key.len() as u32).to_le_bytes()[..]);
                     bytes.extend_from_slice(public_key);
                     bytes.extend_from_slice(&(signature.len() as u32).to_le_bytes()[..]);
@@ -616,7 +616,9 @@ pub mod transaction {
             D: serde::Deserializer<'de>,
         {
             // Not commonly needed for our use case
-            Err(serde::de::Error::custom("TransactionAuthenticator deserialization not implemented"))
+            Err(serde::de::Error::custom(
+                "TransactionAuthenticator deserialization not implemented",
+            ))
         }
     }
 
@@ -782,6 +784,12 @@ pub mod programmable_transaction_builder {
         next_input: u16,
     }
 
+    impl Default for ProgrammableTransactionBuilder {
+        fn default() -> Self {
+            Self::new()
+        }
+    }
+
     impl ProgrammableTransactionBuilder {
         pub fn new() -> Self {
             Self {
@@ -923,10 +931,10 @@ pub const BRIDGE_PACKAGE_ID: [u8; 32] = [
 pub const STARCOIN_BRIDGE_OBJECT_ID: [u8; 32] = [0; 32];
 
 // Use Starcoin/Move types instead of stubs
-pub use move_core_types::identifier::Identifier;
-pub use move_core_types::language_storage::TypeTag;
 use move_core_types::account_address::AccountAddress;
+pub use move_core_types::identifier::Identifier;
 use move_core_types::language_storage::StructTag;
+pub use move_core_types::language_storage::TypeTag;
 
 /// Parse a Starcoin type tag from hex-encoded BCS bytes
 /// Format: 0x<address><module_name_len><module_name><struct_name_len><struct_name>
@@ -947,14 +955,14 @@ pub fn parse_token_code_bytes_to_type_tag(bytes: &[u8]) -> Result<TypeTag, Strin
     if bytes.len() < 16 {
         return Err(format!("Type tag too short: {} bytes", bytes.len()));
     }
-    
+
     // First 16 bytes are the address
     let mut address_bytes = [0u8; 16];
     address_bytes.copy_from_slice(&bytes[0..16]);
     let address = AccountAddress::new(address_bytes);
-    
+
     let mut offset = 16;
-    
+
     // Read module name (length-prefixed string)
     if offset >= bytes.len() {
         return Err("Missing module name".to_string());
@@ -967,7 +975,7 @@ pub fn parse_token_code_bytes_to_type_tag(bytes: &[u8]) -> Result<TypeTag, Strin
     let module_name = String::from_utf8(bytes[offset..offset + module_len].to_vec())
         .map_err(|e| format!("Invalid module name UTF-8: {}", e))?;
     offset += module_len;
-    
+
     // Read struct name (length-prefixed string)
     if offset >= bytes.len() {
         return Err("Missing struct name".to_string());
@@ -979,11 +987,13 @@ pub fn parse_token_code_bytes_to_type_tag(bytes: &[u8]) -> Result<TypeTag, Strin
     }
     let struct_name = String::from_utf8(bytes[offset..offset + struct_len].to_vec())
         .map_err(|e| format!("Invalid struct name UTF-8: {}", e))?;
-    
+
     Ok(TypeTag::Struct(Box::new(StructTag {
         address,
-        module: Identifier::new(module_name).map_err(|e| format!("Invalid module identifier: {}", e))?,
-        name: Identifier::new(struct_name).map_err(|e| format!("Invalid struct identifier: {}", e))?,
+        module: Identifier::new(module_name)
+            .map_err(|e| format!("Invalid module identifier: {}", e))?,
+        name: Identifier::new(struct_name)
+            .map_err(|e| format!("Invalid struct identifier: {}", e))?,
         type_params: vec![],
     })))
 }

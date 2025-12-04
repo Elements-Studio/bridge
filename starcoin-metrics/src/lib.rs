@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+#![allow(unexpected_cfgs)]
 // SPDX-License-Identifier: Apache-2.0
 
 use axum::{extract::Extension, http::StatusCode, routing::get, Router};

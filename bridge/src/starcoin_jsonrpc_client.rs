@@ -10,9 +10,11 @@ use starcoin_bridge_json_rpc_types::{
     StarcoinTransactionBlockEffects, StarcoinTransactionBlockResponse,
 };
 // Use the tuple EventID type from starcoin_bridge_types
-use starcoin_bridge_types::event::EventID;
 use starcoin_bridge_types::base_types::{ObjectID, ObjectRef, TransactionDigest};
-use starcoin_bridge_types::bridge::{BridgeSummary, MoveTypeParsedTokenTransferMessage, MoveTypeTokenTransferPayload};
+use starcoin_bridge_types::bridge::{
+    BridgeSummary, MoveTypeParsedTokenTransferMessage, MoveTypeTokenTransferPayload,
+};
+use starcoin_bridge_types::event::EventID;
 use starcoin_bridge_types::gas_coin::GasCoin;
 use starcoin_bridge_types::object::Owner;
 use starcoin_bridge_types::transaction::{ObjectArg, Transaction};
@@ -36,7 +38,8 @@ trait JsonValueExt {
 
 impl JsonValueExt for serde_json::Value {
     fn as_u64_flex(&self) -> Option<u64> {
-        self.as_u64().or_else(|| self.as_str().and_then(|s| s.parse().ok()))
+        self.as_u64()
+            .or_else(|| self.as_str().and_then(|s| s.parse().ok()))
     }
 }
 
@@ -69,8 +72,16 @@ impl StarcoinJsonRpcClient {
         type_args: Vec<String>,
         args: Vec<String>,
     ) -> Result<serde_json::Value, JsonRpcError> {
-        let function_id = format!("{}::{}::{}", self.bridge_address(), BRIDGE_MODULE, function_name);
-        self.rpc.call_contract(&function_id, type_args, args).await.map_err(JsonRpcError::from)
+        let function_id = format!(
+            "{}::{}::{}",
+            self.bridge_address(),
+            BRIDGE_MODULE,
+            function_name
+        );
+        self.rpc
+            .call_contract(&function_id, type_args, args)
+            .await
+            .map_err(JsonRpcError::from)
     }
 
     /// Convert u8 status code from Move contract to BridgeActionStatus
@@ -98,12 +109,14 @@ impl StarcoinJsonRpcClient {
                             let mut signatures = Vec::new();
                             for item in inner_arr {
                                 if let Some(bytes) = item.get("value").and_then(|v| v.as_array()) {
-                                    let sig: Vec<u8> = bytes.iter()
+                                    let sig: Vec<u8> = bytes
+                                        .iter()
                                         .filter_map(|b| b.as_u64().map(|n| n as u8))
                                         .collect();
                                     signatures.push(sig);
                                 } else if let Some(hex_str) = item.as_str() {
-                                    if let Ok(bytes) = hex::decode(hex_str.trim_start_matches("0x")) {
+                                    if let Ok(bytes) = hex::decode(hex_str.trim_start_matches("0x"))
+                                    {
                                         signatures.push(bytes);
                                     }
                                 }
@@ -120,12 +133,14 @@ impl StarcoinJsonRpcClient {
     }
 
     /// Parse RPC bridge summary response into BridgeSummary
-    fn parse_rpc_bridge_summary(rpc_response: &serde_json::Value) -> Result<BridgeSummary, JsonRpcError> {
-        use starcoin_bridge_types::bridge::{
-            BridgeCommitteeSummary, BridgeLimiterSummary,
-            BridgeTreasurySummary, MoveTypeCommitteeMember, BridgeTokenMetadata,
-        };
+    fn parse_rpc_bridge_summary(
+        rpc_response: &serde_json::Value,
+    ) -> Result<BridgeSummary, JsonRpcError> {
         use starcoin_bridge_types::base_types::StarcoinAddress;
+        use starcoin_bridge_types::bridge::{
+            BridgeCommitteeSummary, BridgeLimiterSummary, BridgeTokenMetadata,
+            BridgeTreasurySummary, MoveTypeCommitteeMember,
+        };
 
         // The RPC response has structure: { "json": { "inner": { ... } }, "raw": "..." }
         // Extract the inner bridge data
@@ -135,16 +150,17 @@ impl StarcoinJsonRpcClient {
             .unwrap_or(rpc_response);
 
         // Parse bridge version and chain id
-        let bridge_version = inner.get("bridge_version")
+        let bridge_version = inner
+            .get("bridge_version")
             .and_then(|v| v.as_u64())
             .unwrap_or(1);
-        let message_version = inner.get("message_version")
+        let message_version = inner
+            .get("message_version")
             .and_then(|v| v.as_u64())
             .unwrap_or(1) as u8;
-        let chain_id = inner.get("chain_id")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(1) as u8;
-        let is_frozen = inner.get("paused")
+        let chain_id = inner.get("chain_id").and_then(|v| v.as_u64()).unwrap_or(1) as u8;
+        let is_frozen = inner
+            .get("paused")
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
 
@@ -162,19 +178,24 @@ impl StarcoinJsonRpcClient {
                 let key = entry.get("key").and_then(|k| k.as_str()).unwrap_or("");
                 let value = entry.get("value").unwrap_or(&serde_json::Value::Null);
 
-                let pubkey_hex = value.get("bridge_pubkey_bytes")
+                let pubkey_hex = value
+                    .get("bridge_pubkey_bytes")
                     .and_then(|v| v.as_str())
                     .unwrap_or(key);
-                let voting_power = value.get("voting_power")
+                let voting_power = value
+                    .get("voting_power")
                     .and_then(|v| v.as_u64())
                     .unwrap_or(0);
-                let address_hex = value.get("starcoin_address")
+                let address_hex = value
+                    .get("starcoin_address")
                     .and_then(|v| v.as_str())
                     .unwrap_or("");
-                let blocklisted = value.get("blocklisted")
+                let blocklisted = value
+                    .get("blocklisted")
                     .and_then(|v| v.as_bool())
                     .unwrap_or(false);
-                let http_rest_url_hex = value.get("http_rest_url")
+                let http_rest_url_hex = value
+                    .get("http_rest_url")
                     .and_then(|v| v.as_str())
                     .unwrap_or("");
 
@@ -183,23 +204,27 @@ impl StarcoinJsonRpcClient {
                 if let Ok(pubkey_bytes) = hex::decode(pubkey_clean) {
                     let starcoin_addr = StarcoinAddress::from_hex_literal(address_hex)
                         .unwrap_or(StarcoinAddress::ZERO);
-                    
+
                     // Decode http_rest_url from hex to bytes
                     let url_clean = http_rest_url_hex.trim_start_matches("0x");
                     let http_rest_url = hex::decode(url_clean).unwrap_or_default();
 
-                    committee_members.push((pubkey_bytes.clone(), MoveTypeCommitteeMember {
-                        starcoin_bridge_address: starcoin_addr,
-                        bridge_pubkey_bytes: pubkey_bytes,
-                        voting_power,
-                        http_rest_url,
-                        blocklisted,
-                    }));
+                    committee_members.push((
+                        pubkey_bytes.clone(),
+                        MoveTypeCommitteeMember {
+                            starcoin_bridge_address: starcoin_addr,
+                            bridge_pubkey_bytes: pubkey_bytes,
+                            voting_power,
+                            http_rest_url,
+                            blocklisted,
+                        },
+                    ));
                 }
             }
         }
 
-        let last_committee_update_epoch = committee.get("last_committee_update_epoch")
+        let last_committee_update_epoch = committee
+            .get("last_committee_update_epoch")
             .and_then(|v| v.as_u64())
             .unwrap_or(0);
 
@@ -221,9 +246,7 @@ impl StarcoinJsonRpcClient {
             .and_then(|d| d.as_array())
         {
             for entry in tokens_data {
-                let token_type = entry.get("key")
-                    .and_then(|k| k.as_str())
-                    .unwrap_or("");
+                let token_type = entry.get("key").and_then(|k| k.as_str()).unwrap_or("");
                 supported_tokens.push((token_type.to_string(), BridgeTokenMetadata::default()));
             }
         }
@@ -234,10 +257,9 @@ impl StarcoinJsonRpcClient {
             .and_then(|d| d.as_array())
         {
             for entry in map_data {
-                let id = entry.get("key")
-                    .and_then(|k| k.as_u64())
-                    .unwrap_or(0) as u8;
-                let token_type = entry.get("value")
+                let id = entry.get("key").and_then(|k| k.as_u64()).unwrap_or(0) as u8;
+                let token_type = entry
+                    .get("value")
                     .and_then(|v| v.as_str())
                     .unwrap_or("")
                     .to_string();
@@ -258,12 +280,8 @@ impl StarcoinJsonRpcClient {
             .and_then(|d| d.as_array())
         {
             for entry in seq_data {
-                let chain_id = entry.get("key")
-                    .and_then(|k| k.as_u64())
-                    .unwrap_or(0) as u8;
-                let seq_num = entry.get("value")
-                    .and_then(|v| v.as_u64())
-                    .unwrap_or(0);
+                let chain_id = entry.get("key").and_then(|k| k.as_u64()).unwrap_or(0) as u8;
+                let seq_num = entry.get("value").and_then(|v| v.as_u64()).unwrap_or(0);
                 sequence_nums.push((chain_id, seq_num));
             }
         }
@@ -344,11 +362,14 @@ impl StarcoinClientInner for StarcoinJsonRpcClient {
         }
 
         // Set to_block with max range limit (Starcoin limits to 32 blocks)
-        let to_block = std::cmp::min(from_block.saturating_add(MAX_BLOCK_RANGE - 1), current_block);
-        
+        let to_block = std::cmp::min(
+            from_block.saturating_add(MAX_BLOCK_RANGE - 1),
+            current_block,
+        );
+
         filter.from_block = Some(from_block);
         filter.to_block = Some(to_block);
-        
+
         // Set a reasonable limit
         if filter.limit.is_none() {
             filter.limit = Some(100);
@@ -362,11 +383,11 @@ impl StarcoinClientInner for StarcoinJsonRpcClient {
         );
 
         let raw_events = self.rpc.get_events(filter.to_rpc_filter()).await?;
-        
+
         // Parse events
         let mut events = Vec::new();
         let mut last_block_num = from_block;
-        for (_idx, event_value) in raw_events.iter().enumerate() {
+        for event_value in raw_events.iter() {
             // Extract tx_hash for event ID
             let tx_hash = event_value
                 .get("transaction_hash")
@@ -399,7 +420,7 @@ impl StarcoinClientInner for StarcoinJsonRpcClient {
 
         // Determine if there are more blocks to query
         let has_next_page = to_block < current_block;
-        
+
         // Next cursor: use last queried block for next iteration
         let next_cursor: Option<EventID> = Some((to_block, 0));
 
@@ -416,7 +437,7 @@ impl StarcoinClientInner for StarcoinJsonRpcClient {
     ) -> Result<Vec<StarcoinEvent>, Self::Error> {
         let tx_hash = format!("0x{}", hex::encode(tx_digest));
         let raw_events = self.rpc.get_events_by_txn_hash(&tx_hash).await?;
-        
+
         // Parse each event from RPC response into StarcoinEvent
         let mut events = Vec::new();
         for event_value in raw_events {
@@ -449,7 +470,10 @@ impl StarcoinClientInner for StarcoinJsonRpcClient {
         let block_number = chain_info
             .get("head")
             .and_then(|h| h.get("number"))
-            .and_then(|n| n.as_u64().or_else(|| n.as_str().and_then(|s| s.parse().ok())))
+            .and_then(|n| {
+                n.as_u64()
+                    .or_else(|| n.as_str().and_then(|s| s.parse().ok()))
+            })
             .ok_or_else(|| JsonRpcError("Missing block number".into()))?;
         Ok(block_number)
     }
@@ -468,7 +492,7 @@ impl StarcoinClientInner for StarcoinJsonRpcClient {
     async fn get_bridge_summary(&self) -> Result<BridgeSummary, Self::Error> {
         // Call bridge.get_latest_bridge RPC
         let rpc_response = self.rpc.get_latest_bridge().await?;
-        
+
         // Parse the RPC response and convert to BridgeSummary
         // RPC returns: { committee: {...}, treasury: {...}, config: {...} }
         Self::parse_rpc_bridge_summary(&rpc_response)
@@ -482,11 +506,15 @@ impl StarcoinClientInner for StarcoinJsonRpcClient {
         let signed_txn_hex = hex::encode(&tx.0);
 
         // Submit and wait for transaction confirmation
-        let txn_info = self.rpc.submit_and_wait_transaction(&signed_txn_hex).await
+        let txn_info = self
+            .rpc
+            .submit_and_wait_transaction(&signed_txn_hex)
+            .await
             .map_err(|e| BridgeError::Generic(format!("Transaction execution failed: {}", e)))?;
 
         // Parse the response into StarcoinTransactionBlockResponse
-        let tx_hash = txn_info.get("transaction_hash")
+        let tx_hash = txn_info
+            .get("transaction_hash")
             .and_then(|v| v.as_str())
             .and_then(|s| hex::decode(s.trim_start_matches("0x")).ok())
             .map(|bytes| {
@@ -497,7 +525,8 @@ impl StarcoinClientInner for StarcoinJsonRpcClient {
             })
             .unwrap_or([0u8; 32]);
 
-        let status = txn_info.get("status")
+        let status = txn_info
+            .get("status")
             .and_then(|v| v.as_str())
             .unwrap_or("unknown");
 
@@ -529,21 +558,29 @@ impl StarcoinClientInner for StarcoinJsonRpcClient {
         // Function signature: query_token_transfer_status(source_chain: u8, bridge_seq_num: u64): u8
         // Note: Starcoin contract.call_v2 requires type suffix on arguments (e.g., "12u8", "0u64")
         let args = vec![
-            format!("{}u8", source_chain_id),   // source_chain as u8
-            format!("{}u64", seq_number),       // bridge_seq_num as u64
+            format!("{}u8", source_chain_id), // source_chain as u8
+            format!("{}u64", seq_number),     // bridge_seq_num as u64
         ];
 
-        match self.call_bridge_function("query_token_transfer_status", vec![], args).await {
+        match self
+            .call_bridge_function("query_token_transfer_status", vec![], args)
+            .await
+        {
             Ok(response) => {
                 // Parse u8 status from response
                 // Response format: [1] (direct array of values)
-                let status = response.as_array()
+                let status = response
+                    .as_array()
                     .and_then(|arr| arr.first())
                     .and_then(|v| v.as_u64())
                     .map(|n| n as u8)
                     .unwrap_or(TRANSFER_STATUS_NOT_FOUND);
 
-                tracing::debug!("Query transfer status response: {:?}, parsed status: {}", response, status);
+                tracing::debug!(
+                    "Query transfer status response: {:?}, parsed status: {}",
+                    response,
+                    status
+                );
                 Ok(Self::parse_transfer_status(status))
             }
             Err(e) => {
@@ -567,10 +604,11 @@ impl StarcoinClientInner for StarcoinJsonRpcClient {
             format!("{}u64", seq_number),
         ];
 
-        match self.call_bridge_function("query_token_transfer_signatures", vec![], args).await {
-            Ok(response) => {
-                Ok(Self::parse_signatures_response(&response))
-            }
+        match self
+            .call_bridge_function("query_token_transfer_signatures", vec![], args)
+            .await
+        {
+            Ok(response) => Ok(Self::parse_signatures_response(&response)),
             Err(e) => {
                 tracing::warn!("Failed to query transfer signatures: {:?}", e);
                 Ok(None)
@@ -591,7 +629,10 @@ impl StarcoinClientInner for StarcoinJsonRpcClient {
             format!("{}u64", seq_number),
         ];
 
-        match self.call_bridge_function("test_get_parsed_token_transfer_message", vec![], args).await {
+        match self
+            .call_bridge_function("test_get_parsed_token_transfer_message", vec![], args)
+            .await
+        {
             Ok(response) => {
                 // Parse the response into MoveTypeParsedTokenTransferMessage
                 // Response format: [{"type": "option", "value": {...}}]
@@ -600,21 +641,25 @@ impl StarcoinClientInner for StarcoinJsonRpcClient {
                         if let Some(opt_value) = first.get("value") {
                             if !opt_value.is_null() {
                                 // Parse the struct fields
-                                let message_version = opt_value.get("message_version")
+                                let message_version = opt_value
+                                    .get("message_version")
                                     .and_then(|v| v.as_u64())
                                     .map(|n| n as u8)
                                     .unwrap_or(1);
 
-                                let seq_num = opt_value.get("seq_num")
+                                let seq_num = opt_value
+                                    .get("seq_num")
                                     .and_then(|v| v.as_u64())
                                     .unwrap_or(seq_number);
 
-                                let source_chain = opt_value.get("source_chain")
+                                let source_chain = opt_value
+                                    .get("source_chain")
                                     .and_then(|v| v.as_u64())
                                     .map(|n| n as u8)
                                     .unwrap_or(source_chain_id);
 
-                                let payload = opt_value.get("payload")
+                                let payload = opt_value
+                                    .get("payload")
                                     .and_then(|v| v.as_str())
                                     .and_then(|s| hex::decode(s.trim_start_matches("0x")).ok())
                                     .unwrap_or_default();
@@ -683,20 +728,26 @@ impl StarcoinClientInner for StarcoinJsonRpcClient {
         // Query account balance for the gas object
         // For Starcoin, gas is STC balance, not a separate object
         // We return a dummy value since Starcoin handles gas differently
-        let gas_coin = GasCoin { value: 1_000_000_000 }; // 1 STC in micros
+        let gas_coin = GasCoin {
+            value: 1_000_000_000,
+        }; // 1 STC in micros
         let object_ref = (gas_object_id, 1u64, [0u8; 32]);
         let owner = Owner::AddressOwner(starcoin_bridge_types::base_types::StarcoinAddress::ZERO);
-        
+
         (gas_coin, object_ref, owner)
     }
 
     async fn get_sequence_number(&self, address: &str) -> Result<u64, BridgeError> {
-        self.rpc.get_sequence_number(address).await
+        self.rpc
+            .get_sequence_number(address)
+            .await
             .map_err(|e| BridgeError::Generic(format!("Failed to get sequence number: {}", e)))
     }
 
     async fn get_block_timestamp(&self) -> Result<u64, BridgeError> {
-        self.rpc.get_block_timestamp().await
+        self.rpc
+            .get_block_timestamp()
+            .await
             .map_err(|e| BridgeError::Generic(format!("Failed to get block timestamp: {}", e)))
     }
 
@@ -705,7 +756,11 @@ impl StarcoinClientInner for StarcoinJsonRpcClient {
         key: &starcoin_bridge_types::crypto::StarcoinKeyPair,
         raw_txn: starcoin_bridge_types::transaction::RawUserTransaction,
     ) -> Result<String, BridgeError> {
-        self.rpc.sign_and_submit_transaction(key, raw_txn).await
-            .map_err(|e| BridgeError::Generic(format!("Failed to sign and submit transaction: {}", e)))
+        self.rpc
+            .sign_and_submit_transaction(key, raw_txn)
+            .await
+            .map_err(|e| {
+                BridgeError::Generic(format!("Failed to sign and submit transaction: {}", e))
+            })
     }
 }

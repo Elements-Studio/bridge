@@ -5,4 +5,7 @@ edition = "2021"
 publish = false
 
 [dependencies]
-# Stub for Starcoin bridge - minimal dependencies
+# Starcoin test helper from starcoin-vm1
+starcoin-test-helper = { workspace = true }
+anyhow = { workspace = true }
+tokio = { workspace = true }

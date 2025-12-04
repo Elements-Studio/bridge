@@ -199,14 +199,12 @@ impl BridgeNodeConfig {
 
         // Use JSON-RPC client to avoid nested tokio runtime issues
         tracing::info!("Creating JSON-RPC Starcoin client");
-        
-        let starcoin_bridge_client = Arc::new(
-            StarcoinBridgeClient::with_metrics(
-                &self.starcoin.starcoin_bridge_rpc_url,
-                &self.starcoin.starcoin_bridge_proxy_address,
-                metrics.clone(),
-            )
-        );
+
+        let starcoin_bridge_client = Arc::new(StarcoinBridgeClient::with_metrics(
+            &self.starcoin.starcoin_bridge_rpc_url,
+            &self.starcoin.starcoin_bridge_proxy_address,
+            metrics.clone(),
+        ));
 
         let (eth_client, eth_contracts) = self.prepare_for_eth(metrics.clone()).await?;
 
@@ -369,7 +367,7 @@ impl BridgeNodeConfig {
             .await
             .map_err(|e| anyhow!("Error getting chain identifier from Starcoin: {:?}", e))?;
         if self.starcoin.starcoin_bridge_chain_id == BridgeChainId::StarcoinMainnet as u8
-            && starcoin_bridge_identifier != get_mainnet_chain_identifier().to_string()
+            && starcoin_bridge_identifier != get_mainnet_chain_identifier()
         {
             anyhow::bail!(
                 "Expected starcoin chain identifier {}, but connected to {}",
@@ -378,7 +376,7 @@ impl BridgeNodeConfig {
             );
         }
         if self.starcoin.starcoin_bridge_chain_id == BridgeChainId::StarcoinTestnet as u8
-            && starcoin_bridge_identifier != get_testnet_chain_identifier().to_string()
+            && starcoin_bridge_identifier != get_testnet_chain_identifier()
         {
             anyhow::bail!(
                 "Expected starcoin chain identifier {}, but connected to {}",
@@ -394,7 +392,10 @@ impl BridgeNodeConfig {
         // Parse the bridge contract address from config (starcoin_bridge_proxy_address)
         // This is where the Move bridge module is deployed
         let bridge_contract_address = {
-            let addr_str = self.starcoin.starcoin_bridge_proxy_address.trim_start_matches("0x");
+            let addr_str = self
+                .starcoin
+                .starcoin_bridge_proxy_address
+                .trim_start_matches("0x");
             let addr_bytes = hex::decode(addr_str)
                 .map_err(|e| anyhow!("Invalid starcoin_bridge_proxy_address hex: {}", e))?;
             if addr_bytes.len() != 16 {
@@ -407,15 +408,18 @@ impl BridgeNodeConfig {
             arr.copy_from_slice(&addr_bytes);
             move_core_types::account_address::AccountAddress::new(arr)
         };
-        info!("Bridge contract address: 0x{}", hex::encode(bridge_contract_address.as_ref()));
+        info!(
+            "Bridge contract address: 0x{}",
+            hex::encode(bridge_contract_address.as_ref())
+        );
 
         // Starcoin uses account model, not UTXO/Object model like Sui
         // Gas is paid from account balance, no need for gas object
         // Create a dummy gas_object_ref for compatibility with existing code structure
         let dummy_gas_object_ref: ObjectRef = (
-            [0u8; 32],  // ObjectID
-            0u64,       // SequenceNumber
-            [0u8; 32],  // ObjectDigest
+            [0u8; 32], // ObjectID
+            0u64,      // SequenceNumber
+            [0u8; 32], // ObjectDigest
         );
 
         info!("Starcoin client setup complete");

@@ -3,8 +3,7 @@
 
 use crate::encoding::{Base64, Encoding};
 use crate::hash::{
-    Blake2b256, Digest, HashFunction, Keccak256, Sha256,
-    Sha3_256, Sha3_512, Sha512,
+    Blake2b256, Digest, HashFunction, Keccak256, Sha256, Sha3_256, Sha3_512, Sha512,
 };
 // EllipticCurveMultisetHash and MultisetHash removed in minimal bridge version
 use std::io::Write;

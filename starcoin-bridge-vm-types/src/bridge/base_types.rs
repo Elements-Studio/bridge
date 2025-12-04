@@ -68,10 +68,7 @@ pub struct ModuleRef {
 }
 
 impl ModuleRef {
-    pub fn new(
-        address: StarcoinAddress,
-        module: move_core_types::identifier::Identifier,
-    ) -> Self {
+    pub fn new(address: StarcoinAddress, module: move_core_types::identifier::Identifier) -> Self {
         Self { address, module }
     }
 }

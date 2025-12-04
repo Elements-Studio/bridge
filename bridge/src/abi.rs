@@ -369,8 +369,8 @@ mod tests {
     use fastcrypto::encoding::{Encoding, Hex};
     use fastcrypto::traits::ToFromBytes;
     use hex_literal::hex;
-    use starcoin_bridge_types::bridge::TOKEN_ID_ETH;
     use starcoin_bridge_types::base_types::StarcoinAddress;
+    use starcoin_bridge_types::bridge::TOKEN_ID_ETH;
     use std::str::FromStr;
 
     #[test]
@@ -557,8 +557,8 @@ mod tests {
         let event = EthBridgeEvent::try_from_eth_log(&action).unwrap();
         assert_eq!(
             event,
-            EthBridgeEvent::EthStarcoinBridgeEvents(EthStarcoinBridgeEvents::TokensDepositedFilter(
-                TokensDepositedFilter {
+            EthBridgeEvent::EthStarcoinBridgeEvents(
+                EthStarcoinBridgeEvents::TokensDepositedFilter(TokensDepositedFilter {
                     source_chain_id: 12,
                     nonce: 0,
                     destination_chain_id: 2,
@@ -569,21 +569,18 @@ mod tests {
                     )
                     .unwrap(),
                     recipient_address: ethers::types::Bytes::from(
-                        Hex::decode(
-                            "0x3b1eb23133e94d08d0da9303cfd38e7d"
-                        )
-                        .unwrap(),
+                        Hex::decode("0x3b1eb23133e94d08d0da9303cfd38e7d").unwrap(),
                     ),
-                }
-            ))
+                })
+            )
         );
         Ok(())
     }
 
     #[test]
     fn test_0_starcoin_bridge_amount_conversion_for_eth_event() {
-        let e = EthBridgeEvent::EthStarcoinBridgeEvents(EthStarcoinBridgeEvents::TokensDepositedFilter(
-            TokensDepositedFilter {
+        let e = EthBridgeEvent::EthStarcoinBridgeEvents(
+            EthStarcoinBridgeEvents::TokensDepositedFilter(TokensDepositedFilter {
                 source_chain_id: BridgeChainId::EthSepolia as u8,
                 nonce: 0,
                 destination_chain_id: BridgeChainId::StarcoinTestnet as u8,
@@ -593,15 +590,15 @@ mod tests {
                 recipient_address: ethers::types::Bytes::from(
                     StarcoinAddress::random_for_testing_only().to_vec(),
                 ),
-            },
-        ));
+            }),
+        );
         assert!(e
             .try_into_bridge_action(TxHash::random(), 0)
             .unwrap()
             .is_some());
 
-        let e = EthBridgeEvent::EthStarcoinBridgeEvents(EthStarcoinBridgeEvents::TokensDepositedFilter(
-            TokensDepositedFilter {
+        let e = EthBridgeEvent::EthStarcoinBridgeEvents(
+            EthStarcoinBridgeEvents::TokensDepositedFilter(TokensDepositedFilter {
                 source_chain_id: BridgeChainId::EthSepolia as u8,
                 nonce: 0,
                 destination_chain_id: BridgeChainId::StarcoinTestnet as u8,
@@ -611,8 +608,8 @@ mod tests {
                 recipient_address: ethers::types::Bytes::from(
                     StarcoinAddress::random_for_testing_only().to_vec(),
                 ),
-            },
-        ));
+            }),
+        );
         match e.try_into_bridge_action(TxHash::random(), 0).unwrap_err() {
             BridgeError::ZeroValueBridgeTransfer(_) => {}
             e => panic!("Unexpected error: {:?}", e),

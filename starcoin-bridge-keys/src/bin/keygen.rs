@@ -87,7 +87,7 @@ fn examine_key_file(path: &PathBuf) -> Result<()> {
             // Calculate Ethereum address
             use sha3::{Digest, Keccak256};
             let pubkey_bytes = kp.public().as_bytes();
-            let hash = Keccak256::digest(&pubkey_bytes[..]);
+            let hash = Keccak256::digest(pubkey_bytes);
             let mut addr = [0u8; 20];
             addr.copy_from_slice(&hash[12..]);
             println!("Ethereum address: 0x{}", hex::encode(addr));

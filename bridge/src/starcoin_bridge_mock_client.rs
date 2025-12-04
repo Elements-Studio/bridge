@@ -25,11 +25,7 @@ use crate::types::{BridgeAction, BridgeActionStatus, IsBridgePaused};
 
 // Dummy bridge object arg function
 pub fn dummy_bridge_object_arg() -> ObjectArg {
-    ObjectArg::ImmOrOwnedObject((
-        [0u8; 32],
-        0,
-        [0u8; 32],
-    ))
+    ObjectArg::ImmOrOwnedObject(([0u8; 32], 0, [0u8; 32]))
 }
 
 // Mock client used in test environments.
@@ -184,7 +180,7 @@ impl StarcoinClientInner for StarcoinMockClient {
         cursor: Option<EventID>,
     ) -> Result<EventPage, Self::Error> {
         let events = self.events.lock().unwrap();
-        
+
         // EventFilter is now a struct with type_tags field
         // Extract module info from type_tags if available
         if let Some(type_tags) = &query.type_tags {
@@ -215,7 +211,7 @@ impl StarcoinClientInner for StarcoinMockClient {
                 }
             }
         }
-        
+
         // Default: return empty page
         Ok(EventPage {
             data: vec![],
@@ -364,6 +360,8 @@ impl StarcoinClientInner for StarcoinMockClient {
         _raw_txn: starcoin_bridge_types::transaction::RawUserTransaction,
     ) -> Result<String, BridgeError> {
         // Mock implementation for testing
-        Err(BridgeError::Generic("Mock transaction submission not implemented".into()))
+        Err(BridgeError::Generic(
+            "Mock transaction submission not implemented".into(),
+        ))
     }
 }

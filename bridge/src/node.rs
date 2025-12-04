@@ -30,7 +30,6 @@ use crate::{
 use arc_swap::ArcSwap;
 use ethers::providers::Provider;
 use ethers::types::Address as EthAddress;
-use starcoin_metrics::spawn_logged_monitored_task;
 use starcoin_bridge_types::{
     bridge::{
         BRIDGE_COMMITTEE_MODULE_NAME, BRIDGE_LIMITER_MODULE_NAME, BRIDGE_MODULE_NAME,
@@ -39,6 +38,7 @@ use starcoin_bridge_types::{
     event::EventID,
     Identifier,
 };
+use starcoin_metrics::spawn_logged_monitored_task;
 use std::collections::BTreeMap;
 use std::{
     collections::HashMap,
@@ -103,7 +103,8 @@ pub async fn run_bridge_node(
     // Before reconfiguration happens we only set it once when the node starts
     // TODO: Implement get_latest_starcoin_bridge_system_state via JSON-RPC
     // For now skip this metric initialization
-    let starcoin_bridge_system: Option<starcoin_bridge_json_rpc_types::StarcoinSystemStateSummary> = None;
+    let starcoin_bridge_system: Option<starcoin_bridge_json_rpc_types::StarcoinSystemStateSummary> =
+        None;
 
     // Start Client
     if let Some(client_config) = client_config {
@@ -112,9 +113,11 @@ pub async fn run_bridge_node(
         } else {
             // Use base URL as fallback when system state is not available
             Arc::new(
-                committee.members().iter().map(|(name, validator)| {
-                    (name.clone(), validator.base_url.clone())
-                }).collect()
+                committee
+                    .members()
+                    .iter()
+                    .map(|(name, validator)| (name.clone(), validator.base_url.clone()))
+                    .collect(),
             )
         };
         let client_components = start_client_components(
@@ -296,7 +299,10 @@ async fn start_client_components(
         id[16..32].copy_from_slice(&addr_bytes);
         id
     };
-    tracing::info!("Using bridge package ID from config: {}", bridge_address_str);
+    tracing::info!(
+        "Using bridge package ID from config: {}",
+        bridge_address_str
+    );
 
     let mut all_handles = vec![];
     let (task_handles, eth_events_rx, _) =

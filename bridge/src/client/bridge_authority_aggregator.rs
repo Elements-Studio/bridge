@@ -235,7 +235,7 @@ async fn request_sign_bridge_action_into_certification(
     let preference = match action {
         BridgeAction::StarcoinToEthBridgeAction(_) => Some(SigRequestPrefs {
             ordering_pref: BTreeSet::new(),
-            prefetch_timeout: prefetch_timeout,
+            prefetch_timeout,
         }),
         BridgeAction::EthToStarcoinBridgeAction(_) => None,
         _ => {
@@ -244,7 +244,7 @@ async fn request_sign_bridge_action_into_certification(
             } else {
                 Some(SigRequestPrefs {
                     ordering_pref: BTreeSet::new(),
-                    prefetch_timeout: prefetch_timeout,
+                    prefetch_timeout,
                 })
             }
         }

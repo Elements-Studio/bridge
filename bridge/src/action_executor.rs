@@ -8,18 +8,14 @@ use crate::retry_with_max_elapsed_time;
 use crate::types::IsBridgePaused;
 use arc_swap::ArcSwap;
 use fastcrypto::traits::ToFromBytes;
-use starcoin_metrics::spawn_logged_monitored_task;
-use shared_crypto::intent::{Intent, IntentMessage};
-use starcoin_bridge_json_rpc_types::{
-    StarcoinExecutionStatus, StarcoinTransactionBlockResponse,
-};
+use starcoin_bridge_json_rpc_types::{StarcoinExecutionStatus, StarcoinTransactionBlockResponse};
 use starcoin_bridge_types::base_types::{ObjectID, ObjectRef, StarcoinAddress, TransactionDigest};
-use starcoin_bridge_types::crypto::{Signature, StarcoinKeyPair};
+use starcoin_bridge_types::crypto::StarcoinKeyPair;
 use starcoin_bridge_types::gas_coin::GasCoin;
 use starcoin_bridge_types::object::Owner;
 use starcoin_bridge_types::transaction::ObjectArg;
-use starcoin_bridge_types::transaction::Transaction;
 use starcoin_bridge_types::TypeTag;
+use starcoin_metrics::spawn_logged_monitored_task;
 
 use crate::events::{
     TokenTransferAlreadyApproved, TokenTransferAlreadyClaimed, TokenTransferApproved,
@@ -194,7 +190,9 @@ where
         starcoin_bridge_client: Arc<StarcoinClient<C>>,
         auth_agg: Arc<ArcSwap<BridgeAuthorityAggregator>>,
         store: Arc<BridgeOrchestratorTables>,
-        signing_queue_sender: starcoin_metrics::metered_channel::Sender<BridgeActionExecutionWrapper>,
+        signing_queue_sender: starcoin_metrics::metered_channel::Sender<
+            BridgeActionExecutionWrapper,
+        >,
         mut signing_queue_receiver: starcoin_metrics::metered_channel::Receiver<
             BridgeActionExecutionWrapper,
         >,
@@ -327,7 +325,9 @@ where
         auth_agg: Arc<ArcSwap<BridgeAuthorityAggregator>>,
         action: BridgeActionExecutionWrapper,
         store: Arc<BridgeOrchestratorTables>,
-        signing_queue_sender: starcoin_metrics::metered_channel::Sender<BridgeActionExecutionWrapper>,
+        signing_queue_sender: starcoin_metrics::metered_channel::Sender<
+            BridgeActionExecutionWrapper,
+        >,
         execution_queue_sender: starcoin_metrics::metered_channel::Sender<
             CertifiedBridgeActionExecutionWrapper,
         >,
@@ -447,7 +447,7 @@ where
         starcoin_bridge_client: &Arc<StarcoinClient<C>>,
         starcoin_bridge_key: &StarcoinKeyPair,
         starcoin_bridge_address: &StarcoinAddress,
-        _gas_object_id: ObjectID,  // Not used in Starcoin - gas comes from account balance
+        _gas_object_id: ObjectID, // Not used in Starcoin - gas comes from account balance
         store: &Arc<BridgeOrchestratorTables>,
         execution_queue_sender: &starcoin_metrics::metered_channel::Sender<
             CertifiedBridgeActionExecutionWrapper,
@@ -485,61 +485,72 @@ where
         }
 
         info!("Building Starcoin transaction");
-        
+
         // Build Starcoin native transaction using the new builder
         let (bridge_action, sigs) = ceriticate_clone.into_inner().into_data_and_sig();
-        
+
         // Collect signatures
         let mut sig_bytes: Vec<Vec<u8>> = vec![];
         for (_, sig) in sigs.signatures {
             sig_bytes.push(sig.as_bytes().to_vec());
         }
-        
+
         // Extract message parameters from the action
-        let (source_chain, seq_num, sender_addr, target_chain, target_addr, token_type, amount) = match &bridge_action {
-            BridgeAction::EthToStarcoinBridgeAction(a) => {
-                let event = &a.eth_bridge_event;
-                (
-                    event.eth_chain_id as u8,
-                    event.nonce,
-                    event.eth_address.to_fixed_bytes().to_vec(),
-                    event.starcoin_bridge_chain_id as u8,
-                    event.starcoin_bridge_address.to_vec(),
-                    event.token_id,
-                    event.starcoin_bridge_adjusted_amount,
-                )
-            }
-            BridgeAction::StarcoinToEthBridgeAction(a) => {
-                let event = &a.starcoin_bridge_event;
-                (
-                    event.starcoin_bridge_chain_id as u8,
-                    event.nonce,
-                    event.starcoin_bridge_address.to_vec(),
-                    event.eth_chain_id as u8,
-                    event.eth_address.to_fixed_bytes().to_vec(),
-                    event.token_id,
-                    event.amount_starcoin_bridge_adjusted,
-                )
-            }
-            _ => {
-                error!("Unsupported action type for Starcoin execution: {:?}", action);
-                return;
-            }
-        };
-        
+        let (source_chain, seq_num, sender_addr, target_chain, target_addr, token_type, amount) =
+            match &bridge_action {
+                BridgeAction::EthToStarcoinBridgeAction(a) => {
+                    let event = &a.eth_bridge_event;
+                    (
+                        event.eth_chain_id as u8,
+                        event.nonce,
+                        event.eth_address.to_fixed_bytes().to_vec(),
+                        event.starcoin_bridge_chain_id as u8,
+                        event.starcoin_bridge_address.to_vec(),
+                        event.token_id,
+                        event.starcoin_bridge_adjusted_amount,
+                    )
+                }
+                BridgeAction::StarcoinToEthBridgeAction(a) => {
+                    let event = &a.starcoin_bridge_event;
+                    (
+                        event.starcoin_bridge_chain_id as u8,
+                        event.nonce,
+                        event.starcoin_bridge_address.to_vec(),
+                        event.eth_chain_id as u8,
+                        event.eth_address.to_fixed_bytes().to_vec(),
+                        event.token_id,
+                        event.amount_starcoin_bridge_adjusted,
+                    )
+                }
+                _ => {
+                    error!(
+                        "Unsupported action type for Starcoin execution: {:?}",
+                        action
+                    );
+                    return;
+                }
+            };
+
         // Get sender address from the key (this is who pays gas and signs)
         let sender_address = starcoin_bridge_key.starcoin_address();
-        
+
         // Get sequence number from Starcoin (from sender's account, not the contract)
-        let seq_number = match starcoin_bridge_client.get_sequence_number(&sender_address.to_hex_literal()).await {
+        let seq_number = match starcoin_bridge_client
+            .get_sequence_number(&sender_address.to_hex_literal())
+            .await
+        {
             Ok(seq) => seq,
             Err(e) => {
-                error!("Failed to get sequence number for sender {}: {:?}", sender_address.to_hex_literal(), e);
+                error!(
+                    "Failed to get sequence number for sender {}: {:?}",
+                    sender_address.to_hex_literal(),
+                    e
+                );
                 metrics.err_build_starcoin_bridge_transaction.inc();
                 return;
             }
         };
-        
+
         // Get current block timestamp from chain for expiration calculation
         let block_timestamp_ms = match starcoin_bridge_client.get_block_timestamp().await {
             Ok(ts) => ts,
@@ -549,19 +560,19 @@ where
                 return;
             }
         };
-        
+
         // Get chain ID (use 254 for dev/local, should be configurable)
         let chain_id: u8 = 254;
-        
+
         // Build raw transaction
         // module_address = starcoin_bridge_address (where the contract is deployed)
         // sender = sender_address (from the key, who signs and pays gas)
         let raw_txn = match StarcoinBridgeTransactionBuilder::build_claim_token(
-            *starcoin_bridge_address,  // module_address - where bridge contract is deployed
-            sender_address,             // sender - who signs and pays gas
+            *starcoin_bridge_address, // module_address - where bridge contract is deployed
+            sender_address,           // sender - who signs and pays gas
             seq_number,
             chain_id,
-            block_timestamp_ms,         // current block timestamp for expiration
+            block_timestamp_ms, // current block timestamp for expiration
             source_chain,
             seq_num,
             sender_addr,
@@ -584,9 +595,11 @@ where
 
         // Sign and submit approve transaction (don't wait for confirmation)
         info!("Signing and submitting Starcoin approve transaction");
-        
-        let approve_result = starcoin_bridge_client.sign_and_submit_transaction(starcoin_bridge_key, raw_txn).await;
-        
+
+        let approve_result = starcoin_bridge_client
+            .sign_and_submit_transaction(starcoin_bridge_key, raw_txn)
+            .await;
+
         match approve_result {
             Ok(txn_hash) => {
                 info!(?txn_hash, "Starcoin approve transaction submitted");
@@ -595,7 +608,10 @@ where
                 let err_str = format!("{:?}", err);
                 // SEQUENCE_NUMBER_TOO_OLD means a previous tx was already executed
                 if !err_str.contains("SEQUENCE_NUMBER_TOO_OLD") {
-                    error!(?action_key, "Failed to submit approve transaction: {:?}", err);
+                    error!(
+                        ?action_key,
+                        "Failed to submit approve transaction: {:?}", err
+                    );
                     metrics.err_starcoin_bridge_transaction_submission.inc();
                     // Retry later
                     let metrics_clone = metrics.clone();
@@ -613,23 +629,29 @@ where
                     }.instrument(tracing::debug_span!("reenqueue_execution_task", action_key=?action_key)));
                     return;
                 }
-                warn!(?action_key, "Got SEQUENCE_NUMBER_TOO_OLD, approve may already be on chain");
+                warn!(
+                    ?action_key,
+                    "Got SEQUENCE_NUMBER_TOO_OLD, approve may already be on chain"
+                );
             }
         }
-        
+
         // Poll on-chain status until Approved (max 60 seconds)
         info!("Polling on-chain status for approve confirmation...");
         let mut approved = false;
         for i in 0..60 {
             tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-            
+
             let status = starcoin_bridge_client
                 .get_token_transfer_action_onchain_status_until_success(source_chain, seq_num)
                 .await;
-            
+
             match status {
                 BridgeActionStatus::Approved => {
-                    info!(?action_key, "Transfer approved on chain, proceeding to claim");
+                    info!(
+                        ?action_key,
+                        "Transfer approved on chain, proceeding to claim"
+                    );
                     metrics.eth_starcoin_bridge_token_transfer_approved.inc();
                     approved = true;
                     break;
@@ -638,21 +660,31 @@ where
                     info!(?action_key, "Transfer already claimed on chain");
                     metrics.eth_starcoin_bridge_token_transfer_approved.inc();
                     metrics.eth_starcoin_bridge_token_transfer_claimed.inc();
-                    store.remove_pending_actions(&[action.digest()]).unwrap_or_else(|e| {
-                        panic!("Write to DB should not fail: {:?}", e);
-                    });
+                    store
+                        .remove_pending_actions(&[action.digest()])
+                        .unwrap_or_else(|e| {
+                            panic!("Write to DB should not fail: {:?}", e);
+                        });
                     return;
                 }
                 _ => {
                     if i % 10 == 0 {
-                        info!(?action_key, ?status, "Still waiting for approve confirmation... ({}s)", i);
+                        info!(
+                            ?action_key,
+                            ?status,
+                            "Still waiting for approve confirmation... ({}s)",
+                            i
+                        );
                     }
                 }
             }
         }
-        
+
         if !approved {
-            error!(?action_key, "Approve transaction not confirmed after 60 seconds, will retry");
+            error!(
+                ?action_key,
+                "Approve transaction not confirmed after 60 seconds, will retry"
+            );
             let metrics_clone = metrics.clone();
             let sender_clone = execution_queue_sender.clone();
             spawn_logged_monitored_task!(async move {
@@ -668,19 +700,24 @@ where
             }.instrument(tracing::debug_span!("reenqueue_execution_task", action_key=?action_key)));
             return;
         }
-        
+
         // For StarcoinToEthBridgeAction, we're done after approve.
         // The user needs to claim on ETH chain manually by calling transferBridgedTokensWithSignatures.
         // This is consistent with Sui Bridge behavior.
         if matches!(action, BridgeAction::StarcoinToEthBridgeAction(_)) {
-            info!(?action_key, "Starcoin→ETH approve confirmed. User must claim on ETH chain.");
+            info!(
+                ?action_key,
+                "Starcoin→ETH approve confirmed. User must claim on ETH chain."
+            );
             metrics.starcoin_bridge_eth_token_transfer_approved.inc();
-            store.remove_pending_actions(&[action.digest()]).unwrap_or_else(|e| {
-                panic!("Write to DB should not fail: {:?}", e);
-            });
+            store
+                .remove_pending_actions(&[action.digest()])
+                .unwrap_or_else(|e| {
+                    panic!("Write to DB should not fail: {:?}", e);
+                });
             return;
         }
-        
+
         // For EthToStarcoinBridgeAction, continue to submit claim transaction on Starcoin
         // Get fresh sequence number for claim transaction
         // Must be > approve sequence number (seq_number), poll until chain state is updated
@@ -688,10 +725,16 @@ where
             let mut retries = 0;
             let max_retries = 10;
             loop {
-                match starcoin_bridge_client.get_sequence_number(&sender_address.to_hex_literal()).await {
+                match starcoin_bridge_client
+                    .get_sequence_number(&sender_address.to_hex_literal())
+                    .await
+                {
                     Ok(new_seq) => {
                         if new_seq > seq_number {
-                            info!("Got claim sequence number: {} (approve used: {})", new_seq, seq_number);
+                            info!(
+                                "Got claim sequence number: {} (approve used: {})",
+                                new_seq, seq_number
+                            );
                             break new_seq;
                         }
                         retries += 1;
@@ -701,35 +744,44 @@ where
                             // Use approve seq + 1 as fallback
                             break seq_number + 1;
                         }
-                        debug!("Sequence number {} not yet updated (expected > {}), retry {}/{}", 
-                               new_seq, seq_number, retries, max_retries);
+                        debug!(
+                            "Sequence number {} not yet updated (expected > {}), retry {}/{}",
+                            new_seq, seq_number, retries, max_retries
+                        );
                         tokio::time::sleep(std::time::Duration::from_millis(500)).await;
                     }
                     Err(e) => {
                         error!("Failed to get sequence number for claim: {:?}", e);
-                        store.remove_pending_actions(&[action.digest()]).unwrap_or_else(|e| {
-                            panic!("Write to DB should not fail: {:?}", e);
-                        });
+                        store
+                            .remove_pending_actions(&[action.digest()])
+                            .unwrap_or_else(|e| {
+                                panic!("Write to DB should not fail: {:?}", e);
+                            });
                         return;
                     }
                 }
             }
         };
-        
+
         // Get fresh block timestamp
         let claim_block_timestamp_ms = match starcoin_bridge_client.get_block_timestamp().await {
             Ok(ts) => ts,
             Err(e) => {
                 error!("Failed to get block timestamp for claim: {:?}", e);
-                store.remove_pending_actions(&[action.digest()]).unwrap_or_else(|e| {
-                    panic!("Write to DB should not fail: {:?}", e);
-                });
+                store
+                    .remove_pending_actions(&[action.digest()])
+                    .unwrap_or_else(|e| {
+                        panic!("Write to DB should not fail: {:?}", e);
+                    });
                 return;
             }
         };
-        
+
         // Build claim transaction
-        info!(source_chain, seq_num, token_type, claim_seq_number, "Building claim transaction with parameters");
+        info!(
+            source_chain,
+            seq_num, token_type, claim_seq_number, "Building claim transaction with parameters"
+        );
         let claim_txn = match StarcoinBridgeTransactionBuilder::build_claim_and_transfer(
             *starcoin_bridge_address,
             sender_address,
@@ -744,27 +796,41 @@ where
             Ok(txn) => txn,
             Err(err) => {
                 error!("Failed to build claim transaction: {:?}", err);
-                store.remove_pending_actions(&[action.digest()]).unwrap_or_else(|e| {
-                    panic!("Write to DB should not fail: {:?}", e);
-                });
+                store
+                    .remove_pending_actions(&[action.digest()])
+                    .unwrap_or_else(|e| {
+                        panic!("Write to DB should not fail: {:?}", e);
+                    });
                 return;
             }
         };
-        
+
         // Submit claim transaction
         info!("Submitting claim transaction");
-        match starcoin_bridge_client.sign_and_submit_transaction(starcoin_bridge_key, claim_txn).await {
+        match starcoin_bridge_client
+            .sign_and_submit_transaction(starcoin_bridge_key, claim_txn)
+            .await
+        {
             Ok(claim_txn_hash) => {
-                info!(?claim_txn_hash, "Claim transaction submitted, waiting for confirmation...");
-                
+                info!(
+                    ?claim_txn_hash,
+                    "Claim transaction submitted, waiting for confirmation..."
+                );
+
                 // Poll for claim confirmation (max 30 seconds)
                 for i in 0..30 {
                     tokio::time::sleep(std::time::Duration::from_secs(1)).await;
                     let status = starcoin_bridge_client
-                        .get_token_transfer_action_onchain_status_until_success(source_chain, seq_num)
+                        .get_token_transfer_action_onchain_status_until_success(
+                            source_chain,
+                            seq_num,
+                        )
                         .await;
                     if status == BridgeActionStatus::Claimed {
-                        info!(?claim_txn_hash, "Claim confirmed on chain - bridge transfer complete!");
+                        info!(
+                            ?claim_txn_hash,
+                            "Claim confirmed on chain - bridge transfer complete!"
+                        );
                         metrics.eth_starcoin_bridge_token_transfer_claimed.inc();
                         break;
                     }
@@ -778,11 +844,13 @@ where
                 // Approve succeeded, claim can be retried manually or by watchdog
             }
         }
-        
+
         // Mark action as completed (approve is done, claim may or may not have succeeded)
-        store.remove_pending_actions(&[action.digest()]).unwrap_or_else(|e| {
-            panic!("Write to DB should not fail: {:?}", e);
-        });
+        store
+            .remove_pending_actions(&[action.digest()])
+            .unwrap_or_else(|e| {
+                panic!("Write to DB should not fail: {:?}", e);
+            });
     }
 
     // TODO: do we need a mechanism to periodically read pending actions from DB?

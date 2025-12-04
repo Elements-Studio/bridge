@@ -10,10 +10,10 @@ use crate::{
     retry_with_max_elapsed_time,
     starcoin_bridge_client::{StarcoinClient, StarcoinClientInner},
 };
-use starcoin_metrics::spawn_logged_monitored_task;
 use starcoin_bridge_json_rpc_types::StarcoinEvent;
 use starcoin_bridge_types::base_types::ObjectID;
 use starcoin_bridge_types::{event::EventID, Identifier};
+use starcoin_metrics::spawn_logged_monitored_task;
 use std::{collections::HashMap, sync::Arc};
 use tokio::{
     sync::Notify,

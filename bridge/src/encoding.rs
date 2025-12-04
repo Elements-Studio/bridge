@@ -485,7 +485,7 @@ mod tests {
 
         assert_eq!(combined_bytes, encoded_bytes);
 
-        // Assert fixed length: prefix + message_type + version + nonce + source_chain + 
+        // Assert fixed length: prefix + message_type + version + nonce + source_chain +
         // starcoin_addr_len + starcoin_addr + dest_chain + eth_addr_len + eth_addr + token_id + amount
         assert_eq!(
             combined_bytes.len(),
@@ -529,10 +529,10 @@ mod tests {
             starcoin_bridge_event,
         })
         .to_bytes()?;
-        
+
         // Verify encoding format:
-        // prefix(STARCOIN_BRIDGE_MESSAGE) + msg_type(00) + version(01) + nonce(8 bytes) + 
-        // source_chain(01) + addr_len(10=16) + starcoin_addr(16 bytes) + 
+        // prefix(STARCOIN_BRIDGE_MESSAGE) + msg_type(00) + version(01) + nonce(8 bytes) +
+        // source_chain(01) + addr_len(10=16) + starcoin_addr(16 bytes) +
         // dest_chain(0b) + addr_len(14=20) + eth_addr(20 bytes) + token_id(03) + amount(8 bytes)
         let expected_hex = format!(
             "{}0001000000000000000a0110000000000000000000000000000000640b1400000000000000000000000000000000000000c8030000000000003039",
@@ -565,9 +565,12 @@ mod tests {
             members_to_update: vec![pub_key_bytes.clone()],
         });
         let bytes = blocklist_action.to_bytes().unwrap();
-        // prefix + msg_type(01) + version(01) + nonce(0000000000000081) + chain_id(02) + 
+        // prefix + msg_type(01) + version(01) + nonce(0000000000000081) + chain_id(02) +
         // blocklist_type(00) + members_len(01) + member(68b43fd906c0b8f024a18c56e06744f7c6157c65)
-        assert_eq!(bytes, expected_bytes("0101000000000000008102000168b43fd906c0b8f024a18c56e06744f7c6157c65"));
+        assert_eq!(
+            bytes,
+            expected_bytes("0101000000000000008102000168b43fd906c0b8f024a18c56e06744f7c6157c65")
+        );
 
         let pub_key_bytes_2 = BridgeAuthorityPublicKeyBytes::from_bytes(
             &Hex::decode("027f1178ff417fc9f5b8290bd8876f0a157a505a6c52db100a8492203ddd1d4279")
@@ -582,7 +585,7 @@ mod tests {
             members_to_update: vec![pub_key_bytes.clone(), pub_key_bytes_2.clone()],
         });
         let bytes = blocklist_action.to_bytes().unwrap();
-        // prefix + msg_type(01) + version(01) + nonce(0000000000000044) + chain_id(02) + 
+        // prefix + msg_type(01) + version(01) + nonce(0000000000000044) + chain_id(02) +
         // blocklist_type(01) + members_len(02) + members
         assert_eq!(bytes, expected_bytes("0101000000000000004402010268b43fd906c0b8f024a18c56e06744f7c6157c65acaef39832cb995c4e049437a3e2ec6a7bad1ab5"));
 
@@ -593,9 +596,12 @@ mod tests {
             members_to_update: vec![pub_key_bytes.clone()],
         });
         let bytes = blocklist_action.to_bytes().unwrap();
-        // prefix + msg_type(01) + version(01) + nonce(0000000000000031) + chain_id(0c) + 
+        // prefix + msg_type(01) + version(01) + nonce(0000000000000031) + chain_id(0c) +
         // blocklist_type(00) + members_len(01) + member
-        assert_eq!(bytes, expected_bytes("010100000000000000310c000168b43fd906c0b8f024a18c56e06744f7c6157c65"));
+        assert_eq!(
+            bytes,
+            expected_bytes("010100000000000000310c000168b43fd906c0b8f024a18c56e06744f7c6157c65")
+        );
 
         let blocklist_action = BridgeAction::BlocklistCommitteeAction(BlocklistCommitteeAction {
             nonce: 94,
@@ -604,7 +610,7 @@ mod tests {
             members_to_update: vec![pub_key_bytes.clone(), pub_key_bytes_2.clone()],
         });
         let bytes = blocklist_action.to_bytes().unwrap();
-        // prefix + msg_type(01) + version(01) + nonce(000000000000005e) + chain_id(0b) + 
+        // prefix + msg_type(01) + version(01) + nonce(000000000000005e) + chain_id(0b) +
         // blocklist_type(01) + members_len(02) + members
         assert_eq!(bytes, expected_bytes("0101000000000000005e0b010268b43fd906c0b8f024a18c56e06744f7c6157c65acaef39832cb995c4e049437a3e2ec6a7bad1ab5"));
     }
@@ -639,9 +645,12 @@ mod tests {
             new_usd_limit: 1_000_000 * USD_MULTIPLIER, // $1M USD
         });
         let bytes = action.to_bytes().unwrap();
-        // prefix + msg_type(03) + version(01) + nonce(000000000000000f) + chain_id(02) + 
+        // prefix + msg_type(03) + version(01) + nonce(000000000000000f) + chain_id(02) +
         // sending_chain_id(0c) + new_usd_limit(00000002540be400)
-        assert_eq!(bytes, expected_bytes("0301000000000000000f020c00000002540be400"));
+        assert_eq!(
+            bytes,
+            expected_bytes("0301000000000000000f020c00000002540be400")
+        );
     }
 
     #[test]
@@ -653,9 +662,12 @@ mod tests {
             new_usd_price: 100_000 * USD_MULTIPLIER, // $100k USD
         });
         let bytes = action.to_bytes().unwrap();
-        // prefix + msg_type(04) + version(01) + nonce(000000000000010a) + chain_id(02) + 
+        // prefix + msg_type(04) + version(01) + nonce(000000000000010a) + chain_id(02) +
         // token_id(01) + new_usd_price(000000003b9aca00)
-        assert_eq!(bytes, expected_bytes("0401000000000000010a0201000000003b9aca00"));
+        assert_eq!(
+            bytes,
+            expected_bytes("0401000000000000010a0201000000003b9aca00")
+        );
     }
 
     #[test]
@@ -771,8 +783,8 @@ mod tests {
         .to_bytes()?;
 
         // Verify encoding format for ETH->Starcoin:
-        // prefix(STARCOIN_BRIDGE_MESSAGE) + msg_type(00) + version(01) + nonce(8 bytes) + 
-        // source_chain(0b=EthSepolia) + addr_len(14=20) + eth_addr(20 bytes) + 
+        // prefix(STARCOIN_BRIDGE_MESSAGE) + msg_type(00) + version(01) + nonce(8 bytes) +
+        // source_chain(0b=EthSepolia) + addr_len(14=20) + eth_addr(20 bytes) +
         // dest_chain(01=StarcoinTestnet) + addr_len(10=16) + starcoin_addr(16 bytes) + token_id(03) + amount(8 bytes)
         let expected_hex = format!(
             "{}0001000000000000000a0b1400000000000000000000000000000000000000c80110000000000000000000000000000000640300000000000030 39",
@@ -806,16 +818,19 @@ mod tests {
         let encoded_bytes = action.to_bytes().unwrap();
 
         // Verify the encoding starts with STARCOIN_BRIDGE_MESSAGE prefix
-        // Format: prefix + msg_type(06) + version(01) + nonce + chain_id + native_flag + 
+        // Format: prefix + msg_type(06) + version(01) + nonce + chain_id + native_flag +
         //         token_count + token_ids + type_tags + prices
         let expected_prefix = format!(
             "{}0601000000000000000002000401020304",
             Hex::encode(BRIDGE_MESSAGE_PREFIX)
         );
         let encoded_hex = Hex::encode(&encoded_bytes);
-        assert!(encoded_hex.starts_with(&expected_prefix), 
-            "Encoded bytes should start with correct prefix. Got: {}", encoded_hex);
-        
+        assert!(
+            encoded_hex.starts_with(&expected_prefix),
+            "Encoded bytes should start with correct prefix. Got: {}",
+            encoded_hex
+        );
+
         // Verify the encoding is valid by checking it can be used
         assert!(encoded_bytes.len() > BRIDGE_MESSAGE_PREFIX.len() + 20);
         Ok(())

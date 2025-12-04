@@ -291,14 +291,17 @@ async fn main() -> anyhow::Result<()> {
             starcoin_bridge_proxy_address,
         } => {
             let metrics = Arc::new(BridgeMetrics::new_for_testing());
-            let starcoin_bridge_client =
-                StarcoinBridgeClient::with_metrics(&starcoin_bridge_rpc_url, &starcoin_bridge_proxy_address, metrics);
+            let starcoin_bridge_client = StarcoinBridgeClient::with_metrics(
+                &starcoin_bridge_rpc_url,
+                &starcoin_bridge_proxy_address,
+                metrics,
+            );
             let bridge_summary = starcoin_bridge_client
                 .get_bridge_summary()
                 .await
                 .map_err(|e| anyhow::anyhow!("Failed to get bridge summary: {:?}", e))?;
             let move_type_bridge_committee = bridge_summary.committee;
-            
+
             // TODO: The stake and name lookups require Starcoin-specific APIs
             // For now, create empty maps as placeholders
             let stakes: HashMap<StarcoinAddress, u64> = HashMap::new();
@@ -384,8 +387,11 @@ async fn main() -> anyhow::Result<()> {
             ping,
         } => {
             let metrics = Arc::new(BridgeMetrics::new_for_testing());
-            let starcoin_bridge_client =
-                StarcoinBridgeClient::with_metrics(&starcoin_bridge_rpc_url, &starcoin_bridge_proxy_address, metrics);
+            let starcoin_bridge_client = StarcoinBridgeClient::with_metrics(
+                &starcoin_bridge_rpc_url,
+                &starcoin_bridge_proxy_address,
+                metrics,
+            );
             let bridge_summary = starcoin_bridge_client
                 .get_bridge_summary()
                 .await
@@ -536,8 +542,11 @@ async fn main() -> anyhow::Result<()> {
             let config = BridgeCliConfig::load(config_path).expect("Couldn't load BridgeCliConfig");
             let config = LoadedBridgeCliConfig::load(config).await?;
             let metrics = Arc::new(BridgeMetrics::new_for_testing());
-            let starcoin_bridge_client =
-                StarcoinBridgeClient::with_metrics(&config.starcoin_bridge_rpc_url, &config.starcoin_bridge_proxy_address, metrics);
+            let starcoin_bridge_client = StarcoinBridgeClient::with_metrics(
+                &config.starcoin_bridge_rpc_url,
+                &config.starcoin_bridge_proxy_address,
+                metrics,
+            );
             cmd.handle(&config, starcoin_bridge_client).await?;
             return Ok(());
         }

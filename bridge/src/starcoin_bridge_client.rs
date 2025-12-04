@@ -1,35 +1,29 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+#[cfg(test)]
+use anyhow::anyhow;
 use async_trait::async_trait;
 use core::panic;
 use fastcrypto::traits::ToFromBytes;
-use starcoin_bridge_json_rpc_types::{EventFilter, Page, StarcoinEvent};
-use starcoin_bridge_json_rpc_types::{
-    EventPage, StarcoinTransactionBlockResponse,
-};
 #[cfg(test)]
 use serde::de::DeserializeOwned;
 #[cfg(test)]
 use starcoin_bridge_json_rpc_api::BridgeReadApiClient;
 #[cfg(test)]
 use starcoin_bridge_json_rpc_types::DevInspectResults;
+use starcoin_bridge_json_rpc_types::{EventFilter, Page, StarcoinEvent};
+use starcoin_bridge_json_rpc_types::{EventPage, StarcoinTransactionBlockResponse};
 #[cfg(test)]
-use starcoin_bridge_json_rpc_types::{StarcoinObjectDataOptions, StarcoinTransactionBlockResponseOptions};
-#[cfg(test)]
-use starcoin_bridge_sdk::{StarcoinClient as StarcoinSdkClient, StarcoinClientBuilder};
-#[cfg(test)]
-use anyhow::anyhow;
-#[cfg(test)]
-use starcoin_bridge_types::base_types::StarcoinAddress;
-#[cfg(test)]
-use starcoin_bridge_types::transaction::{
-    Argument, CallArg, Command, ProgrammableTransaction, TransactionKind,
+use starcoin_bridge_json_rpc_types::{
+    StarcoinObjectDataOptions, StarcoinTransactionBlockResponseOptions,
 };
 #[cfg(test)]
-use starcoin_bridge_types::STARCOIN_BRIDGE_OBJECT_ID;
-use starcoin_bridge_types::base_types::{ObjectID, TransactionDigest};
+use starcoin_bridge_sdk::{StarcoinClient as StarcoinSdkClient, StarcoinClientBuilder};
 use starcoin_bridge_types::base_types::ObjectRef;
+#[cfg(test)]
+use starcoin_bridge_types::base_types::StarcoinAddress;
+use starcoin_bridge_types::base_types::{ObjectID, TransactionDigest};
 use starcoin_bridge_types::bridge::{
     BridgeSummary, BridgeTreasurySummary, MoveTypeCommitteeMember,
     MoveTypeParsedTokenTransferMessage,
@@ -38,10 +32,17 @@ use starcoin_bridge_types::event::EventID;
 use starcoin_bridge_types::gas_coin::GasCoin;
 use starcoin_bridge_types::object::Owner;
 use starcoin_bridge_types::parse_starcoin_bridge_type_tag;
+#[cfg(test)]
+use starcoin_bridge_types::transaction::{
+    Argument, CallArg, Command, ProgrammableTransaction, TransactionKind,
+};
 use starcoin_bridge_types::transaction::{ObjectArg, Transaction};
 use starcoin_bridge_types::Identifier;
 use starcoin_bridge_types::TypeTag;
+#[cfg(test)]
 use starcoin_bridge_types::BRIDGE_PACKAGE_ID;
+#[cfg(test)]
+use starcoin_bridge_types::STARCOIN_BRIDGE_OBJECT_ID;
 use std::collections::HashMap;
 use std::str::from_utf8;
 use std::sync::Arc;
@@ -78,7 +79,11 @@ impl StarcoinBridgeClient {
         }
     }
 
-    pub fn with_metrics(rpc_url: &str, bridge_address: &str, bridge_metrics: Arc<BridgeMetrics>) -> Self {
+    pub fn with_metrics(
+        rpc_url: &str,
+        bridge_address: &str,
+        bridge_metrics: Arc<BridgeMetrics>,
+    ) -> Self {
         Self {
             inner: StarcoinJsonRpcClient::new(rpc_url, bridge_address),
             bridge_metrics,
@@ -174,7 +179,7 @@ where
         // Starcoin uses 16-byte addresses, extract from last 16 bytes of ObjectID
         // ObjectID is 32 bytes: [16 zero padding bytes][16 byte Starcoin address]
         let starcoin_addr = &package[16..32]; // Take last 16 bytes
-        
+
         // Starcoin's chain.get_events doesn't support wildcard type_tags
         // We query all events and filter by module on client side
         let filter = EventFilter {
@@ -205,7 +210,7 @@ where
     // Returns BridgeAction from a Starcoin Transaction with transaction hash
     // and the event index. If event is declared in an unrecognized
     // package, return error.
-    // 
+    //
     // Note: event_idx refers to the Nth bridge event in the transaction (0-indexed),
     // not the absolute index in the transaction's event list. This is because
     // Starcoin transactions may emit multiple events (e.g., Account::WithdrawEvent,
@@ -216,44 +221,42 @@ where
         event_idx: u16,
     ) -> BridgeResult<BridgeAction> {
         let events = self.inner.get_events_by_tx_digest(*tx_digest).await?;
-        
+
         // Get expected bridge address from config (16 bytes for Starcoin)
         let expected_addr = hex::decode(self.bridge_address().trim_start_matches("0x"))
             .map_err(|_| BridgeError::BridgeEventInUnrecognizedStarcoinPackage)?;
-        
+
         // Find all bridge events (events from the bridge module)
         let bridge_events: Vec<_> = events
             .iter()
             .enumerate()
             .filter(|(_, event)| event.type_.address.as_ref() == expected_addr.as_slice())
             .collect();
-        
+
         tracing::debug!(
             "Found {} bridge events in tx {:?}, looking for event_idx {}",
             bridge_events.len(),
             tx_digest,
             event_idx
         );
-        
+
         // Get the Nth bridge event (event_idx is relative to bridge events only)
-        let (actual_idx, event) = bridge_events
-            .get(event_idx as usize)
-            .ok_or_else(|| {
-                tracing::warn!(
-                    "No bridge event at index {} in tx {:?}, total bridge events: {}",
-                    event_idx,
-                    tx_digest,
-                    bridge_events.len()
-                );
-                BridgeError::NoBridgeEventsInTxPosition
-            })?;
-        
+        let (actual_idx, event) = bridge_events.get(event_idx as usize).ok_or_else(|| {
+            tracing::warn!(
+                "No bridge event at index {} in tx {:?}, total bridge events: {}",
+                event_idx,
+                tx_digest,
+                bridge_events.len()
+            );
+            BridgeError::NoBridgeEventsInTxPosition
+        })?;
+
         tracing::debug!(
             "Using bridge event at actual index {} (requested bridge event idx {})",
             actual_idx,
             event_idx
         );
-        
+
         let bridge_event = StarcoinBridgeEvent::try_from_starcoin_bridge_event(event)?
             .ok_or(BridgeError::NoBridgeEventsInTxPosition)?;
 
@@ -478,19 +481,17 @@ where
 
     /// Get account sequence number for transaction building
     pub async fn get_sequence_number(&self, address: &str) -> BridgeResult<u64> {
-        self.inner
-            .get_sequence_number(address)
-            .await
-            .map_err(|e| BridgeError::InternalError(format!("Failed to get sequence number: {:?}", e)))
+        self.inner.get_sequence_number(address).await.map_err(|e| {
+            BridgeError::InternalError(format!("Failed to get sequence number: {:?}", e))
+        })
     }
 
     /// Get the current block timestamp from the Starcoin chain
     /// Returns the timestamp in milliseconds from genesis
     pub async fn get_block_timestamp(&self) -> BridgeResult<u64> {
-        self.inner
-            .get_block_timestamp()
-            .await
-            .map_err(|e| BridgeError::InternalError(format!("Failed to get block timestamp: {:?}", e)))
+        self.inner.get_block_timestamp().await.map_err(|e| {
+            BridgeError::InternalError(format!("Failed to get block timestamp: {:?}", e))
+        })
     }
 
     /// Sign and submit a transaction to the Starcoin network
@@ -502,7 +503,9 @@ where
         self.inner
             .sign_and_submit_transaction(key, raw_txn)
             .await
-            .map_err(|e| BridgeError::InternalError(format!("Transaction submission failed: {:?}", e)))
+            .map_err(|e| {
+                BridgeError::InternalError(format!("Transaction submission failed: {:?}", e))
+            })
     }
 
     /// Sign, submit and wait for transaction confirmation
@@ -516,24 +519,38 @@ where
         // Get the expected sequence number after transaction confirms
         let expected_seq = raw_txn.sequence_number() + 1;
         let sender_address = key.starcoin_address().to_hex_literal();
-        
+
         let txn_hash = self.sign_and_submit_transaction(key, raw_txn).await?;
-        
-        tracing::info!(?txn_hash, expected_seq, "Transaction submitted, waiting for confirmation");
-        
+
+        tracing::info!(
+            ?txn_hash,
+            expected_seq,
+            "Transaction submitted, waiting for confirmation"
+        );
+
         // Poll for transaction confirmation (max 30 seconds, check every 500ms)
         for i in 0..60 {
             tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-            
+
             // Check if transaction is confirmed by verifying sequence number has incremented
             match self.get_sequence_number(&sender_address).await {
                 Ok(current_seq) => {
                     if current_seq >= expected_seq {
-                        tracing::info!(?txn_hash, current_seq, expected_seq, "Transaction confirmed on chain");
+                        tracing::info!(
+                            ?txn_hash,
+                            current_seq,
+                            expected_seq,
+                            "Transaction confirmed on chain"
+                        );
                         return Ok(txn_hash);
                     }
                     if i % 10 == 0 {
-                        tracing::debug!(?txn_hash, current_seq, expected_seq, "Still waiting for confirmation...");
+                        tracing::debug!(
+                            ?txn_hash,
+                            current_seq,
+                            expected_seq,
+                            "Still waiting for confirmation..."
+                        );
                     }
                 }
                 Err(e) => {
@@ -541,7 +558,7 @@ where
                 }
             }
         }
-        
+
         Err(BridgeError::InternalError(format!(
             "Transaction {} not confirmed after 30 seconds timeout",
             txn_hash
@@ -553,10 +570,10 @@ where
 #[async_trait]
 pub trait StarcoinClientInner: Send + Sync {
     type Error: Into<anyhow::Error> + Send + Sync + std::error::Error + 'static;
-    
+
     /// Get the configured bridge contract address
     fn bridge_address(&self) -> &str;
-    
+
     async fn query_events(
         &self,
         query: EventFilter,
@@ -871,7 +888,9 @@ impl StarcoinClientInner for StarcoinSdkClient {
     ) -> Result<String, BridgeError> {
         // SDK-based implementation for tests
         // This is only used in tests and will use mock transactions
-        Err(BridgeError::Generic("SDK-based transaction submission not implemented".into()))
+        Err(BridgeError::Generic(
+            "SDK-based transaction submission not implemented".into(),
+        ))
     }
 }
 

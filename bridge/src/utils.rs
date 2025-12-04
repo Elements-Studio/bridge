@@ -11,8 +11,8 @@ use crate::config::{
 use crate::crypto::BridgeAuthorityKeyPair;
 use crate::crypto::BridgeAuthorityPublicKeyBytes;
 use crate::server::APPLICATION_JSON;
-use crate::types::BridgeCommittee;
 use crate::types::BridgeAction;
+use crate::types::BridgeCommittee;
 use anyhow::anyhow;
 use ethers::core::k256::ecdsa::SigningKey;
 use ethers::middleware::SignerMiddleware;

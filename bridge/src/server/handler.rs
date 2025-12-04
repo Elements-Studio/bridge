@@ -187,7 +187,7 @@ where
             Err(e) => {
                 match e {
                     // Only cache non-transient errors
-                    BridgeError::GovernanceActionIsNotApproved { .. }
+                    BridgeError::GovernanceActionIsNotApproved
                     | BridgeError::ActionIsNotGovernanceAction(..)
                     | BridgeError::BridgeEventInUnrecognizedStarcoinPackage
                     | BridgeError::BridgeEventInUnrecognizedEthContract
@@ -361,8 +361,9 @@ mod tests {
         events::{init_all_struct_tags, MoveTokenDepositedEvent, StarcoinToEthTokenBridgeV1},
         starcoin_bridge_mock_client::StarcoinMockClient,
         test_utils::{
-            get_test_log_and_action, get_test_starcoin_bridge_to_eth_bridge_action, mock_last_finalized_block,
-            StarcoinAddressTestExt, StarcoinEventTestExt, TransactionDigestTestExt,
+            get_test_log_and_action, get_test_starcoin_bridge_to_eth_bridge_action,
+            mock_last_finalized_block, StarcoinAddressTestExt, StarcoinEventTestExt,
+            TransactionDigestTestExt,
         },
         types::{EmergencyAction, EmergencyActionType, LimitUpdateAction},
     };
@@ -377,10 +378,13 @@ mod tests {
         let signer = Arc::new(kp);
         let starcoin_bridge_client_mock = StarcoinMockClient::default();
         let starcoin_bridge_verifier = StarcoinActionVerifier {
-            starcoin_bridge_client: Arc::new(StarcoinClient::new_for_testing(starcoin_bridge_client_mock.clone())),
+            starcoin_bridge_client: Arc::new(StarcoinClient::new_for_testing(
+                starcoin_bridge_client_mock.clone(),
+            )),
         };
         let metrics = Arc::new(BridgeMetrics::new_for_testing());
-        let mut starcoin_bridge_signer_with_cache = SignerWithCache::new(signer.clone(), starcoin_bridge_verifier, metrics);
+        let mut starcoin_bridge_signer_with_cache =
+            SignerWithCache::new(signer.clone(), starcoin_bridge_verifier, metrics);
 
         // Test `get_cache_entry` creates a new entry if not exist
         let starcoin_bridge_tx_digest = TransactionDigest::random();
@@ -470,11 +474,17 @@ mod tests {
         starcoin_bridge_event_2.type_ = StarcoinToEthTokenBridgeV1.get().unwrap().clone();
         starcoin_bridge_event_2.bcs = bcs::to_bytes(&emitted_event_1).unwrap();
         let starcoin_bridge_event_idx_2 = 1;
-        starcoin_bridge_client_mock.add_events_by_tx_digest(starcoin_bridge_tx_digest, vec![starcoin_bridge_event_2.clone()]);
+        starcoin_bridge_client_mock.add_events_by_tx_digest(
+            starcoin_bridge_tx_digest,
+            vec![starcoin_bridge_event_2.clone()],
+        );
 
         starcoin_bridge_client_mock.add_events_by_tx_digest(
             starcoin_bridge_tx_digest,
-            vec![starcoin_bridge_event_1.clone(), starcoin_bridge_event_2.clone()],
+            vec![
+                starcoin_bridge_event_1.clone(),
+                starcoin_bridge_event_2.clone(),
+            ],
         );
         let signed_1 = starcoin_bridge_signer_with_cache
             .sign((starcoin_bridge_tx_digest, starcoin_bridge_event_idx))
@@ -630,17 +640,18 @@ mod tests {
         // action_3 is not signable
         assert!(matches!(
             signer_with_cache.sign(action_3.clone()).await.unwrap_err(),
-            BridgeError::GovernanceActionIsNotApproved { .. }
+            BridgeError::GovernanceActionIsNotApproved
         ));
         // error is cached
         let entry_ = signer_with_cache.get_testing_only(action_3.clone()).await;
         assert!(matches!(
             entry_.unwrap().lock().await.clone().unwrap().unwrap_err(),
-            BridgeError::GovernanceActionIsNotApproved { .. }
+            BridgeError::GovernanceActionIsNotApproved
         ));
 
         // Non governace action is not signable
-        let action_4 = get_test_starcoin_bridge_to_eth_bridge_action(None, None, None, None, None, None, None);
+        let action_4 =
+            get_test_starcoin_bridge_to_eth_bridge_action(None, None, None, None, None, None, None);
         assert!(matches!(
             signer_with_cache.sign(action_4.clone()).await.unwrap_err(),
             BridgeError::ActionIsNotGovernanceAction(..)

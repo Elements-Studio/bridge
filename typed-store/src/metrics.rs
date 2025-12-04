@@ -1,6 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
-use starcoin_metrics::RegistryService;
 use once_cell::sync::OnceCell;
 use prometheus::{
     register_histogram_vec_with_registry, register_int_counter_vec_with_registry,
@@ -8,6 +7,7 @@ use prometheus::{
 };
 use rocksdb::perf::set_perf_stats;
 use rocksdb::{PerfContext, PerfMetric, PerfStatsLevel};
+use starcoin_metrics::RegistryService;
 use std::cell::RefCell;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;

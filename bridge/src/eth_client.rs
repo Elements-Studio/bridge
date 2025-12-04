@@ -127,7 +127,11 @@ where
 
     pub async fn get_last_finalized_block_id(&self) -> BridgeResult<u64> {
         // Use 'latest' for local testing with Anvil (which doesn't support finalized properly)
-        let block_tag = if self.use_latest_block { "latest" } else { "finalized" };
+        let block_tag = if self.use_latest_block {
+            "latest"
+        } else {
+            "finalized"
+        };
         let block: Result<Option<Block<ethers::types::TxHash>>, ethers::prelude::ProviderError> =
             self.provider
                 .request("eth_getBlockByNumber", (block_tag, false))

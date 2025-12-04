@@ -3,6 +3,8 @@
 
 //! Bridge-related modules organized in a submodule
 
+#![allow(clippy::module_inception)]
+
 // Infrastructure modules
 pub mod base_types;
 pub mod crypto;

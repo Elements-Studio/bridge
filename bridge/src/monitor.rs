@@ -41,7 +41,9 @@ where
 {
     pub fn new(
         starcoin_bridge_client: Arc<StarcoinClient<C>>,
-        starcoin_bridge_monitor_rx: starcoin_metrics::metered_channel::Receiver<StarcoinBridgeEvent>,
+        starcoin_bridge_monitor_rx: starcoin_metrics::metered_channel::Receiver<
+            StarcoinBridgeEvent,
+        >,
         eth_monitor_rx: starcoin_metrics::metered_channel::Receiver<EthBridgeEvent>,
         bridge_auth_agg: Arc<ArcSwap<BridgeAuthorityAggregator>>,
         bridge_paused_watch_tx: tokio::sync::watch::Sender<IsBridgePaused>,
@@ -492,7 +494,9 @@ mod tests {
     async fn test_get_latest_bridge_committee_with_url_update_event() {
         telemetry_subscribers::init_for_testing();
         let starcoin_bridge_client_mock = StarcoinMockClient::default();
-        let starcoin_bridge_client = Arc::new(StarcoinClient::new_for_testing(starcoin_bridge_client_mock.clone()));
+        let starcoin_bridge_client = Arc::new(StarcoinClient::new_for_testing(
+            starcoin_bridge_client_mock.clone(),
+        ));
         let (_, kp): (_, fastcrypto::secp256k1::Secp256k1KeyPair) = get_key_pair();
         let pk = kp.public().clone();
         let pk_as_bytes = BridgeAuthorityPublicKeyBytes::from(&pk);
@@ -640,7 +644,9 @@ mod tests {
     async fn test_get_latest_bridge_committee_with_blocklist_event() {
         telemetry_subscribers::init_for_testing();
         let starcoin_bridge_client_mock = StarcoinMockClient::default();
-        let starcoin_bridge_client = Arc::new(StarcoinClient::new_for_testing(starcoin_bridge_client_mock.clone()));
+        let starcoin_bridge_client = Arc::new(StarcoinClient::new_for_testing(
+            starcoin_bridge_client_mock.clone(),
+        ));
         let (_, kp): (_, fastcrypto::secp256k1::Secp256k1KeyPair) = get_key_pair();
         let pk = kp.public().clone();
         let pk_as_bytes = BridgeAuthorityPublicKeyBytes::from(&pk);
@@ -853,7 +859,9 @@ mod tests {
     async fn test_get_bridge_pause_status_with_emergency_event() {
         telemetry_subscribers::init_for_testing();
         let starcoin_bridge_client_mock = StarcoinMockClient::default();
-        let starcoin_bridge_client = Arc::new(StarcoinClient::new_for_testing(starcoin_bridge_client_mock.clone()));
+        let starcoin_bridge_client = Arc::new(StarcoinClient::new_for_testing(
+            starcoin_bridge_client_mock.clone(),
+        ));
 
         // Test event and onchain status match
         let event = EmergencyOpEvent { frozen: true };
@@ -1155,14 +1163,17 @@ mod tests {
         let bridge_metrics = Arc::new(BridgeMetrics::new_for_testing());
 
         let starcoin_bridge_client_mock = StarcoinMockClient::default();
-        let starcoin_bridge_client = Arc::new(StarcoinClient::new_for_testing(starcoin_bridge_client_mock.clone()));
-        let (starcoin_bridge_monitor_tx, starcoin_bridge_monitor_rx) = starcoin_metrics::metered_channel::channel(
-            10000,
-            &starcoin_metrics::get_metrics()
-                .unwrap()
-                .channel_inflight
-                .with_label_values(&["starcoin_bridge_monitor_queue"]),
-        );
+        let starcoin_bridge_client = Arc::new(StarcoinClient::new_for_testing(
+            starcoin_bridge_client_mock.clone(),
+        ));
+        let (starcoin_bridge_monitor_tx, starcoin_bridge_monitor_rx) =
+            starcoin_metrics::metered_channel::channel(
+                10000,
+                &starcoin_metrics::get_metrics()
+                    .unwrap()
+                    .channel_inflight
+                    .with_label_values(&["starcoin_bridge_monitor_queue"]),
+            );
         let (eth_monitor_tx, eth_monitor_rx) = starcoin_metrics::metered_channel::channel(
             10000,
             &starcoin_metrics::get_metrics()

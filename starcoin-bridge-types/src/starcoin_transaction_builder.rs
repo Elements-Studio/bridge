@@ -9,7 +9,9 @@
 //! RawUserTransaction + ScriptFunction model.
 
 use crate::base_types::StarcoinAddress;
-use crate::transaction::{ChainId, RawUserTransaction, ScriptFunction, SignedUserTransaction, TransactionAuthenticator};
+use crate::transaction::{
+    ChainId, RawUserTransaction, ScriptFunction, SignedUserTransaction, TransactionAuthenticator,
+};
 use crate::{Identifier, TypeTag};
 use move_core_types::language_storage::ModuleId;
 
@@ -17,8 +19,8 @@ use move_core_types::language_storage::ModuleId;
 /// This matches the Bridge address in stc-bridge-move/Move.toml: 0xf8eda27b31a0dcd9b6c06074d74a2c6c
 pub fn bridge_module_address() -> StarcoinAddress {
     StarcoinAddress::new([
-        0xf8, 0xed, 0xa2, 0x7b, 0x31, 0xa0, 0xdc, 0xd9,
-        0xb6, 0xc0, 0x60, 0x74, 0xd7, 0x4a, 0x2c, 0x6c,
+        0xf8, 0xed, 0xa2, 0x7b, 0x31, 0xa0, 0xdc, 0xd9, 0xb6, 0xc0, 0x60, 0x74, 0xd7, 0x4a, 0x2c,
+        0x6c,
     ])
 }
 
@@ -31,8 +33,8 @@ pub struct GasConfig {
 impl Default for GasConfig {
     fn default() -> Self {
         Self {
-            max_gas_amount: 10_000_000,  // 10M gas units
-            gas_unit_price: 1,            // 1 nano STC per gas unit
+            max_gas_amount: 10_000_000, // 10M gas units
+            gas_unit_price: 1,          // 1 nano STC per gas unit
         }
     }
 }
@@ -48,11 +50,7 @@ pub struct StarcoinTransactionBuilder {
 
 impl StarcoinTransactionBuilder {
     /// Create a new transaction builder
-    pub fn new(
-        sender: StarcoinAddress,
-        sequence_number: u64,
-        chain_id: u8,
-    ) -> Self {
+    pub fn new(sender: StarcoinAddress, sequence_number: u64, chain_id: u8) -> Self {
         Self {
             sender,
             sequence_number,
@@ -232,15 +230,13 @@ pub fn build_send_token(
 
     // Determine which entry function to call based on token type
     let function_name = match &token_type_tag {
-        TypeTag::Struct(s) => {
-            match s.name.as_str() {
-                "ETH" => "send_bridge_eth",
-                "BTC" => "send_bridge_btc",
-                "USDC" => "send_bridge_usdc",
-                "USDT" => "send_bridge_usdt",
-                _ => return Err(format!("Unsupported token type: {}", s.name)),
-            }
-        }
+        TypeTag::Struct(s) => match s.name.as_str() {
+            "ETH" => "send_bridge_eth",
+            "BTC" => "send_bridge_btc",
+            "USDC" => "send_bridge_usdc",
+            "USDT" => "send_bridge_usdt",
+            _ => return Err(format!("Unsupported token type: {}", s.name)),
+        },
         _ => return Err("Token type must be a struct".to_string()),
     };
 
@@ -264,16 +260,16 @@ pub fn sign_transaction_ed25519(
         return Err("Invalid private key length".to_string());
     }
 
-    let signing_key = SigningKey::from_bytes(
-        private_key.try_into().map_err(|_| "Invalid private key")?,
-    );
+    let signing_key =
+        SigningKey::from_bytes(private_key.try_into().map_err(|_| "Invalid private key")?);
 
     let message = raw_txn.to_bytes();
     let signature = signing_key.sign(&message);
 
-    let public_key_arr: [u8; 32] = public_key.try_into()
+    let public_key_arr: [u8; 32] = public_key
+        .try_into()
         .map_err(|_| "Public key must be 32 bytes")?;
-    
+
     Ok(SignedUserTransaction::new(
         raw_txn,
         TransactionAuthenticator::Ed25519 {
@@ -291,9 +287,11 @@ pub fn sign_transaction(
     let message = raw_txn.to_bytes();
     let (public_key, signature) = keypair.sign_message(&message);
 
-    let public_key_arr: [u8; 32] = public_key.try_into()
+    let public_key_arr: [u8; 32] = public_key
+        .try_into()
         .map_err(|_| "Public key must be 32 bytes")?;
-    let signature_arr: [u8; 64] = signature.try_into()
+    let signature_arr: [u8; 64] = signature
+        .try_into()
         .map_err(|_| "Signature must be 64 bytes")?;
 
     Ok(SignedUserTransaction::new(
@@ -308,22 +306,23 @@ pub fn sign_transaction(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use move_core_types::language_storage::StructTag;
     use move_core_types::account_address::AccountAddress;
     use move_core_types::identifier::Identifier;
+    use move_core_types::language_storage::StructTag;
 
     #[test]
     fn test_build_send_token() {
         let sender = StarcoinAddress::ZERO;
-        
+
         // Create a proper ETH token type tag
         let eth_type_tag = TypeTag::Struct(Box::new(StructTag {
-            address: AccountAddress::from_hex_literal("0xf8eda27b31a0dcd9b6c06074d74a2c6c").unwrap(),
+            address: AccountAddress::from_hex_literal("0xf8eda27b31a0dcd9b6c06074d74a2c6c")
+                .unwrap(),
             module: Identifier::new("ETH").unwrap(),
             name: Identifier::new("ETH").unwrap(),
             type_params: vec![],
         }));
-        
+
         let result = build_send_token(
             sender,
             0,
@@ -343,12 +342,7 @@ mod tests {
             .with_gas(5_000_000, 2)
             .with_expiration(7200);
 
-        let result = builder.build_bridge_call(
-            "Bridge",
-            "test_function",
-            vec![],
-            vec![],
-        );
+        let result = builder.build_bridge_call("Bridge", "test_function", vec![], vec![]);
         assert!(result.is_ok());
     }
 }

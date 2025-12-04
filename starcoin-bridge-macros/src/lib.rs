@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // Simplified version for Starcoin Bridge - only includes actually used macros
 
+#![allow(unexpected_cfgs)]
+
 use futures::future::BoxFuture;
 use std::collections::HashMap;
 use std::future::Future;

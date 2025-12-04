@@ -24,7 +24,6 @@ use crate::{
 use crate::{DbIterator, TypedStoreError};
 use backoff::backoff::Backoff;
 use fastcrypto::hash::{Digest, HashFunction};
-use starcoin_common::debug_fatal;
 use prometheus::{Histogram, HistogramTimer};
 use rocksdb::properties::num_files_at_level;
 use rocksdb::{checkpoint::Checkpoint, DBPinnableSlice, LiveFile};
@@ -34,6 +33,7 @@ use rocksdb::{
 };
 use serde::{de::DeserializeOwned, Serialize};
 use starcoin_bridge_macros::{fail_point, nondeterministic};
+use starcoin_common::debug_fatal;
 use std::ops::{Bound, Deref};
 use std::{
     borrow::Borrow,

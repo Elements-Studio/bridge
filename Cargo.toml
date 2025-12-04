@@ -94,8 +94,9 @@ starcoin-bridge-macros = { path = "./starcoin-bridge-macros" }
 prometheus-closure-metric = { path = "./prometheus-closure-metric" }
 starcoin-bridge-sql-macro = { path = "./starcoin-bridge-sql-macro" }
 # Starcoin native types from starcoin-vm1
-starcoin-vm-types = { git = "https://github.com/starcoinorg/starcoin", rev = "ba7cd08110d3582361e0862f45109361036b50ce" }
-bcs-ext = { git = "https://github.com/starcoinorg/starcoin", rev = "ba7cd08110d3582361e0862f45109361036b50ce" }
+starcoin-vm-types = { git = "https://github.com/starcoinorg/starcoin", rev = "98eefde70a1059ad6d5b5afa54a7eeb403384dec" }
+bcs-ext = { git = "https://github.com/starcoinorg/starcoin", rev = "98eefde70a1059ad6d5b5afa54a7eeb403384dec" }
+starcoin-test-helper = { git = "https://github.com/starcoinorg/starcoin", rev = "98eefde70a1059ad6d5b5afa54a7eeb403384dec", package = "test-helper" }
 telemetry-subscribers = { path = "./telemetry-subscribers" }
 test-cluster = { path = "./test-cluster" }
 typed-store = { path = "./typed-store" }

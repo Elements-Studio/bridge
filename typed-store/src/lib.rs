@@ -7,6 +7,8 @@
     rust_2018_idioms,
     rust_2021_compatibility
 )]
+#![allow(unexpected_cfgs)]
+#![allow(clippy::manual_div_ceil)]
 
 // Re-export rocksdb so that consumers can use the version of rocksdb via typed-store
 pub use rocksdb;

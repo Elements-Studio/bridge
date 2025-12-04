@@ -1,5 +1,5 @@
 // Stub for starcoin-bridge-data-ingestion-core - to be replaced with Starcoin data ingestion
-#![allow(dead_code, unused_variables)]
+#![allow(dead_code, unused_variables, unused_imports)]
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};

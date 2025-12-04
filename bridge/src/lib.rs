@@ -1,6 +1,24 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Allow common warnings during Starcoin bridge adaptation
+#![allow(
+    unused_imports,
+    unused_variables,
+    unused_assignments,
+    dead_code,
+    deprecated,
+    clippy::too_many_arguments,
+    clippy::new_without_default,
+    clippy::should_implement_trait,
+    clippy::needless_borrows_for_generic_args,
+    clippy::for_kv_map,
+    clippy::useless_conversion,
+    clippy::ptr_arg,
+    clippy::needless_borrow
+)]
+#![cfg_attr(test, allow(async_fn_in_trait))]
+
 pub mod abi;
 pub mod action_executor;
 pub mod client;
@@ -19,11 +37,11 @@ pub mod node;
 pub mod orchestrator;
 pub mod server;
 pub mod simple_starcoin_rpc;
-pub mod starcoin_jsonrpc_client;
 pub mod starcoin_bridge_client;
 pub mod starcoin_bridge_syncer;
 pub mod starcoin_bridge_transaction_builder;
 pub mod starcoin_bridge_watchdog;
+pub mod starcoin_jsonrpc_client;
 pub mod storage;
 pub mod types;
 pub mod utils;

@@ -82,19 +82,22 @@ pub trait StarcoinEventTestExt {
 impl StarcoinEventTestExt for StarcoinEvent {
     fn random_for_testing() -> Self {
         use rand::Rng;
-        use std::str::FromStr;
         use starcoin_bridge_json_rpc_types::EventID;
-        
+        use std::str::FromStr;
+
         let mut rng = rand::thread_rng();
         let tx_digest: [u8; 32] = rng.gen();
         let event_seq: u64 = rng.gen_range(0..1000);
         let block_number: u64 = rng.gen_range(1..10000);
-        
+
         StarcoinEvent {
-            id: EventID { tx_digest, event_seq, block_number },
-            type_: move_core_types::language_storage::StructTag::from_str(
-                "0x1::test::TestEvent"
-            ).unwrap(),
+            id: EventID {
+                tx_digest,
+                event_seq,
+                block_number,
+            },
+            type_: move_core_types::language_storage::StructTag::from_str("0x1::test::TestEvent")
+                .unwrap(),
             bcs: vec![],
         }
     }

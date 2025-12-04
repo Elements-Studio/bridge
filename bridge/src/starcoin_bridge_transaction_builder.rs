@@ -43,8 +43,8 @@ use crate::{
 /// This matches the Bridge address in stc-bridge-move/Move.toml: 0xf8eda27b31a0dcd9b6c06074d74a2c6c
 pub fn bridge_module_address() -> StarcoinAddress {
     StarcoinAddress::new([
-        0xf8, 0xed, 0xa2, 0x7b, 0x31, 0xa0, 0xdc, 0xd9,
-        0xb6, 0xc0, 0x60, 0x74, 0xd7, 0x4a, 0x2c, 0x6c,
+        0xf8, 0xed, 0xa2, 0x7b, 0x31, 0xa0, 0xdc, 0xd9, 0xb6, 0xc0, 0x60, 0x74, 0xd7, 0x4a, 0x2c,
+        0x6c,
     ])
 }
 
@@ -91,7 +91,7 @@ pub struct StarcoinBridgeTransactionBuilder;
 
 impl StarcoinBridgeTransactionBuilder {
     /// Build a claim token transaction using native Starcoin transaction format
-    /// 
+    ///
     /// # Arguments
     /// * `module_address` - The address where the bridge module is deployed (contract address)
     /// * `sender` - The transaction sender address (who pays gas and signs the transaction)
@@ -170,10 +170,10 @@ pub mod starcoin_native {
     use super::*;
 
     /// Calculate expiration timestamp for Starcoin transactions based on current block timestamp
-    /// 
+    ///
     /// # Arguments
     /// * `block_timestamp_ms` - Current block timestamp in milliseconds from chain
-    /// 
+    ///
     /// Returns the expiration timestamp in **seconds** (current + 1 hour)
     /// Note: Starcoin's RawUserTransaction expects expiration_timestamp_secs in seconds
     fn calculate_expiration_from_block(block_timestamp_ms: u64) -> u64 {
@@ -186,7 +186,7 @@ pub mod starcoin_native {
     /// Build a RawUserTransaction for approving token transfer
     /// Uses the script function `approve_bridge_token_transfer_single` for single signature
     /// or `approve_bridge_token_transfer_two`/`approve_bridge_token_transfer_three` for multiple signatures
-    /// 
+    ///
     /// # Arguments
     /// * `module_address` - The address where the bridge module is deployed
     /// * `sender` - The sender address
@@ -224,46 +224,81 @@ pub mod starcoin_native {
 
         // Choose function based on number of signatures
         let (function_name, args) = match signatures.len() {
-            1 => {
-                ("approve_bridge_token_transfer_single", vec![
-                    bcs::to_bytes(&source_chain).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
-                    bcs::to_bytes(&seq_num).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
-                    bcs::to_bytes(&sender_address).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
-                    bcs::to_bytes(&target_chain).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
-                    bcs::to_bytes(&target_address).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
-                    bcs::to_bytes(&token_type).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
-                    bcs::to_bytes(&amount).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
-                    bcs::to_bytes(&signatures[0]).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
-                ])
-            },
-            2 => {
-                ("approve_bridge_token_transfer_two", vec![
-                    bcs::to_bytes(&source_chain).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
-                    bcs::to_bytes(&seq_num).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
-                    bcs::to_bytes(&sender_address).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
-                    bcs::to_bytes(&target_chain).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
-                    bcs::to_bytes(&target_address).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
-                    bcs::to_bytes(&token_type).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
-                    bcs::to_bytes(&amount).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
-                    bcs::to_bytes(&signatures[0]).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
-                    bcs::to_bytes(&signatures[1]).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
-                ])
-            },
-            3 => {
-                ("approve_bridge_token_transfer_three", vec![
-                    bcs::to_bytes(&source_chain).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
-                    bcs::to_bytes(&seq_num).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
-                    bcs::to_bytes(&sender_address).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
-                    bcs::to_bytes(&target_chain).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
-                    bcs::to_bytes(&target_address).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
-                    bcs::to_bytes(&token_type).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
-                    bcs::to_bytes(&amount).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
-                    bcs::to_bytes(&signatures[0]).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
-                    bcs::to_bytes(&signatures[1]).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
-                    bcs::to_bytes(&signatures[2]).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
-                ])
-            },
-            n => return Err(BridgeError::Generic(format!("Unsupported number of signatures: {}. Only 1-3 signatures are supported.", n))),
+            1 => (
+                "approve_bridge_token_transfer_single",
+                vec![
+                    bcs::to_bytes(&source_chain)
+                        .map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                    bcs::to_bytes(&seq_num)
+                        .map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                    bcs::to_bytes(&sender_address)
+                        .map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                    bcs::to_bytes(&target_chain)
+                        .map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                    bcs::to_bytes(&target_address)
+                        .map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                    bcs::to_bytes(&token_type)
+                        .map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                    bcs::to_bytes(&amount)
+                        .map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                    bcs::to_bytes(&signatures[0])
+                        .map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                ],
+            ),
+            2 => (
+                "approve_bridge_token_transfer_two",
+                vec![
+                    bcs::to_bytes(&source_chain)
+                        .map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                    bcs::to_bytes(&seq_num)
+                        .map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                    bcs::to_bytes(&sender_address)
+                        .map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                    bcs::to_bytes(&target_chain)
+                        .map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                    bcs::to_bytes(&target_address)
+                        .map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                    bcs::to_bytes(&token_type)
+                        .map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                    bcs::to_bytes(&amount)
+                        .map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                    bcs::to_bytes(&signatures[0])
+                        .map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                    bcs::to_bytes(&signatures[1])
+                        .map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                ],
+            ),
+            3 => (
+                "approve_bridge_token_transfer_three",
+                vec![
+                    bcs::to_bytes(&source_chain)
+                        .map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                    bcs::to_bytes(&seq_num)
+                        .map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                    bcs::to_bytes(&sender_address)
+                        .map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                    bcs::to_bytes(&target_chain)
+                        .map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                    bcs::to_bytes(&target_address)
+                        .map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                    bcs::to_bytes(&token_type)
+                        .map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                    bcs::to_bytes(&amount)
+                        .map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                    bcs::to_bytes(&signatures[0])
+                        .map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                    bcs::to_bytes(&signatures[1])
+                        .map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                    bcs::to_bytes(&signatures[2])
+                        .map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                ],
+            ),
+            n => {
+                return Err(BridgeError::Generic(format!(
+                    "Unsupported number of signatures: {}. Only 1-3 signatures are supported.",
+                    n
+                )))
+            }
         };
 
         let script_function = ScriptFunction::new(
@@ -277,15 +312,15 @@ pub mod starcoin_native {
             sender,
             sequence_number,
             script_function,
-            10_000_000,  // max_gas_amount
-            1,           // gas_unit_price
+            10_000_000, // max_gas_amount
+            1,          // gas_unit_price
             calculate_expiration_from_block(block_timestamp_ms),
             ChainId::new(chain_id),
         ))
     }
 
     /// Build a RawUserTransaction for claiming and transferring tokens
-    /// 
+    ///
     /// # Arguments
     /// * `module_address` - The address where the bridge module is deployed
     /// * `sender` - The sender address
@@ -326,9 +361,12 @@ pub mod starcoin_native {
             Identifier::new(function_name).map_err(|e| BridgeError::Generic(e.to_string()))?,
             vec![],
             vec![
-                bcs::to_bytes(&clock_timestamp_ms).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
-                bcs::to_bytes(&source_chain).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
-                bcs::to_bytes(&seq_num).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                bcs::to_bytes(&clock_timestamp_ms)
+                    .map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                bcs::to_bytes(&source_chain)
+                    .map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                bcs::to_bytes(&seq_num)
+                    .map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
             ],
         );
 
@@ -344,7 +382,7 @@ pub mod starcoin_native {
     }
 
     /// Build a RawUserTransaction for executing emergency operations
-    /// 
+    ///
     /// # Arguments
     /// * `module_address` - The address where the bridge module is deployed
     /// * `sender` - The sender address
@@ -373,13 +411,18 @@ pub mod starcoin_native {
 
         let script_function = ScriptFunction::new(
             module_id,
-            Identifier::new("execute_emergency_op_single").map_err(|e| BridgeError::Generic(e.to_string()))?,
+            Identifier::new("execute_emergency_op_single")
+                .map_err(|e| BridgeError::Generic(e.to_string()))?,
             vec![],
             vec![
-                bcs::to_bytes(&source_chain).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
-                bcs::to_bytes(&seq_num).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
-                bcs::to_bytes(&op_type).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
-                bcs::to_bytes(&signature).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                bcs::to_bytes(&source_chain)
+                    .map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                bcs::to_bytes(&seq_num)
+                    .map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                bcs::to_bytes(&op_type)
+                    .map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                bcs::to_bytes(&signature)
+                    .map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
             ],
         );
 
@@ -395,7 +438,7 @@ pub mod starcoin_native {
     }
 
     /// Build a RawUserTransaction for sending tokens to another chain (Starcoin -> ETH)
-    /// 
+    ///
     /// # Arguments
     /// * `module_address` - The address where the bridge module is deployed
     /// * `sender` - The sender address
@@ -432,7 +475,12 @@ pub mod starcoin_native {
                     "BTC" => "send_bridge_btc",
                     "USDC" => "send_bridge_usdc",
                     "USDT" => "send_bridge_usdt",
-                    _ => return Err(BridgeError::Generic(format!("Unsupported token type: {}", module_name))),
+                    _ => {
+                        return Err(BridgeError::Generic(format!(
+                            "Unsupported token type: {}",
+                            module_name
+                        )))
+                    }
                 }
             }
             _ => return Err(BridgeError::Generic("Expected struct type tag".to_string())),
@@ -443,9 +491,12 @@ pub mod starcoin_native {
             Identifier::new(function_name).map_err(|e| BridgeError::Generic(e.to_string()))?,
             vec![], // No type args needed, function is specific to token
             vec![
-                bcs::to_bytes(&target_chain).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
-                bcs::to_bytes(&target_address).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
-                bcs::to_bytes(&amount).map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                bcs::to_bytes(&target_chain)
+                    .map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                bcs::to_bytes(&target_address)
+                    .map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
+                bcs::to_bytes(&amount)
+                    .map_err(|e| BridgeError::BridgeSerializationError(e.to_string()))?,
             ],
         );
 

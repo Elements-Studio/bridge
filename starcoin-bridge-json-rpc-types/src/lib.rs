@@ -61,7 +61,11 @@ impl StarcoinEvent {
             .unwrap_or(0);
 
         Ok(Self {
-            id: EventID { tx_digest, event_seq, block_number },
+            id: EventID {
+                tx_digest,
+                event_seq,
+                block_number,
+            },
             type_: struct_tag,
             bcs: data,
         })
@@ -71,16 +75,15 @@ impl StarcoinEvent {
     #[cfg(test)]
     pub fn dummy_for_testing() -> Self {
         use std::str::FromStr;
-        
+
         Self {
-            id: EventID { 
-                tx_digest: [0u8; 32], 
-                event_seq: 0, 
-                block_number: 1 
+            id: EventID {
+                tx_digest: [0u8; 32],
+                event_seq: 0,
+                block_number: 1,
             },
-            type_: move_core_types::language_storage::StructTag::from_str(
-                "0x1::test::TestEvent"
-            ).unwrap(),
+            type_: move_core_types::language_storage::StructTag::from_str("0x1::test::TestEvent")
+                .unwrap(),
             bcs: vec![],
         }
     }

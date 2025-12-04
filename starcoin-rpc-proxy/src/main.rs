@@ -1,12 +1,13 @@
 // Starcoin RPC Proxy - handles all Starcoin RPC calls in a separate process
 // This avoids tokio runtime conflicts with the main bridge server
 
+#![allow(unused_imports, unused_variables, dead_code)]
+
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
-use std::io::{BufRead, BufReader, Write};
-use starcoin_bridge_sdk::{StarcoinClient as StarcoinSdkClient};
-use starcoin_bridge_types::bridge::{BridgeSummary, MoveTypeCommitteeMember};
+use starcoin_bridge_sdk::StarcoinClient as StarcoinSdkClient;
 use starcoin_rpc_client::RpcClient;
+use std::io::{BufRead, BufReader, Write};
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "method", content = "params")]
@@ -57,24 +58,36 @@ impl ProxyState {
                 Ok(serde_json::json!({"status": "connected"}))
             }
             RpcRequest::GetChainIdentifier => {
-                let client = self.client.as_ref().ok_or_else(|| anyhow!("Not connected"))?;
+                let client = self
+                    .client
+                    .as_ref()
+                    .ok_or_else(|| anyhow!("Not connected"))?;
                 let chain_info = client.starcoin_client().chain_info()?;
                 let chain_id = format!("{}", chain_info.chain_id);
                 Ok(serde_json::to_value(chain_id)?)
             }
             RpcRequest::GetBridgeCommittee => {
-                let client = self.client.as_ref().ok_or_else(|| anyhow!("Not connected"))?;
+                let client = self
+                    .client
+                    .as_ref()
+                    .ok_or_else(|| anyhow!("Not connected"))?;
                 // TODO: Implement proper bridge committee query via RPC
                 // For now return placeholder
                 Ok(serde_json::json!({"members": []}))
             }
             RpcRequest::GetBridgeSummary => {
-                let client = self.client.as_ref().ok_or_else(|| anyhow!("Not connected"))?;
+                let client = self
+                    .client
+                    .as_ref()
+                    .ok_or_else(|| anyhow!("Not connected"))?;
                 // TODO: Implement proper bridge summary query via RPC
                 Ok(serde_json::json!({"chain_id": 0}))
             }
             RpcRequest::GetLatestCheckpointSequenceNumber => {
-                let client = self.client.as_ref().ok_or_else(|| anyhow!("Not connected"))?;
+                let client = self
+                    .client
+                    .as_ref()
+                    .ok_or_else(|| anyhow!("Not connected"))?;
                 let chain_info = client.starcoin_client().chain_info()?;
                 let seq = chain_info.head.number.0;
                 Ok(serde_json::to_value(seq)?)

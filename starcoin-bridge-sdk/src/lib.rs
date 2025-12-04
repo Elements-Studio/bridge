@@ -454,12 +454,12 @@ impl StarcoinClientBuilder {
         // Use Arc<Mutex<Option<Result>>> for thread-safe result sharing
         let result_holder = std::sync::Arc::new(std::sync::Mutex::new(None));
         let result_clone = result_holder.clone();
-        
+
         std::thread::spawn(move || {
             let result = Self::build_from_url(&url);
             *result_clone.lock().unwrap() = Some(result);
         });
-        
+
         // Poll with small delay until result is ready
         loop {
             tokio::time::sleep(std::time::Duration::from_millis(10)).await;
@@ -482,6 +482,7 @@ pub mod wallet_context {
     use super::*;
 
     // WalletContext wraps wallet functionality
+    #[derive(Default)]
     pub struct WalletContext {
         client: Option<StarcoinClient>,
         addresses: Vec<[u8; 32]>,
@@ -533,15 +534,6 @@ pub mod wallet_context {
                 "sign_transaction called - returning empty signature (needs keystore integration)"
             );
             Ok(starcoin_bridge_types::crypto::Signature(vec![]))
-        }
-    }
-
-    impl Default for WalletContext {
-        fn default() -> Self {
-            Self {
-                client: None,
-                addresses: Vec::new(),
-            }
         }
     }
 }
