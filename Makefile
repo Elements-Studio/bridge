@@ -234,10 +234,14 @@ setup-eth-and-config: ## Complete ETH setup (clean + deploy + generate config). 
 	@ETH_ADDRESS=$$(grep "Ethereum address:" /tmp/keygen_output.txt | awk '{print $$3}'); \
 	ETH_ADDRESS_LOWER=$$(echo "$$ETH_ADDRESS" | tr '[:upper:]' '[:lower:]'); \
 	CONFIG_FILE="contracts/evm/deploy_configs/31337.json"; \
-	echo "   Updating $$CONFIG_FILE with committee member: $$ETH_ADDRESS"; \
-	jq --arg addr "$$ETH_ADDRESS_LOWER" '.committeeMembers = [$$addr] | .committeeMemberStake = [10000]' "$$CONFIG_FILE" > /tmp/31337_new.json && \
-	mv /tmp/31337_new.json "$$CONFIG_FILE"; \
-	echo "$(GREEN)✓ Deploy config updated$(NC)"
+	TEMPLATE_FILE="contracts/evm/deploy_configs/31337.json.template"; \
+	echo "   Creating $$CONFIG_FILE from template with committee member: $$ETH_ADDRESS"; \
+	if [ ! -f "$$TEMPLATE_FILE" ]; then \
+		echo "$(RED)✗ Template file not found: $$TEMPLATE_FILE$(NC)"; \
+		exit 1; \
+	fi; \
+	jq --arg addr "$$ETH_ADDRESS_LOWER" '.committeeMembers = [$$addr] | .committeeMemberStake = [10000]' "$$TEMPLATE_FILE" > "$$CONFIG_FILE"; \
+	echo "$(GREEN)✓ Deploy config created$(NC)"
 	# Restart Anvil with clean state
 	@$(MAKE) restart-anvil
 	# Deploy contracts with forge
