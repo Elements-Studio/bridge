@@ -108,6 +108,7 @@ Set environment variables and run:
 export STARCOIN_PATH=/path/to/starcoin
 export STARCOIN_DATA_DIR=/tmp
 export MPM_PATH=/path/to/mpm
+export MOVE_CONTRACT_DIR=/path/to/move-contract
 
 cd bridge
 ./setup.sh -y   # -y for auto-confirm, omit for interactive mode
