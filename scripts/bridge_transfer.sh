@@ -11,7 +11,6 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-BRIDGE_DIR="/Volumes/SSD/chidanta/bridge"
 STARCOIN_RPC="http://localhost:9850"
 ETH_RPC="http://localhost:8545"
 POLL_INTERVAL=3
@@ -20,8 +19,6 @@ MAX_WAIT=120
 # Get direction and amount
 DIRECTION=${1:-eth-to-stc}
 AMOUNT=${2:-0.1}
-
-cd "$BRIDGE_DIR"
 
 # Ensure binary and keys exist before proceeding
 ensure_prerequisites() {
@@ -104,9 +101,20 @@ get_bridge_token_balance() {
     fi
     
     # Note: use full address format 0x00000000000000000000000000000001 instead of 0x1
+    local resource_type="0x00000000000000000000000000000001::Account::Balance<${bridge_addr}::${token}::${token}>"
+    local request="{\"jsonrpc\":\"2.0\",\"method\":\"state.get_resource\",\"params\":[\"$addr\",\"$resource_type\",{\"decode\":true}],\"id\":1}"
+    
+    echo -e "${BLUE}[DEBUG] Starcoin wETH Balance Query:${NC}" >&2
+    echo -e "  curl -s -X POST -H 'Content-Type: application/json' \\" >&2
+    echo -e "    -d '$request' \\" >&2
+    echo -e "    $STARCOIN_RPC" >&2
+    
     local result=$(curl -s -X POST -H "Content-Type: application/json" \
-        -d "{\"jsonrpc\":\"2.0\",\"method\":\"state.get_resource\",\"params\":[\"$addr\",\"0x00000000000000000000000000000001::Account::Balance<${bridge_addr}::${token}::${token}>\",{\"decode\":true}],\"id\":1}" \
+        -d "$request" \
         "$STARCOIN_RPC")
+    
+    echo -e "${BLUE}[DEBUG] Response:${NC}" >&2
+    echo "$result" | jq '.' >&2
     
     echo "$result" | jq -r '.result.json.token.value // "0"'
 }
@@ -247,11 +255,21 @@ main() {
         echo ""
         
         # Record balances AFTER funding
+        echo -e "${BLUE}[DEBUG] Getting Starcoin wETH balance...${NC}"
         local initial_eth_balance=$(get_bridge_token_balance "$stc_addr" "ETH")
         local initial_eth_balance_eth=$(python3 -c "print(f'{$initial_eth_balance / 1e8:g}')" 2>/dev/null || echo "0")
+        
+        echo -e "${BLUE}[DEBUG] ETH Wallet Balance Query:${NC}"
+        local eth_request="{\"jsonrpc\":\"2.0\",\"method\":\"eth_getBalance\",\"params\":[\"$eth_addr\",\"latest\"],\"id\":1}"
+        echo -e "  curl -s -X POST -H 'Content-Type: application/json' \\" 
+        echo -e "    -d '$eth_request' \\" 
+        echo -e "    $ETH_RPC" 
         local initial_eth_wallet=$(curl -s -X POST -H "Content-Type: application/json" \
-            -d "{\"jsonrpc\":\"2.0\",\"method\":\"eth_getBalance\",\"params\":[\"$eth_addr\",\"latest\"],\"id\":1}" \
-            "$ETH_RPC" | jq -r '.result // "0x0"')
+            -d "$eth_request" \
+            "$ETH_RPC")
+        echo -e "${BLUE}[DEBUG] Response:${NC}"
+        echo "$initial_eth_wallet" | jq '.'
+        initial_eth_wallet=$(echo "$initial_eth_wallet" | jq -r '.result // "0x0"')
         local eth_before=$(python3 -c "print(f'{int(\"$initial_eth_wallet\", 16) / 1e18:g}')" 2>/dev/null || echo "0")
         
         echo -e "${BLUE}=== Before Transfer ===${NC}"
@@ -300,11 +318,21 @@ main() {
             echo -e "${YELLOW}[4/4] Transfer complete!${NC}"
             
             # Get final Starcoin token balance
+            echo -e "${BLUE}[DEBUG] Getting final Starcoin wETH balance...${NC}"
             local final_eth_balance=$(get_bridge_token_balance "$stc_addr" "ETH")
             local final_eth_balance_eth=$(python3 -c "print(f'{$final_eth_balance / 1e8:g}')" 2>/dev/null || echo "0")
+            
+            echo -e "${BLUE}[DEBUG] Getting final ETH Wallet balance...${NC}"
+            local eth_request="{\"jsonrpc\":\"2.0\",\"method\":\"eth_getBalance\",\"params\":[\"$eth_addr\",\"latest\"],\"id\":1}"
+            echo -e "  curl -s -X POST -H 'Content-Type: application/json' \\" 
+            echo -e "    -d '$eth_request' \\" 
+            echo -e "    $ETH_RPC" 
             local final_eth_wallet=$(curl -s -X POST -H "Content-Type: application/json" \
-                -d "{\"jsonrpc\":\"2.0\",\"method\":\"eth_getBalance\",\"params\":[\"$eth_addr\",\"latest\"],\"id\":1}" \
-                "$ETH_RPC" | jq -r '.result // "0x0"')
+                -d "$eth_request" \
+                "$ETH_RPC")
+            echo -e "${BLUE}[DEBUG] Response:${NC}"
+            echo "$final_eth_wallet" | jq '.'
+            final_eth_wallet=$(echo "$final_eth_wallet" | jq -r '.result // "0x0"')
             local eth_after=$(python3 -c "print(f'{int(\"$final_eth_wallet\", 16) / 1e18:g}')" 2>/dev/null || echo "0")
             
             echo -e "${BLUE}=== After Transfer ===${NC}"
