@@ -86,7 +86,7 @@ start-anvil: ## Start local Anvil node (reuse if running)
 	else \
 		pkill -9 -f "anvil.*8545" 2>/dev/null || true; \
 		sleep 1; \
-		anvil --host 127.0.0.1 --port 8545 --chain-id 31337 --silent > $(ANVIL_DATA_DIR)/anvil.log 2>&1 & \
+		anvil --host 127.0.0.1 --port 8545 --chain-id 31337 --silent --block-time 10 > $(ANVIL_DATA_DIR)/anvil.log 2>&1 & \
 		echo $$! > $(ANVIL_PID_FILE); \
 		sleep 2; \
 		if curl -sf $(ETH_RPC_URL) -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"eth_chainId","params":[],"id":1}' > /dev/null; then \
@@ -114,7 +114,7 @@ restart-anvil: ## Restart Anvil with clean state (like docker-compose down -v &&
 	@mkdir -p $(ANVIL_DATA_DIR)
 	@pkill -9 -f "anvil.*8545" 2>/dev/null || true
 	@sleep 1
-	@anvil --host 127.0.0.1 --port 8545 --chain-id 31337 --silent > $(ANVIL_DATA_DIR)/anvil.log 2>&1 & \
+	@anvil --host 127.0.0.1 --port 8545 --chain-id 31337 --silent --block-time 10 > $(ANVIL_DATA_DIR)/anvil.log 2>&1 & \
 	echo $$! > $(ANVIL_PID_FILE); \
 	sleep 2; \
 	if curl -sf $(ETH_RPC_URL) -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"eth_chainId","params":[],"id":1}' > /dev/null; then \
