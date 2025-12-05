@@ -54,6 +54,9 @@ pub struct StarcoinMockClient {
     bridge_committee_summary: Arc<Mutex<Option<BridgeCommitteeSummary>>>,
     is_paused: Arc<Mutex<Option<IsBridgePaused>>>,
     requested_transactions_tx: tokio::sync::broadcast::Sender<TransactionDigest>,
+    // Mock for sign_and_submit_transaction
+    sign_and_submit_responses: Arc<Mutex<VecDeque<BridgeResult<String>>>>,
+    wildcard_sign_and_submit_response: Arc<Mutex<Option<BridgeResult<String>>>>,
 }
 
 impl StarcoinMockClient {
@@ -71,6 +74,8 @@ impl StarcoinMockClient {
             bridge_committee_summary: Default::default(),
             is_paused: Default::default(),
             requested_transactions_tx: tokio::sync::broadcast::channel(10000).0,
+            sign_and_submit_responses: Default::default(),
+            wildcard_sign_and_submit_response: Default::default(),
         }
     }
 
@@ -159,6 +164,19 @@ impl StarcoinMockClient {
         &self,
     ) -> tokio::sync::broadcast::Receiver<TransactionDigest> {
         self.requested_transactions_tx.subscribe()
+    }
+
+    /// Add a response for sign_and_submit_transaction (will be consumed in order)
+    pub fn add_sign_and_submit_response(&self, response: BridgeResult<String>) {
+        self.sign_and_submit_responses
+            .lock()
+            .unwrap()
+            .push_back(response);
+    }
+
+    /// Set a wildcard response for sign_and_submit_transaction (used when queue is empty)
+    pub fn set_wildcard_sign_and_submit_response(&self, response: BridgeResult<String>) {
+        *self.wildcard_sign_and_submit_response.lock().unwrap() = Some(response);
     }
 }
 
@@ -359,9 +377,15 @@ impl StarcoinClientInner for StarcoinMockClient {
         _key: &starcoin_bridge_types::crypto::StarcoinKeyPair,
         _raw_txn: starcoin_bridge_types::transaction::RawUserTransaction,
     ) -> Result<String, BridgeError> {
-        // Mock implementation for testing
-        Err(BridgeError::Generic(
-            "Mock transaction submission not implemented".into(),
-        ))
+        // Try to get a response from the queue first
+        if let Some(response) = self.sign_and_submit_responses.lock().unwrap().pop_front() {
+            return response;
+        }
+        // Fall back to wildcard response if set
+        if let Some(response) = self.wildcard_sign_and_submit_response.lock().unwrap().clone() {
+            return response;
+        }
+        // Default: return success with a dummy tx hash
+        Ok("0x0000000000000000000000000000000000000000000000000000000000000000".to_string())
     }
 }
