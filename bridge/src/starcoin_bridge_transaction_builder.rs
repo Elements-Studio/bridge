@@ -1110,6 +1110,9 @@ pub fn build_committee_update_url_transaction(
     Ok(data)
 }
 
+// TODO: These tests are temporarily disabled because they require TestClusterWrapperBuilder
+// from e2e_tests module, which depends on full Starcoin testnet infrastructure.
+// Re-enable when e2e test infrastructure is available.
 /*#[cfg(test)]
 mod tests {
     use crate::crypto::BridgeAuthorityKeyPair;
