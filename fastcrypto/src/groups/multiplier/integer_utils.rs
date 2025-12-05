@@ -124,7 +124,7 @@ impl ToLittleEndianBytes for BigUint {
     }
 }
 
-/*#[cfg(test)]
+#[cfg(test)]
 mod tests {
     use super::*;
     use std::assert_eq;
@@ -202,4 +202,4 @@ mod tests {
         assert!(!is_power_of_2(513));
         assert!(is_power_of_2(4096));
     }
-}*/
+}

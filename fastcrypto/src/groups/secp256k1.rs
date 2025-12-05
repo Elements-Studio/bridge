@@ -479,33 +479,31 @@ pub mod schnorr {
         }
     }
 
-    // #[test]
-    // fn test_generator() {
-    //     let x_bytes: [u8; 32] =
-    //         hex::decode("79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798")
-    //             .unwrap()
-    //             .try_into()
-    //             .unwrap();
-
-    //     // Test that the generator is aligned with the specs.
-    //     assert_eq!(
-    //         x_bytes,
-    //         ProjectivePoint::generator().x_as_be_bytes().unwrap()
-    //     );
-    //     assert!(ProjectivePoint::generator().has_even_y().unwrap());
-
-    //     assert_eq!(
-    //         ProjectivePoint::with_even_y_from_x_be_bytes(&x_bytes).unwrap(),
-    //         ProjectivePoint::generator()
-    //     );
-    // }
-
-    /*#[cfg(test)]
+    #[cfg(test)]
     mod tests {
-        use crate::groups::secp256k1::schnorr::{
-            SchnorrPrivateKey, SchnorrPublicKey, SchnorrSignature,
-        };
+        use super::*;
         use crate::serde_helpers::ToFromByteArray;
+
+        #[test]
+        fn test_generator() {
+            let x_bytes: [u8; 32] =
+                hex::decode("79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798")
+                    .unwrap()
+                    .try_into()
+                    .unwrap();
+
+            // Test that the generator is aligned with the specs.
+            assert_eq!(
+                x_bytes,
+                ProjectivePoint::generator().x_as_be_bytes().unwrap()
+            );
+            assert!(ProjectivePoint::generator().has_even_y().unwrap());
+
+            assert_eq!(
+                ProjectivePoint::with_even_y_from_x_be_bytes(&x_bytes).unwrap(),
+                ProjectivePoint::generator()
+            );
+        }
 
         struct SigningTestVector {
             sk: &'static str,
@@ -702,5 +700,5 @@ pub mod schnorr {
                 verify_test_vector(v);
             }
         }
-    }*/
+    }
 }
