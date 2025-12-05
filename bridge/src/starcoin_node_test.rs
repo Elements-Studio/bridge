@@ -112,7 +112,6 @@ mod tests {
     /// 7. Verifies the deployment
     #[tokio::test]
     #[serial_test::serial]
-    #[ignore = "Requires full Starcoin node environment - run manually"]
     async fn test_deploy_and_initialize_bridge() -> Result<()> {
         println!("╔════════════════════════════════════════════════════════════╗");
         println!("║  Bridge Contract Deployment & Initialization Test         ║");
@@ -354,8 +353,10 @@ mod tests {
         println!("\n✅ All transactions prepared successfully!");
         println!("   Note: To submit to a real chain, use RpcClient::submit_transaction()");
 
-        // Cleanup: drop node handle to stop the node
-        drop(node_handle);
+        // Cleanup: stop node in blocking context to avoid runtime drop panic
+        tokio::task::spawn_blocking(move || {
+            drop(node_handle);
+        }).await.expect("Failed to stop node");
         
         Ok(())
     }

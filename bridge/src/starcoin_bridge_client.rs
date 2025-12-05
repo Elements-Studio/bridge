@@ -176,35 +176,11 @@ where
         // cursor is exclusive
         cursor: Option<EventID>,
     ) -> BridgeResult<Page<StarcoinEvent>> {
-        // Starcoin uses 16-byte addresses, extract from last 16 bytes of ObjectID
-        // ObjectID is 32 bytes: [16 zero padding bytes][16 byte Starcoin address]
-        let starcoin_addr = &package[16..32]; // Take last 16 bytes
-
-        // Starcoin's chain.get_events doesn't support wildcard type_tags
-        // We query all events and filter by module on client side
-        let filter = EventFilter {
-            // Don't filter by type_tags - we'll filter in code
-            ..Default::default()
-        };
-        let events = self.inner.query_events(filter.clone(), cursor).await?;
-
-        // Filter events to only include those from the requested package and module
-        // Note: Starcoin events use PascalCase module names (e.g., "Bridge"), while
-        // our module identifiers use lowercase (e.g., "bridge"). Use case-insensitive comparison.
-        let filtered_data: Vec<_> = events
-            .data
-            .into_iter()
-            .filter(|event| {
-                event.type_.address.as_ref() == starcoin_addr
-                    && event.type_.module.as_str().to_lowercase() == module.as_str().to_lowercase()
-            })
-            .collect();
-
-        Ok(Page {
-            data: filtered_data,
-            next_cursor: events.next_cursor,
-            has_next_page: events.has_next_page,
-        })
+        // Use the trait method which mock client can override
+        self.inner
+            .query_events_by_module(package, module, cursor)
+            .await
+            .map_err(|e| BridgeError::InternalError(format!("Query events failed: {:?}", e)))
     }
 
     // Returns BridgeAction from a Starcoin Transaction with transaction hash
@@ -580,6 +556,36 @@ pub trait StarcoinClientInner: Send + Sync {
         query: EventFilter,
         cursor: Option<EventID>,
     ) -> Result<EventPage, Self::Error>;
+
+    /// Query events by module - for mock client support
+    /// Default implementation uses query_events with empty filter
+    async fn query_events_by_module(
+        &self,
+        package: ObjectID,
+        module: Identifier,
+        cursor: Option<EventID>,
+    ) -> Result<EventPage, Self::Error> {
+        // Default implementation - filter events by module
+        let filter = EventFilter::default();
+        let events = self.query_events(filter, cursor).await?;
+        
+        // Filter to matching module (Starcoin uses 16-byte addresses in last 16 bytes of ObjectID)
+        let starcoin_addr = &package[16..32];
+        let filtered_data: Vec<_> = events
+            .data
+            .into_iter()
+            .filter(|event| {
+                event.type_.address.as_ref() == starcoin_addr
+                    && event.type_.module.as_str().to_lowercase() == module.as_str().to_lowercase()
+            })
+            .collect();
+
+        Ok(Page {
+            data: filtered_data,
+            next_cursor: events.next_cursor,
+            has_next_page: events.has_next_page,
+        })
+    }
 
     async fn get_events_by_tx_digest(
         &self,

@@ -465,30 +465,11 @@ fn get_eth_contracts_to_watch(
     eth_contracts_to_watch
 }
 
-/*#[cfg(test)]
+#[cfg(test)]
 mod tests {
     use ethers::types::Address as EthAddress;
-    use prometheus::Registry;
 
     use super::*;
-    use crate::config::default_ed25519_key_pair;
-    use crate::config::BridgeNodeConfig;
-    use crate::config::EthConfig;
-    use crate::config::StarcoinConfig;
-    use crate::e2e_tests::test_utils::BridgeTestCluster;
-    use crate::e2e_tests::test_utils::BridgeTestClusterBuilder;
-    use crate::utils::wait_for_server_to_be_up;
-    use fastcrypto::secp256k1::Secp256k1KeyPair;
-    use starcoin_bridge_config::local_ip_utils::get_available_port;
-    use starcoin_bridge_types::base_types::StarcoinAddress;
-    use starcoin_bridge_types::bridge::BridgeChainId;
-    use starcoin_bridge_types::crypto::get_key_pair;
-    use fastcrypto::encoding::{Encoding, Base64};
-    use fastcrypto::traits::KeyPair;
-    use starcoin_bridge_types::crypto::StarcoinKeyPair;
-    use starcoin_bridge_types::digests::TransactionDigest;
-    use starcoin_bridge_types::event::EventID;
-    use tempfile::tempdir;
 
     #[tokio::test]
     async fn test_get_eth_contracts_to_watch() {
@@ -569,10 +550,8 @@ mod tests {
         );
 
         // no stored watermark, use override
-        let override_cursor = EventID {
-            tx_digest: TransactionDigest::random(),
-            event_seq: 42,
-        };
+        // EventID is now (u64, u64) - (block_number, event_seq)
+        let override_cursor: EventID = (100, 42);
         let starcoin_bridge_modules_to_watch = get_starcoin_bridge_modules_to_watch(&store, Some(override_cursor));
         assert_eq!(
             starcoin_bridge_modules_to_watch,
@@ -588,10 +567,8 @@ mod tests {
 
         // No override, found stored watermark for `bridge` module, use stored watermark for `bridge`
         // and None for `committee`
-        let stored_cursor = EventID {
-            tx_digest: TransactionDigest::random(),
-            event_seq: 100,
-        };
+        // EventID is now (u64, u64)
+        let stored_cursor: EventID = (200, 100);
         store
             .update_starcoin_bridge_event_cursor(bridge_module.clone(), stored_cursor)
             .unwrap();
@@ -609,12 +586,9 @@ mod tests {
         );
 
         // found stored watermark, use override
-        let stored_cursor = EventID {
-            tx_digest: TransactionDigest::random(),
-            event_seq: 100,
-        };
+        let stored_cursor2: EventID = (300, 100);
         store
-            .update_starcoin_bridge_event_cursor(committee_module.clone(), stored_cursor)
+            .update_starcoin_bridge_event_cursor(committee_module.clone(), stored_cursor2)
             .unwrap();
         let starcoin_bridge_modules_to_watch = get_starcoin_bridge_modules_to_watch(&store, Some(override_cursor));
         assert_eq!(
@@ -630,212 +604,19 @@ mod tests {
         );
     }
 
+    // NOTE: The following tests are disabled because they require e2e test infrastructure
+    // (BridgeTestCluster, BridgeTestClusterBuilder) which depends on Sui test cluster.
+    // They should be enabled once we have proper Starcoin test infrastructure.
+    /*
     #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
-    async fn test_starting_bridge_node() {
-        telemetry_subscribers::init_for_testing();
-        let bridge_test_cluster = setup().await;
-        let kp = bridge_test_cluster.bridge_authority_key(0);
-
-        // prepare node config (server only)
-        let tmp_dir = tempdir().unwrap().keep();
-        let authority_key_path = "test_starting_bridge_node_bridge_authority_key";
-        let server_listen_port = get_available_port("127.0.0.1");
-        let base64_encoded = kp.encode_base64();
-        std::fs::write(tmp_dir.join(authority_key_path), base64_encoded).unwrap();
-
-        let config = BridgeNodeConfig {
-            server_listen_port,
-            metrics_port: get_available_port("127.0.0.1"),
-            bridge_authority_key_path: tmp_dir.join(authority_key_path),
-            starcoin: StarcoinConfig {
-                starcoin_bridge_rpc_url: bridge_test_cluster.starcoin_bridge_rpc_url(),
-                starcoin_bridge_chain_id: BridgeChainId::StarcoinCustom as u8,
-                bridge_client_key_path: None,
-                bridge_client_gas_object: None,
-                starcoin_bridge_module_last_processed_event_id_override: None,
-            },
-            eth: EthConfig {
-                eth_rpc_url: bridge_test_cluster.eth_rpc_url(),
-                eth_bridge_proxy_address: bridge_test_cluster.starcoin_bridge_address(),
-                eth_bridge_chain_id: BridgeChainId::EthCustom as u8,
-                eth_contracts_start_block_fallback: None,
-                eth_contracts_start_block_override: None,
-            },
-            approved_governance_actions: vec![],
-            run_client: false,
-            db_path: None,
-            metrics_key_pair: default_ed25519_key_pair(),
-            metrics: None,
-            watchdog_config: None,
-        };
-        // Spawn bridge node in memory
-        let _handle = run_bridge_node(
-            config,
-            BridgeNodePublicMetadata::empty_for_testing(),
-            Registry::new(),
-        )
-        .await
-        .unwrap();
-
-        let server_url = format!("http://127.0.0.1:{}", server_listen_port);
-        // Now we expect to see the server to be up and running.
-        let res = wait_for_server_to_be_up(server_url, 5).await;
-        res.unwrap();
-    }
+    async fn test_starting_bridge_node() { ... }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
-    async fn test_starting_bridge_node_with_client() {
-        telemetry_subscribers::init_for_testing();
-        let bridge_test_cluster = setup().await;
-        let kp = bridge_test_cluster.bridge_authority_key(0);
-
-        // prepare node config (server + client)
-        let tmp_dir = tempdir().unwrap().keep();
-        let db_path = tmp_dir.join("test_starting_bridge_node_with_client_db");
-        let authority_key_path = "test_starting_bridge_node_with_client_bridge_authority_key";
-        let server_listen_port = get_available_port("127.0.0.1");
-
-        let base64_encoded = kp.encode_base64();
-        std::fs::write(tmp_dir.join(authority_key_path), base64_encoded).unwrap();
-
-        let client_starcoin_bridge_address = StarcoinAddress::from(kp.public());
-        let sender_address = bridge_test_cluster.starcoin_bridge_user_address();
-        // send some gas to this address
-        bridge_test_cluster
-            .test_cluster
-            .inner
-            .transfer_starcoin_bridge_must_exceed(sender_address, client_starcoin_bridge_address, 1000000000)
-            .await;
-
-        let config = BridgeNodeConfig {
-            server_listen_port,
-            metrics_port: get_available_port("127.0.0.1"),
-            bridge_authority_key_path: tmp_dir.join(authority_key_path),
-            starcoin: StarcoinConfig {
-                starcoin_bridge_rpc_url: bridge_test_cluster.starcoin_bridge_rpc_url(),
-                starcoin_bridge_chain_id: BridgeChainId::StarcoinCustom as u8,
-                bridge_client_key_path: None,
-                bridge_client_gas_object: None,
-                starcoin_bridge_module_last_processed_event_id_override: Some(EventID {
-                    tx_digest: TransactionDigest::random(),
-                    event_seq: 0,
-                }),
-            },
-            eth: EthConfig {
-                eth_rpc_url: bridge_test_cluster.eth_rpc_url(),
-                eth_bridge_proxy_address: bridge_test_cluster.starcoin_bridge_address(),
-                eth_bridge_chain_id: BridgeChainId::EthCustom as u8,
-                eth_contracts_start_block_fallback: Some(0),
-                eth_contracts_start_block_override: None,
-            },
-            approved_governance_actions: vec![],
-            run_client: true,
-            db_path: Some(db_path),
-            metrics_key_pair: default_ed25519_key_pair(),
-            metrics: None,
-            watchdog_config: None,
-        };
-        // Spawn bridge node in memory
-        let _handle = run_bridge_node(
-            config,
-            BridgeNodePublicMetadata::empty_for_testing(),
-            Registry::new(),
-        )
-        .await
-        .unwrap();
-
-        let server_url = format!("http://127.0.0.1:{}", server_listen_port);
-        // Now we expect to see the server to be up and running.
-        // client components are spawned earlier than server, so as long as the server is up,
-        // we know the client components are already running.
-        let res = wait_for_server_to_be_up(server_url, 5).await;
-        res.unwrap();
-    }
+    async fn test_starting_bridge_node_with_client() { ... }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
-    async fn test_starting_bridge_node_with_client_and_separate_client_key() {
-        telemetry_subscribers::init_for_testing();
-        let bridge_test_cluster = setup().await;
-        let kp = bridge_test_cluster.bridge_authority_key(0);
+    async fn test_starting_bridge_node_with_client_and_separate_client_key() { ... }
 
-        // prepare node config (server + client)
-        let tmp_dir = tempdir().unwrap().keep();
-        let db_path =
-            tmp_dir.join("test_starting_bridge_node_with_client_and_separate_client_key_db");
-        let authority_key_path =
-            "test_starting_bridge_node_with_client_and_separate_client_key_bridge_authority_key";
-        let server_listen_port = get_available_port("127.0.0.1");
-
-        // prepare bridge authority key
-        let base64_encoded = kp.encode_base64();
-        std::fs::write(tmp_dir.join(authority_key_path), base64_encoded).unwrap();
-
-        // prepare bridge client key
-        let (_, kp): (_, Secp256k1KeyPair) = get_key_pair();
-        let kp = StarcoinKeyPair::from(kp);
-        let client_key_path =
-            "test_starting_bridge_node_with_client_and_separate_client_key_bridge_client_key";
-        std::fs::write(tmp_dir.join(client_key_path), kp.encode_base64()).unwrap();
-        let client_starcoin_bridge_address = StarcoinAddress::from(&kp.public());
-        let sender_address = bridge_test_cluster.starcoin_bridge_user_address();
-        // send some gas to this address
-        let gas_obj = bridge_test_cluster
-            .test_cluster
-            .inner
-            .transfer_starcoin_bridge_must_exceed(sender_address, client_starcoin_bridge_address, 1000000000)
-            .await;
-
-        let config = BridgeNodeConfig {
-            server_listen_port,
-            metrics_port: get_available_port("127.0.0.1"),
-            bridge_authority_key_path: tmp_dir.join(authority_key_path),
-            starcoin: StarcoinConfig {
-                starcoin_bridge_rpc_url: bridge_test_cluster.starcoin_bridge_rpc_url(),
-                starcoin_bridge_chain_id: BridgeChainId::StarcoinCustom as u8,
-                bridge_client_key_path: Some(tmp_dir.join(client_key_path)),
-                bridge_client_gas_object: Some(gas_obj),
-                starcoin_bridge_module_last_processed_event_id_override: Some(EventID {
-                    tx_digest: TransactionDigest::random(),
-                    event_seq: 0,
-                }),
-            },
-            eth: EthConfig {
-                eth_rpc_url: bridge_test_cluster.eth_rpc_url(),
-                eth_bridge_proxy_address: bridge_test_cluster.starcoin_bridge_address(),
-                eth_bridge_chain_id: BridgeChainId::EthCustom as u8,
-                eth_contracts_start_block_fallback: Some(0),
-                eth_contracts_start_block_override: Some(0),
-            },
-            approved_governance_actions: vec![],
-            run_client: true,
-            db_path: Some(db_path),
-            metrics_key_pair: default_ed25519_key_pair(),
-            metrics: None,
-            watchdog_config: None,
-        };
-        // Spawn bridge node in memory
-        let _handle = run_bridge_node(
-            config,
-            BridgeNodePublicMetadata::empty_for_testing(),
-            Registry::new(),
-        )
-        .await
-        .unwrap();
-
-        let server_url = format!("http://127.0.0.1:{}", server_listen_port);
-        // Now we expect to see the server to be up and running.
-        // client components are spawned earlier than server, so as long as the server is up,
-        // we know the client components are already running.
-        let res = wait_for_server_to_be_up(server_url, 5).await;
-        res.unwrap();
-    }
-
-    async fn setup() -> BridgeTestCluster {
-        BridgeTestClusterBuilder::new()
-            .with_eth_env(true)
-            .with_bridge_cluster(false)
-            .with_num_validators(2)
-            .build()
-            .await
-    }
-}*/
+    async fn setup() -> BridgeTestCluster { ... }
+    */
+}

@@ -37,6 +37,8 @@ pub struct StarcoinMockClient {
     latest_checkpoint_sequence_number: Arc<AtomicU64>,
     events: Arc<Mutex<HashMap<(ObjectID, Identifier, Option<EventID>), EventPage>>>,
     past_event_query_params: Arc<Mutex<VecDeque<(ObjectID, Identifier, Option<EventID>)>>>,
+    // Events queried by module (for query_events_by_module support)
+    events_by_module: Arc<Mutex<HashMap<(ObjectID, Identifier, Option<EventID>), EventPage>>>,
     events_by_tx_digest: Arc<
         Mutex<
             HashMap<
@@ -66,6 +68,7 @@ impl StarcoinMockClient {
             latest_checkpoint_sequence_number: Arc::new(AtomicU64::new(0)),
             events: Default::default(),
             past_event_query_params: Default::default(),
+            events_by_module: Default::default(),
             events_by_tx_digest: Default::default(),
             transaction_responses: Default::default(),
             wildcard_transaction_response: Default::default(),
@@ -87,6 +90,11 @@ impl StarcoinMockClient {
         events: EventPage,
     ) {
         self.events
+            .lock()
+            .unwrap()
+            .insert((package, module.clone(), Some(cursor)), events.clone());
+        // Also add to events_by_module for query_events_by_module support
+        self.events_by_module
             .lock()
             .unwrap()
             .insert((package, module, Some(cursor)), events);
@@ -236,6 +244,28 @@ impl StarcoinClientInner for StarcoinMockClient {
             next_cursor: None,
             has_next_page: false,
         })
+    }
+
+    async fn query_events_by_module(
+        &self,
+        package: ObjectID,
+        module: Identifier,
+        cursor: Option<EventID>,
+    ) -> Result<EventPage, Self::Error> {
+        let events = self.events_by_module.lock().unwrap();
+        let key = (package, module.clone(), cursor);
+        
+        self.past_event_query_params
+            .lock()
+            .unwrap()
+            .push_back(key.clone());
+        
+        // Return preset events if available, otherwise empty page
+        Ok(events.get(&key).cloned().unwrap_or_else(|| EventPage {
+            data: vec![],
+            next_cursor: None,
+            has_next_page: false,
+        }))
     }
 
     async fn get_events_by_tx_digest(

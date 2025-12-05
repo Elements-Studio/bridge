@@ -20,6 +20,8 @@ pub fn create_self_signed_certificate(
     SelfSignedCertificate::new(private_key, server_name)
 }
 
+// TODO: These tests are disabled because the package is not included in the workspace.
+// To enable: add "starcoin-bridge-tls" to the workspace members in Cargo.toml
 /*#[cfg(test)]
 mod tests {
     use std::collections::BTreeSet;
