@@ -102,6 +102,7 @@ starcoin-config = { git = "https://github.com/starcoinorg/starcoin", rev = "98ee
 bcs-ext = { git = "https://github.com/starcoinorg/starcoin", rev = "98eefde70a1059ad6d5b5afa54a7eeb403384dec" }
 starcoin-test-helper = { git = "https://github.com/starcoinorg/starcoin", rev = "98eefde70a1059ad6d5b5afa54a7eeb403384dec", package = "test-helper" }
 starcoin-transaction-builder = { git = "https://github.com/starcoinorg/starcoin", rev = "98eefde70a1059ad6d5b5afa54a7eeb403384dec" }
+starcoin-txpool-api = { git = "https://github.com/starcoinorg/starcoin", rev = "98eefde70a1059ad6d5b5afa54a7eeb403384dec", package = "starcoin-txpool-api" }
 telemetry-subscribers = { path = "./telemetry-subscribers" }
 test-cluster = { path = "./test-cluster" }
 typed-store = { path = "./typed-store" }

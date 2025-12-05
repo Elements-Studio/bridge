@@ -11028,6 +11028,7 @@ dependencies = [
  "starcoin-metrics 0.7.0",
  "starcoin-rpc-client 1.13.20 (git+https://github.com/starcoinorg/starcoin?rev=98eefde70a1059ad6d5b5afa54a7eeb403384dec)",
  "starcoin-transaction-builder",
+ "starcoin-txpool-api 1.13.20 (git+https://github.com/starcoinorg/starcoin?rev=98eefde70a1059ad6d5b5afa54a7eeb403384dec)",
  "starcoin-types 1.13.20 (git+https://github.com/starcoinorg/starcoin?rev=98eefde70a1059ad6d5b5afa54a7eeb403384dec)",
  "starcoin-vm-types 1.13.20 (git+https://github.com/starcoinorg/starcoin?rev=98eefde70a1059ad6d5b5afa54a7eeb403384dec)",
  "strum_macros 0.27.2",

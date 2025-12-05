@@ -14,6 +14,7 @@ use starcoin_config::ChainNetwork;
 use starcoin_transaction_builder::{
     create_signed_txn_with_association_account, DEFAULT_MAX_GAS_AMOUNT,
 };
+use starcoin_txpool_api::TxPoolSyncService;
 use starcoin_types::account_address::AccountAddress;
 use starcoin_vm_types::identifier::Identifier;
 use starcoin_vm_types::language_storage::ModuleId;
@@ -340,5 +341,157 @@ mod tests {
         println!("ETH token: {:?}", eth.id());
         
         Ok(())
+    }
+}
+
+/// Embedded Starcoin node for testing
+/// 
+/// This manages a Starcoin node running in memory for testing.
+/// The node is automatically started and stopped.
+/// It uses internal services (TxPool, Chain, Storage) directly instead of RPC.
+pub struct EmbeddedStarcoinNode {
+    handle: starcoin_test_helper::NodeHandle,
+}
+
+impl EmbeddedStarcoinNode {
+    /// Start a new embedded Starcoin dev node
+    /// 
+    /// The node will automatically choose random available ports for RPC.
+    /// Multiple nodes can be started simultaneously without port conflicts.
+    pub fn start() -> Result<Self> {
+        let config = std::sync::Arc::new(starcoin_config::NodeConfig::random_for_test());
+        
+        let handle = starcoin_test_helper::run_node_by_config(config)
+            .context("Failed to start embedded Starcoin node")?;
+        
+        // Give the node time to start
+        std::thread::sleep(std::time::Duration::from_secs(2));
+        
+        Ok(Self { handle })
+    }
+
+    /// Get the node handle for direct service access
+    pub fn handle(&self) -> &starcoin_test_helper::NodeHandle {
+        &self.handle
+    }
+
+    /// Get the node config
+    pub fn config(&self) -> std::sync::Arc<starcoin_config::NodeConfig> {
+        self.handle.config()
+    }
+
+    /// Get the network
+    pub fn network(&self) -> ChainNetwork {
+        self.handle.config().net().clone()
+    }
+
+    /// Submit a transaction directly to the node (no RPC needed)
+    pub fn submit_transaction(&self, txn: SignedUserTransaction) -> Result<()> {
+        // Access txpool service through the handle
+        let txpool = self.handle.txpool();
+        let results = txpool.add_txns(vec![txn]);
+        
+        // Check if any transaction failed
+        for (i, result) in results.into_iter().enumerate() {
+            result.map_err(|e| anyhow::anyhow!("Transaction {} failed: {:?}", i, e))?;
+        }
+        Ok(())
+    }
+
+    /// Generate a block (for testing)
+    pub fn generate_block(&self) -> Result<starcoin_types::block::Block> {
+        self.handle.generate_block()
+    }
+
+    /// Stop the embedded node gracefully
+    pub fn stop(self) {
+        // Just drop - the handle's Drop impl will clean up
+        drop(self.handle);
+    }
+}
+
+/// Complete test environment with embedded Starcoin node and deployed bridge
+pub struct StarcoinBridgeTestEnv {
+    node: EmbeddedStarcoinNode,
+    config: MoveConfig,
+    bridge_address: AccountAddress,
+}
+
+impl StarcoinBridgeTestEnv {
+    /// Create and initialize a complete test environment
+    /// 
+    /// This will:
+    /// 1. Start an embedded Starcoin node
+    /// 2. Deploy the bridge contract
+    /// 3. Initialize the bridge
+    /// 4. Set up committee and tokens
+    pub fn new() -> Result<Self> {
+        let node = EmbeddedStarcoinNode::start()?;
+        let config = MoveConfig::load()?;
+        let bridge_address = config.address()?;
+        
+        println!("Starting Starcoin bridge test environment...");
+        println!("  Network: {:?}", node.network().id());
+        println!("  Bridge address: {:?}", bridge_address);
+        
+        // TODO: In a real implementation, we would:
+        // 1. Build all deployment transactions
+        // 2. Submit them via node.submit_transaction()
+        // 3. Generate blocks via node.generate_block()
+        // 4. Verify deployment
+        // For now, we just return the environment
+        
+        Ok(Self {
+            node,
+            config,
+            bridge_address,
+        })
+    }
+
+    /// Create and fully deploy the bridge (all transactions submitted and confirmed)
+    pub fn new_with_deployment() -> Result<Self> {
+        let mut env = Self::new()?;
+        env.deploy_bridge()?;
+        Ok(env)
+    }
+
+    /// Deploy the bridge contract and initialize it
+    fn deploy_bridge(&mut self) -> Result<()> {
+        let mut builder = BridgeDeploymentBuilder::new()?;
+        
+        println!("Deploying bridge contracts...");
+        
+        // Build all transactions
+        let transactions = builder.build_all_transactions()?;
+        
+        // Submit each transaction and generate a block
+        for (i, txn) in transactions.iter().enumerate() {
+            println!("  Submitting transaction {}/{}...", i + 1, transactions.len());
+            self.node.submit_transaction(txn.clone())?;
+            
+            // Generate a block to include the transaction
+            self.node.generate_block()
+                .with_context(|| format!("Failed to generate block for transaction {}", i + 1))?;
+            
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+        
+        println!("✓ Bridge deployment complete!");
+        Ok(())
+    }
+
+    /// Get the embedded node
+    pub fn node(&self) -> &EmbeddedStarcoinNode {
+        &self.node
+    }
+
+    /// Get the Move config
+    pub fn config(&self) -> &MoveConfig {
+        &self.config
+    }
+
+    /// Get the bridge address
+    pub fn bridge_address(&self) -> AccountAddress {
+        self.bridge_address
     }
 }
