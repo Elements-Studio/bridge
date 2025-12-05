@@ -31,6 +31,8 @@ pub mod eth_syncer;
 
 #[cfg(test)]
 mod starcoin_node_test;
+#[cfg(test)]
+pub mod starcoin_test_utils;
 pub mod eth_transaction_builder;
 pub mod events;
 pub mod metered_eth_provider;

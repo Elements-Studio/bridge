@@ -29,32 +29,13 @@ mod tests {
     use starcoin_vm_types::language_storage::ModuleId;
     use starcoin_vm_types::transaction::{Module, Package, ScriptFunction, TransactionPayload};
 
-    const CONFIG_PATH: &str = "../contracts/move/config.json";
-    const BLOB_PATH: &str = "../contracts/move/Stc-Bridge-Move.v0.0.1.blob";
-
-    /// Dev network chain ID (254)
-    const DEV_CHAIN_ID: u8 = 254;
-
-    #[derive(serde::Deserialize, Clone, Debug)]
-    struct MoveConfig {
-        address: String,
-        public_key: String,
-        private_key: String,
-    }
-
-    impl MoveConfig {
-        fn load() -> Result<Self> {
-            let config_content = fs::read_to_string(CONFIG_PATH)
-                .context("Failed to read config.json")?;
-            serde_json::from_str(&config_content)
-                .context("Failed to parse config.json")
-        }
-
-        fn address(&self) -> Result<AccountAddress> {
-            AccountAddress::from_hex_literal(&self.address)
-                .context("Failed to parse address from config")
-        }
-    }
+    // Use the new test utilities module
+    use crate::starcoin_test_utils::{
+        BridgeDeploymentBuilder, MoveConfig, load_package,
+        DEFAULT_CONFIG_PATH as CONFIG_PATH,
+        DEFAULT_BLOB_PATH as BLOB_PATH,
+        DEV_CHAIN_ID,
+    };
 
     /// Helper to create a ScriptFunction call for the bridge
     fn create_bridge_script_function(
@@ -383,86 +364,28 @@ mod tests {
     /// This is a simpler test that just verifies we can build all the transactions
     #[test]
     fn test_build_deployment_transactions() -> Result<()> {
-        println!("Testing transaction building for all deployment steps...\n");
+        println!("Testing transaction building using BridgeDeploymentBuilder...\n");
         
-        // Load config
-        let move_config = MoveConfig::load()?;
-        let bridge_address = move_config.address()?;
-        let net = ChainNetwork::new_builtin(starcoin_config::BuiltinNetworkID::Dev);
+        // Use the new builder to create all transactions
+        let mut builder = BridgeDeploymentBuilder::new()?;
+        let transactions = builder.build_all_transactions()?;
         
-        println!("Bridge address: {:?}", bridge_address);
+        assert_eq!(transactions.len(), 8, "Should create 8 transactions");
+        println!("Bridge address: {:?}", builder.bridge_address()?);
         
-        // 1. Deploy transaction - load blob as BCS-serialized Package
-        let blob_content = fs::read(BLOB_PATH)?;
-        let package: Package = bcs_ext::from_bytes(&blob_content)
-            .context("Failed to deserialize Package from blob")?;
-        println!("  Package loaded: {} modules", package.modules().len());
-        
-        let deploy_payload = TransactionPayload::Package(package);
-        let deploy_txn = create_signed_txn_with_association_account(
-            deploy_payload, 0, DEFAULT_MAX_GAS_AMOUNT, 1, 3600, &net,
-        );
-        println!("✓ Deploy transaction built (hash: {:?})", deploy_txn.id());
-        
-        // 2. Initialize bridge
-        let init_args = vec![bcs_ext::to_bytes(&DEV_CHAIN_ID)?];
-        let init_script = create_bridge_script_function(
-            bridge_address, "initialize_bridge", vec![], init_args,
-        );
-        let init_txn = create_signed_txn_with_association_account(
-            TransactionPayload::ScriptFunction(init_script),
-            1, DEFAULT_MAX_GAS_AMOUNT, 1, 3600, &net,
-        );
-        println!("✓ Initialize bridge transaction built (hash: {:?})", init_txn.id());
-        
-        // 3. Register committee member
-        let pubkey_hex = move_config.public_key.trim_start_matches("0x");
-        let pubkey_bytes = hex::decode(pubkey_hex)?;
-        let http_url = b"http://127.0.0.1:9191".to_vec();
-        let register_args = vec![
-            bcs_ext::to_bytes(&pubkey_bytes)?,
-            bcs_ext::to_bytes(&http_url)?,
+        let labels = [
+            "Deploy",
+            "Initialize bridge",
+            "Register committee member",
+            "Create committee",
+            "Setup ETH token",
+            "Setup BTC token",
+            "Setup USDC token",
+            "Setup USDT token",
         ];
-        let register_script = create_bridge_script_function(
-            bridge_address, "register_committee_member", vec![], register_args,
-        );
-        let register_txn = create_signed_txn_with_association_account(
-            TransactionPayload::ScriptFunction(register_script),
-            2, DEFAULT_MAX_GAS_AMOUNT, 1, 3600, &net,
-        );
-        println!("✓ Register committee member transaction built (hash: {:?})", register_txn.id());
         
-        // 4. Create committee
-        let committee_args = vec![
-            bcs_ext::to_bytes(&bridge_address)?,
-            bcs_ext::to_bytes(&10000u64)?,  // voting power
-            bcs_ext::to_bytes(&5000u64)?,   // min stake
-            bcs_ext::to_bytes(&0u64)?,      // epoch
-        ];
-        let committee_script = create_bridge_script_function(
-            bridge_address, "create_committee", vec![], committee_args,
-        );
-        let committee_txn = create_signed_txn_with_association_account(
-            TransactionPayload::ScriptFunction(committee_script),
-            3, DEFAULT_MAX_GAS_AMOUNT, 1, 3600, &net,
-        );
-        println!("✓ Create committee transaction built (hash: {:?})", committee_txn.id());
-        
-        // 5-8. Token setup transactions
-        for (seq, (func, name)) in [
-            ("setup_eth_token", "ETH"),
-            ("setup_btc_token", "BTC"),
-            ("setup_usdc_token", "USDC"),
-            ("setup_usdt_token", "USDT"),
-        ].iter().enumerate() {
-            let script = create_bridge_script_function(
-                bridge_address, func, vec![], vec![],
-            );
-            let txn = create_signed_txn_with_association_account(
-                TransactionPayload::ScriptFunction(script),
-                (4 + seq) as u64, DEFAULT_MAX_GAS_AMOUNT, 1, 3600, &net,
-            );
-            println!("✓ Setup {} token transaction built (hash: {:?})", name, txn.id());
+        for (i, (txn, label)) in transactions.iter().zip(labels.iter()).enumerate() {
+            println!("✓ Transaction {}: {} (hash: {:?})", i + 1, label, txn.id());
         }
         
         println!("\n✅ All 8 deployment transactions built successfully!");
@@ -478,10 +401,8 @@ mod tests {
         let move_config = MoveConfig::load()?;
         let bridge_address = move_config.address()?;
         
-        // Load and parse the package
-        let blob_content = fs::read(BLOB_PATH)?;
-        let package: Package = bcs_ext::from_bytes(&blob_content)
-            .context("Failed to deserialize Package from blob")?;
+        // Load package using utility function
+        let package = load_package()?;
         
         println!("Package Information:");
         println!("  Package address: {:?}", package.package_address());
@@ -559,110 +480,48 @@ mod tests {
         println!("║               Bridge Deployment Plan                             ║");
         println!("╚══════════════════════════════════════════════════════════════════╝\n");
         
-        let move_config = MoveConfig::load()?;
-        let bridge_address = move_config.address()?;
-        let net = ChainNetwork::new_builtin(starcoin_config::BuiltinNetworkID::Dev);
+        let mut builder = BridgeDeploymentBuilder::new()?;
+        let config_address = builder.config().address.clone();
+        let bridge_address = builder.bridge_address()?;
         
         println!("Configuration:");
-        println!("  Bridge Address: {}", move_config.address);
+        println!("  Bridge Address: {}", config_address);
         println!("  Network: Dev (chain_id=254)");
         println!("  Sender: {} (association)", association_address());
         
         // Load package
-        let blob_content = fs::read(BLOB_PATH)?;
-        let package: Package = bcs_ext::from_bytes(&blob_content)?;
+        let package = load_package()?;
         
         println!("\nPackage Details:");
-        println!("  Size: {} bytes", blob_content.len());
         println!("  Modules: {}", package.modules().len());
         
         println!("\n═══════════════════════════════════════════════════════════════════");
         println!("                    Transaction Plan");
         println!("═══════════════════════════════════════════════════════════════════\n");
         
-        // Transaction 1: Deploy
-        println!("Transaction 1: Deploy Contract");
-        println!("  Function: dev deploy {}", BLOB_PATH);
-        let deploy_txn = create_signed_txn_with_association_account(
-            TransactionPayload::Package(package),
-            0, DEFAULT_MAX_GAS_AMOUNT, 1, 3600, &net,
-        );
-        println!("  Hash: {:?}\n", deploy_txn.id());
+        // Build all transactions using the builder
+        let transactions = builder.build_all_transactions()?;
         
-        // Transaction 2: Initialize
-        println!("Transaction 2: Initialize Bridge");
-        println!("  Function: {}::Bridge::initialize_bridge", move_config.address);
-        println!("  Args: node_chain_id = 254 (dev)");
-        let init_script = create_bridge_script_function(
-            bridge_address, "initialize_bridge", vec![],
-            vec![bcs_ext::to_bytes(&DEV_CHAIN_ID)?],
-        );
-        let init_txn = create_signed_txn_with_association_account(
-            TransactionPayload::ScriptFunction(init_script),
-            1, DEFAULT_MAX_GAS_AMOUNT, 1, 3600, &net,
-        );
-        println!("  Hash: {:?}\n", init_txn.id());
-        
-        // Transaction 3: Register Committee Member
-        println!("Transaction 3: Register Committee Member");
-        println!("  Function: {}::Bridge::register_committee_member", move_config.address);
-        let pubkey_bytes = hex::decode(move_config.public_key.trim_start_matches("0x"))?;
-        println!("  Args:");
-        println!("    pubkey: 0x{}...", &move_config.public_key[2..34]);
-        println!("    url: http://127.0.0.1:9191");
-        let register_script = create_bridge_script_function(
-            bridge_address, "register_committee_member", vec![],
-            vec![
-                bcs_ext::to_bytes(&pubkey_bytes)?,
-                bcs_ext::to_bytes(&b"http://127.0.0.1:9191".to_vec())?,
-            ],
-        );
-        let register_txn = create_signed_txn_with_association_account(
-            TransactionPayload::ScriptFunction(register_script),
-            2, DEFAULT_MAX_GAS_AMOUNT, 1, 3600, &net,
-        );
-        println!("  Hash: {:?}\n", register_txn.id());
-        
-        // Transaction 4: Create Committee
-        println!("Transaction 4: Create Committee");
-        println!("  Function: {}::Bridge::create_committee", move_config.address);
-        println!("  Args:");
-        println!("    validator: {:?}", bridge_address);
-        println!("    voting_power: 10000 (100%)");
-        println!("    min_stake: 5000 (50%)");
-        println!("    epoch: 0");
-        let committee_script = create_bridge_script_function(
-            bridge_address, "create_committee", vec![],
-            vec![
-                bcs_ext::to_bytes(&bridge_address)?,
-                bcs_ext::to_bytes(&10000u64)?,
-                bcs_ext::to_bytes(&5000u64)?,
-                bcs_ext::to_bytes(&0u64)?,
-            ],
-        );
-        let committee_txn = create_signed_txn_with_association_account(
-            TransactionPayload::ScriptFunction(committee_script),
-            3, DEFAULT_MAX_GAS_AMOUNT, 1, 3600, &net,
-        );
-        println!("  Hash: {:?}\n", committee_txn.id());
-        
-        // Transactions 5-8: Token Setup
-        let tokens = [
-            ("setup_eth_token", "ETH", 2, 4),
-            ("setup_btc_token", "BTC", 1, 5),
-            ("setup_usdc_token", "USDC", 3, 6),
-            ("setup_usdt_token", "USDT", 4, 7),
+        let transaction_details = [
+            ("Deploy Contract", format!("dev deploy {}", BLOB_PATH), vec![]),
+            ("Initialize Bridge", format!("{}::Bridge::initialize_bridge", config_address), vec!["node_chain_id = 254 (dev)"]),
+            ("Register Committee Member", format!("{}::Bridge::register_committee_member", config_address), vec!["pubkey", "url: http://127.0.0.1:9191"]),
+            ("Create Committee", format!("{}::Bridge::create_committee", config_address), vec!["validator", "voting_power: 10000 (100%)", "min_stake: 5000 (50%)", "epoch: 0"]),
+            ("Setup ETH Token", format!("{}::Bridge::setup_eth_token", config_address), vec!["Token ID: 2"]),
+            ("Setup BTC Token", format!("{}::Bridge::setup_btc_token", config_address), vec!["Token ID: 1"]),
+            ("Setup USDC Token", format!("{}::Bridge::setup_usdc_token", config_address), vec!["Token ID: 3"]),
+            ("Setup USDT Token", format!("{}::Bridge::setup_usdt_token", config_address), vec!["Token ID: 4"]),
         ];
         
-        for (func, name, id, seq) in tokens {
-            println!("Transaction {}: Setup {} Token", seq + 1, name);
-            println!("  Function: {}::Bridge::{}", move_config.address, func);
-            println!("  Token ID: {}", id);
-            let script = create_bridge_script_function(bridge_address, func, vec![], vec![]);
-            let txn = create_signed_txn_with_association_account(
-                TransactionPayload::ScriptFunction(script),
-                seq as u64, DEFAULT_MAX_GAS_AMOUNT, 1, 3600, &net,
-            );
+        for (i, (txn, (name, function, args))) in transactions.iter().zip(transaction_details.iter()).enumerate() {
+            println!("Transaction {}: {}", i + 1, name);
+            println!("  Function: {}", function);
+            if !args.is_empty() {
+                println!("  Args:");
+                for arg in args {
+                    println!("    {}", arg);
+                }
+            }
             println!("  Hash: {:?}\n", txn.id());
         }
         
@@ -672,14 +531,45 @@ mod tests {
         
         println!("After deployment, verify with these commands:\n");
         println!("# Check Bridge resource exists");
-        println!("starcoin% state get resource {} {}::Bridge::Bridge\n", move_config.address, move_config.address);
+        println!("starcoin% state get resource {} {}::Bridge::Bridge\n", config_address, config_address);
         println!("# Check Committee state");
-        println!("starcoin% state get resource {} {}::Committee::CommitteeState\n", move_config.address, move_config.address);
+        println!("starcoin% state get resource {} {}::Committee::CommitteeState\n", config_address, config_address);
         println!("# Check tokens registered");
-        println!("starcoin% state get resource {} {}::Treasury::Treasury\n", move_config.address, move_config.address);
+        println!("starcoin% state get resource {} {}::Treasury::Treasury\n", config_address, config_address);
         
         println!("═══════════════════════════════════════════════════════════════════\n");
         
+        Ok(())
+    }
+
+    /// Test: Use the builder API for individual transaction creation
+    #[test]
+    fn test_builder_api() -> Result<()> {
+        println!("Testing BridgeDeploymentBuilder API...\n");
+        
+        let mut builder = BridgeDeploymentBuilder::new()?;
+        println!("Bridge address: {:?}", builder.bridge_address()?);
+        println!("Network: {:?}\n", builder.network().id());
+        
+        // Build individual transactions
+        println!("Building individual transactions:");
+        
+        let deploy = builder.build_deploy_transaction()?;
+        println!("  ✓ Deploy: {:?}", deploy.id());
+        
+        let init = builder.build_initialize_transaction()?;
+        println!("  ✓ Initialize: {:?}", init.id());
+        
+        let register = builder.build_register_committee_transaction("http://test.url")?;
+        println!("  ✓ Register: {:?}", register.id());
+        
+        let committee = builder.build_create_committee_transaction(10000, 5000, 0)?;
+        println!("  ✓ Committee: {:?}", committee.id());
+        
+        let eth = builder.build_setup_token_transaction("eth")?;
+        println!("  ✓ ETH token: {:?}", eth.id());
+        
+        println!("\n✅ Builder API working correctly!");
         Ok(())
     }
 }
