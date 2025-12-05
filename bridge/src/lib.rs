@@ -28,6 +28,9 @@ pub mod encoding;
 pub mod error;
 pub mod eth_client;
 pub mod eth_syncer;
+
+#[cfg(test)]
+mod starcoin_node_test;
 pub mod eth_transaction_builder;
 pub mod events;
 pub mod metered_eth_provider;
