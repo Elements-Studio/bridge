@@ -35,7 +35,7 @@ use std::sync::Arc;
 const ETH_RPC_URL: &str = "http://127.0.0.1:8545";
 const STARCOIN_RPC_URL: &str = "http://127.0.0.1:9850";
 const ETH_PROXY_ADDRESS: &str = "0x0B306BF915C4d645ff596e518fAf3F9669b97016";
-const STARCOIN_BRIDGE_ADDRESS: &str = "0x02003d916c06ba52a678e02e364524e6";
+const STARCOIN_BRIDGE_ADDRESS: &str = "0xafa39ba5746aa9b74b86c21270de451e";
 const BRIDGE_AUTHORITY_KEY_PATH: &str = "bridge-node/server-config/bridge_authority.key";
 
 /// Check if Anvil is running

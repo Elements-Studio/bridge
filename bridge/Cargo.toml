@@ -63,6 +63,7 @@ starcoin-bridge-config.workspace = true
 starcoin-bridge-test-transaction-builder.workspace = true
 maplit = "1.0.2"
 hex-literal = "0.3.4"
+serial_test.workspace = true
 
 [features]
 test-utils = ["hex-literal", "test-cluster"]

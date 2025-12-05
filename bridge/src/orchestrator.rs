@@ -301,7 +301,7 @@ where
     }
 }
 
-/*#[cfg(test)]
+#[cfg(test)]
 mod tests {
     use crate::{
         test_utils::{get_test_eth_to_starcoin_bridge_action, get_test_log_and_action},
@@ -317,6 +317,7 @@ mod tests {
     use crate::{events::tests::get_test_starcoin_bridge_event_and_action, starcoin_bridge_mock_client::StarcoinMockClient};
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn test_starcoin_bridge_watcher_task() {
         // Note: this test may fail because of the following reasons:
         // the StarcoinEvent's struct tag does not match the ones in events.rs
@@ -374,15 +375,18 @@ mod tests {
             assert_eq!(actions.len(), 1);
             let action = actions.get(&bridge_action.digest()).unwrap();
             assert_eq!(action, &bridge_action);
+            // Convert EventID struct to tuple (block_number, event_seq) for comparison
+            let expected_cursor: (u64, u64) = starcoin_bridge_event.id.into();
             assert_eq!(
                 store.get_starcoin_bridge_event_cursors(&[identifier]).unwrap()[0].unwrap(),
-                starcoin_bridge_event.id,
+                expected_cursor,
             );
             break;
         }
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn test_eth_watcher_task() {
         // Note: this test may fail beacuse of the following reasons:
         // 1. Log and BridgeAction returned from `get_test_log_and_action` are not in sync
@@ -459,6 +463,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     // Test that when orchestrator starts, all pending actions are sent to executor
     async fn test_resume_actions_in_pending_logs() {
         let (
@@ -625,4 +630,4 @@ mod tests {
             (vec![handles], tx)
         }
     }
-}*/
+}

@@ -542,6 +542,7 @@ impl StarcoinClientInner for StarcoinJsonRpcClient {
                         error: status.to_string(),
                     }
                 },
+                transaction_digest: Some(tx_hash),
             }),
             events: None,
             object_changes: None,

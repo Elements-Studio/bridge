@@ -1054,10 +1054,12 @@ pub async fn submit_to_executor(
         .map_err(|e| BridgeError::Generic(e.to_string()))
 }
 
-/*#[cfg(test)]
+#[cfg(test)]
 mod tests {
     use crate::events::init_all_struct_tags;
+    use crate::starcoin_bridge_transaction_builder::build_starcoin_bridge_transaction;
     use crate::test_utils::DUMMY_MUTALBE_BRIDGE_OBJECT_ARG;
+    use crate::test_utils::TransactionDigestTestExt;
     use crate::types::BRIDGE_PAUSED;
     use fastcrypto::traits::KeyPair;
     use prometheus::Registry;
@@ -1066,10 +1068,11 @@ mod tests {
     use starcoin_bridge_json_rpc_types::StarcoinTransactionBlockEffects;
     use starcoin_bridge_json_rpc_types::StarcoinTransactionBlockEvents;
     use starcoin_bridge_json_rpc_types::{StarcoinEvent, StarcoinTransactionBlockResponse};
+    use starcoin_bridge_types::base_types::TransactionDigest;
     use starcoin_bridge_types::crypto::get_key_pair;
     use starcoin_bridge_types::gas_coin::GasCoin;
     use starcoin_bridge_types::TypeTag;
-    use starcoin_bridge_types::{base_types::random_object_ref, transaction::TransactionData};
+    use starcoin_bridge_types::base_types::random_object_ref;
 
     use crate::{
         crypto::{
@@ -1088,6 +1091,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
+    #[ignore = "Needs adaptation for Starcoin sign_and_submit_transaction mock"]
     async fn test_onchain_execution_loop() {
         let (
             signing_tx,
@@ -1096,7 +1100,7 @@ mod tests {
             mut tx_subscription,
             store,
             secrets,
-            dummy_starcoin_bridge_key,
+            _dummy_starcoin_bridge_key,
             mock0,
             mock1,
             mock2,
@@ -1108,8 +1112,8 @@ mod tests {
             _bridge_pause_tx,
         ) = setup().await;
         let (action_certificate, _, _) = get_bridge_authority_approved_action(
-            vec![&mock0, &mock1, &mock2, &mock3],
-            vec![&secrets[0], &secrets[1], &secrets[2], &secrets[3]],
+            vec![&mock0, &mock1, &mock2],
+            vec![&secrets[0], &secrets[1], &secrets[2]],
             None,
             true,
         );
@@ -1125,7 +1129,7 @@ mod tests {
         )
         .unwrap();
 
-        let tx_digest = get_tx_digest(tx_data, &dummy_starcoin_bridge_key);
+        let tx_digest = get_tx_digest_for_testing();
 
         let gas_coin = GasCoin::new_for_testing(1_000_000_000_000); // dummy gas coin
         starcoin_bridge_client_mock.add_gas_object_info(
@@ -1166,8 +1170,8 @@ mod tests {
         /////////////////////////////////////////////////////////////////
 
         let (action_certificate, _, _) = get_bridge_authority_approved_action(
-            vec![&mock0, &mock1, &mock2, &mock3],
-            vec![&secrets[0], &secrets[1], &secrets[2], &secrets[3]],
+            vec![&mock0, &mock1, &mock2],
+            vec![&secrets[0], &secrets[1], &secrets[2]],
             None,
             true,
         );
@@ -1183,7 +1187,7 @@ mod tests {
             1000,
         )
         .unwrap();
-        let tx_digest = get_tx_digest(tx_data, &dummy_starcoin_bridge_key);
+        let tx_digest = get_tx_digest_for_testing();
 
         // Mock the transaction to fail
         mock_transaction_response(
@@ -1220,8 +1224,8 @@ mod tests {
         /////////////////////////////////////////////////////////////////
 
         let (action_certificate, _, _) = get_bridge_authority_approved_action(
-            vec![&mock0, &mock1, &mock2, &mock3],
-            vec![&secrets[0], &secrets[1], &secrets[2], &secrets[3]],
+            vec![&mock0, &mock1, &mock2],
+            vec![&secrets[0], &secrets[1], &secrets[2]],
             None,
             true,
         );
@@ -1237,7 +1241,7 @@ mod tests {
             1000,
         )
         .unwrap();
-        let tx_digest = get_tx_digest(tx_data, &dummy_starcoin_bridge_key);
+        let tx_digest = get_tx_digest_for_testing();
         mock_transaction_error(
             &starcoin_bridge_client_mock,
             tx_digest,
@@ -1286,6 +1290,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "Needs adaptation for Starcoin sign_and_submit_transaction mock"]
     async fn test_signature_aggregation_loop() {
         let (
             signing_tx,
@@ -1308,8 +1313,8 @@ mod tests {
         let id_token_map = (*starcoin_bridge_token_type_tags.load().clone()).clone();
         let (action_certificate, starcoin_bridge_tx_digest, starcoin_bridge_tx_event_index) =
             get_bridge_authority_approved_action(
-                vec![&mock0, &mock1, &mock2, &mock3],
-                vec![&secrets[0], &secrets[1], &secrets[2], &secrets[3]],
+                vec![&mock0, &mock1, &mock2],
+                vec![&secrets[0], &secrets[1], &secrets[2]],
                 None,
                 true,
             );
@@ -1387,7 +1392,7 @@ mod tests {
             1000,
         )
         .unwrap();
-        let tx_digest = get_tx_digest(tx_data, &dummy_starcoin_bridge_key);
+        let tx_digest = get_tx_digest_for_testing();
 
         let mut event = StarcoinEvent::random_for_testing();
         event.type_ = TokenTransferClaimed.get().unwrap().clone();
@@ -1409,6 +1414,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "Needs adaptation for Starcoin sign_and_submit_transaction mock"]
     async fn test_skip_request_signature_if_already_processed_on_chain() {
         let (
             signing_tx,
@@ -1441,7 +1447,7 @@ mod tests {
             None,
         );
         mock_bridge_authority_signing_errors(
-            vec![&mock0, &mock1, &mock2, &mock3],
+            vec![&mock0, &mock1, &mock2],
             starcoin_bridge_tx_digest,
             starcoin_bridge_tx_event_index,
         );
@@ -1477,6 +1483,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "Needs adaptation for Starcoin sign_and_submit_transaction mock"]
     async fn test_skip_tx_submission_if_already_processed_on_chain() {
         let (
             _signing_tx,
@@ -1498,8 +1505,8 @@ mod tests {
         ) = setup().await;
         let id_token_map = (*starcoin_bridge_token_type_tags.load().clone()).clone();
         let (action_certificate, _, _) = get_bridge_authority_approved_action(
-            vec![&mock0, &mock1, &mock2, &mock3],
-            vec![&secrets[0], &secrets[1], &secrets[2], &secrets[3]],
+            vec![&mock0, &mock1, &mock2],
+            vec![&secrets[0], &secrets[1], &secrets[2]],
             None,
             true,
         );
@@ -1515,7 +1522,7 @@ mod tests {
             1000,
         )
         .unwrap();
-        let tx_digest = get_tx_digest(tx_data, &dummy_starcoin_bridge_key);
+        let tx_digest = get_tx_digest_for_testing();
         mock_transaction_error(
             &starcoin_bridge_client_mock,
             tx_digest,
@@ -1562,6 +1569,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "Needs adaptation for Starcoin sign_and_submit_transaction mock"]
     async fn test_skip_tx_submission_if_bridge_is_paused() {
         let (
             _signing_tx,
@@ -1583,8 +1591,8 @@ mod tests {
         ) = setup().await;
         let id_token_map: HashMap<u8, TypeTag> = (*starcoin_bridge_token_type_tags.load().clone()).clone();
         let (action_certificate, _, _) = get_bridge_authority_approved_action(
-            vec![&mock0, &mock1, &mock2, &mock3],
-            vec![&secrets[0], &secrets[1], &secrets[2], &secrets[3]],
+            vec![&mock0, &mock1, &mock2],
+            vec![&secrets[0], &secrets[1], &secrets[2]],
             None,
             true,
         );
@@ -1600,7 +1608,7 @@ mod tests {
             1000,
         )
         .unwrap();
-        let tx_digest = get_tx_digest(tx_data, &dummy_starcoin_bridge_key);
+        let tx_digest = get_tx_digest_for_testing();
         mock_transaction_error(
             &starcoin_bridge_client_mock,
             tx_digest,
@@ -1661,6 +1669,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "Needs adaptation for Starcoin sign_and_submit_transaction mock"]
     async fn test_action_executor_handle_new_token() {
         let new_token_id = 255u8; // token id that does not exist
         let new_type_tag = TypeTag::from_str("0xbeef::beef::BEEF").unwrap();
@@ -1684,8 +1693,8 @@ mod tests {
         ) = setup().await;
         let mut id_token_map: HashMap<u8, TypeTag> = (*starcoin_bridge_token_type_tags.load().clone()).clone();
         let (action_certificate, _, _) = get_bridge_authority_approved_action(
-            vec![&mock0, &mock1, &mock2, &mock3],
-            vec![&secrets[0], &secrets[1], &secrets[2], &secrets[3]],
+            vec![&mock0, &mock1, &mock2],
+            vec![&secrets[0], &secrets[1], &secrets[2]],
             Some(new_token_id),
             false, // we need an eth -> starcoin action that entails the new token type tag in transaction building
         );
@@ -1703,7 +1712,7 @@ mod tests {
             1000,
         )
         .unwrap();
-        let tx_digest = get_tx_digest(tx_data, &dummy_starcoin_bridge_key);
+        let tx_digest = get_tx_digest_for_testing();
         mock_transaction_error(
             &starcoin_bridge_client_mock,
             tx_digest,
@@ -1826,13 +1835,10 @@ mod tests {
         )
     }
 
-    fn get_tx_digest(tx_data: TransactionData, dummy_starcoin_bridge_key: &StarcoinKeyPair) -> TransactionDigest {
-        let sig = Signature::new_secure(
-            &IntentMessage::new(Intent::starcoin_bridge_transaction(), &tx_data),
-            dummy_starcoin_bridge_key,
-        );
-        let signed_tx = Transaction::from_data(tx_data, vec![sig]);
-        *signed_tx.digest()
+    /// Generate a random transaction digest for testing.
+    /// In Starcoin, we don't need Sui's Intent/Signature mechanism.
+    fn get_tx_digest_for_testing() -> TransactionDigest {
+        TransactionDigest::random()
     }
 
     // Why is `wildcard` needed? This is because authority signatures
@@ -1895,8 +1901,9 @@ mod tests {
         starcoin_metrics::init_metrics(&registry);
         init_all_struct_tags();
 
-        let (starcoin_bridge_address, kp): (_, fastcrypto::secp256k1::Secp256k1KeyPair) = get_key_pair();
-        let starcoin_bridge_key = StarcoinKeyPair::from(kp);
+        let (_, kp): (_, fastcrypto::secp256k1::Secp256k1KeyPair) = get_key_pair();
+        let starcoin_bridge_key = StarcoinKeyPair::Secp256k1(kp);
+        let starcoin_bridge_address = starcoin_bridge_key.starcoin_address();
         let gas_object_ref = random_object_ref();
         let temp_dir = tempfile::tempdir().unwrap();
         let store = BridgeOrchestratorTables::new(temp_dir.path());
@@ -1907,7 +1914,7 @@ mod tests {
         // The dummy key is used to sign transaction so we can get TransactionDigest easily.
         // User signature is not part of the transaction so it does not matter which key it is.
         let (_, dummy_kp): (_, fastcrypto::secp256k1::Secp256k1KeyPair) = get_key_pair();
-        let dummy_starcoin_bridge_key = StarcoinKeyPair::from(dummy_kp);
+        let dummy_starcoin_bridge_key = StarcoinKeyPair::Secp256k1(dummy_kp);
 
         let mock0 = BridgeRequestMockHandler::new();
         let mock1 = BridgeRequestMockHandler::new();
@@ -1963,4 +1970,4 @@ mod tests {
             bridge_pause_tx,
         )
     }
-}*/
+}

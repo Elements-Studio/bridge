@@ -507,18 +507,21 @@ pub mod tests {
         };
 
         let tx_digest = random_digest();
-        let event_idx = 10u16;
+        // Note: event_idx should be 0 because the orchestrator always uses 0 for
+        // starcoin_bridge_tx_event_index (first bridge event in each transaction)
+        let event_idx = 0u16;
         let bridge_action = BridgeAction::StarcoinToEthBridgeAction(StarcoinToEthBridgeAction {
             starcoin_bridge_tx_digest: tx_digest,
             starcoin_bridge_tx_event_index: event_idx,
             starcoin_bridge_event: sanitized_event.clone(),
         });
+        // event_seq in EventID is the global sequence number, different from bridge event index
         let event = StarcoinEvent {
             type_: StarcoinToEthTokenBridgeV1.get().unwrap().clone(),
             bcs: bcs::to_bytes(&emitted_event).unwrap(),
             id: EventID {
                 tx_digest,
-                event_seq: event_idx as u64,
+                event_seq: 10, // Global event sequence in EventHandle
                 block_number: 1,
             },
         };

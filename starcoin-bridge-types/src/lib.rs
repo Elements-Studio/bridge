@@ -859,6 +859,11 @@ pub mod gas_coin {
         pub fn value(&self) -> u64 {
             self.value
         }
+
+        /// Create a new GasCoin for testing with the given value
+        pub fn new_for_testing(value: u64) -> Self {
+            Self { value }
+        }
     }
 }
 

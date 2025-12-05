@@ -167,6 +167,8 @@ where
     }
 }
 
+// TODO: These tests need to be updated to use the new type system
+// The EventID type has changed from a struct to a tuple (u64, u64)
 /*#[cfg(test)]
 mod tests {
     use super::*;
@@ -174,7 +176,7 @@ mod tests {
     use crate::{starcoin_bridge_client::StarcoinClient, starcoin_bridge_mock_client::StarcoinMockClient};
     use prometheus::Registry;
     use starcoin_bridge_json_rpc_types::EventPage;
-    use starcoin_bridge_types::{digests::TransactionDigest, event::EventID, Identifier};
+    use starcoin_bridge_types::{digests::TransactionDigest, event::EventID, Identifier, BRIDGE_PACKAGE_ID};
     use tokio::time::timeout;
 
     #[tokio::test]

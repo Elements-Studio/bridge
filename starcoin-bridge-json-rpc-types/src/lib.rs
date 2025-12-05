@@ -87,10 +87,30 @@ impl StarcoinEvent {
             bcs: vec![],
         }
     }
+
+    /// Create a random StarcoinEvent for testing
+    pub fn random_for_testing() -> Self {
+        use std::str::FromStr;
+        use rand::RngCore;
+
+        let mut tx_digest = [0u8; 32];
+        rand::thread_rng().fill_bytes(&mut tx_digest);
+
+        Self {
+            id: EventID {
+                tx_digest,
+                event_seq: rand::random(),
+                block_number: rand::random(),
+            },
+            type_: move_core_types::language_storage::StructTag::from_str("0x1::test::TestEvent")
+                .unwrap(),
+            bcs: vec![],
+        }
+    }
 }
 
 /// Event ID contains transaction digest, event sequence, and block number
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Copy)]
 pub struct EventID {
     pub tx_digest: [u8; 32],
     pub event_seq: u64,
@@ -117,26 +137,65 @@ pub trait StarcoinTransactionBlockEffectsAPI {
     fn status(&self) -> &StarcoinExecutionStatus;
 }
 
+/// Wrapper for transaction block events
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct StarcoinTransactionBlockEvents {
+    pub data: Vec<StarcoinEvent>,
+}
+
+impl StarcoinTransactionBlockEvents {
+    /// Iterate over events
+    pub fn iter(&self) -> impl Iterator<Item = &StarcoinEvent> {
+        self.data.iter()
+    }
+}
+
 // Placeholder for Starcoin transaction block response
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StarcoinTransactionBlockResponse {
     pub digest: Option<[u8; 32]>,
     pub effects: Option<StarcoinTransactionBlockEffects>,
-    pub events: Option<Vec<StarcoinEvent>>,
+    pub events: Option<StarcoinTransactionBlockEvents>,
     pub object_changes: Option<Vec<ObjectChange>>,
 }
 
 impl StarcoinTransactionBlockResponse {
+    /// Create a new response with the given digest
+    pub fn new(digest: [u8; 32]) -> Self {
+        Self {
+            digest: Some(digest),
+            effects: None,
+            events: None,
+            object_changes: None,
+        }
+    }
+
     pub fn status_ok(&self) -> Option<bool> {
         self.effects
             .as_ref()
             .map(|e| matches!(e.status(), StarcoinExecutionStatus::Success))
     }
+
+    /// Get the status directly if effects exist
+    pub fn execution_status(&self) -> Option<&StarcoinExecutionStatus> {
+        self.effects.as_ref().map(|e| e.status())
+    }
 }
+
+// Static default for when no effects exist
+static DEFAULT_FAILURE_STATUS: std::sync::OnceLock<StarcoinExecutionStatus> =
+    std::sync::OnceLock::new();
 
 impl StarcoinTransactionBlockEffectsAPI for StarcoinTransactionBlockResponse {
     fn status(&self) -> &StarcoinExecutionStatus {
-        unimplemented!("TODO: Implement for Starcoin")
+        self.effects
+            .as_ref()
+            .map(|e| e.status())
+            .unwrap_or_else(|| {
+                DEFAULT_FAILURE_STATUS.get_or_init(|| StarcoinExecutionStatus::Failure {
+                    error: "No effects".to_string(),
+                })
+            })
     }
 }
 
@@ -144,9 +203,18 @@ impl StarcoinTransactionBlockEffectsAPI for StarcoinTransactionBlockResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StarcoinTransactionBlockEffects {
     pub status: StarcoinExecutionStatus,
+    pub transaction_digest: Option<[u8; 32]>,
 }
 
 impl StarcoinTransactionBlockEffects {
+    /// Create new effects for testing
+    pub fn new_for_testing(tx_digest: [u8; 32], status: StarcoinExecutionStatus) -> Self {
+        Self {
+            status,
+            transaction_digest: Some(tx_digest),
+        }
+    }
+
     pub fn status(&self) -> &StarcoinExecutionStatus {
         &self.status
     }

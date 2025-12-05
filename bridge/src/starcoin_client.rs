@@ -768,7 +768,6 @@ mod tests {
     use move_core_types::account_address::AccountAddress;
     use serde::{Deserialize, Serialize};
     use std::str::FromStr;
-    use starcoin_bridge_json_rpc_types::BcsEvent;
     use starcoin_bridge_types::bridge::{BridgeChainId, TOKEN_ID_STARCOIN, TOKEN_ID_USDC};
     use starcoin_bridge_types::crypto::get_key_pair;
 
@@ -809,7 +808,7 @@ mod tests {
 
         let mut starcoin_bridge_event_1 = StarcoinEvent::random_for_testing();
         starcoin_bridge_event_1.type_ = StarcoinToEthTokenBridgeV1.get().unwrap().clone();
-        starcoin_bridge_event_1.bcs = BcsEvent::new(bcs::to_bytes(&emitted_event_1).unwrap());
+        starcoin_bridge_event_1.bcs = bcs::to_bytes(&emitted_event_1).unwrap();
 
         #[derive(Serialize, Deserialize)]
         struct RandomStruct {}
@@ -819,7 +818,7 @@ mod tests {
         let mut starcoin_bridge_event_2 = StarcoinEvent::random_for_testing();
         starcoin_bridge_event_2.type_ = StarcoinToEthTokenBridgeV1.get().unwrap().clone();
         starcoin_bridge_event_2.type_.module = Identifier::from_str("unrecognized_module").unwrap();
-        starcoin_bridge_event_2.bcs = BcsEvent::new(bcs::to_bytes(&event_2).unwrap());
+        starcoin_bridge_event_2.bcs = bcs::to_bytes(&event_2).unwrap();
 
         // Event 3 is defined in non-bridge package
         let mut starcoin_bridge_event_3 = starcoin_bridge_event_1.clone();
