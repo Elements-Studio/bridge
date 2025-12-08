@@ -5,7 +5,7 @@
 # Prerequisites: Foundry (anvil, forge, cast), Rust, Starcoin CLI, mpm
 # ============================================================
 
-.PHONY: help deploy-eth-network deploy-native deploy-docker start stop restart logs clean info test init-bridge-config deploy-sui register test-bridge stop-eth-network clean-eth-and-config setup-eth-and-config status logs-deployer start-starcoin-dev-node start-starcoin-dev-node-clean run-bridge-server build-starcoin-contracts deploy-starcoin-contracts stop-starcoin-dev-node build-bridge-cli view-bridge deposit-eth deposit-eth-test withdraw-to-eth withdraw-to-eth-test init-cli-config fund-starcoin-bridge-account stop-all
+.PHONY: help deploy-eth-network deploy-native deploy-docker start stop restart logs clean info test init-bridge-config deploy-sui register test-bridge stop-eth-network clean-eth-and-config setup-eth-and-config status logs-deployer start-starcoin-dev-node start-starcoin-dev-node-clean run-bridge-server build-starcoin-contracts deploy-starcoin-contracts stop-starcoin-dev-node build-bridge-cli view-bridge deposit-eth deposit-eth-test withdraw-to-eth withdraw-to-eth-test init-cli-config fund-starcoin-bridge-account stop-all bridge-transfer deposit-usdt deposit-usdt-test withdraw-usdt withdraw-usdt-test
 
 # ============================================================
 # Colors for terminal output
@@ -956,6 +956,28 @@ fund-starcoin-bridge-account: build-bridge-cli ## Fund the bridge server account
 # Quick deposit test with default amount (ETH -> Starcoin)
 deposit-eth-test: build-bridge-cli fund-eth-account fund-starcoin-bridge-account ## Quick test: deposit 0.1 ETH to Starcoin
 	@$(MAKE) deposit-eth AMOUNT=0.1
+
+# Bridge transfer with token support
+# Usage: make bridge-transfer DIRECTION=eth-to-stc AMOUNT=0.1 TOKEN=ETH
+# TOKEN: ETH (default), USDT, USDC, BTC
+DIRECTION ?= eth-to-stc
+TOKEN ?= ETH
+
+bridge-transfer: build-bridge-cli ## Bridge transfer with token support (usage: make bridge-transfer DIRECTION=eth-to-stc AMOUNT=0.1 TOKEN=USDT)
+	@./scripts/bridge_transfer.sh $(DIRECTION) $(AMOUNT) --token $(TOKEN)
+
+# Quick USDT transfer tests
+deposit-usdt: build-bridge-cli fund-eth-account fund-starcoin-bridge-account ## Deposit USDT from ETH to Starcoin (usage: make deposit-usdt AMOUNT=100)
+	@./scripts/bridge_transfer.sh eth-to-stc $(AMOUNT) --token USDT
+
+deposit-usdt-test: build-bridge-cli fund-eth-account fund-starcoin-bridge-account ## Quick test: deposit 10 USDT to Starcoin
+	@./scripts/bridge_transfer.sh eth-to-stc 10 --token USDT
+
+withdraw-usdt: build-bridge-cli init-cli-config ## Withdraw USDT from Starcoin to ETH (usage: make withdraw-usdt AMOUNT=1000000)
+	@./scripts/bridge_transfer.sh stc-to-eth $(AMOUNT) --token USDT
+
+withdraw-usdt-test: build-bridge-cli init-cli-config ## Quick test: withdraw 10 USDT from Starcoin to ETH
+	@./scripts/bridge_transfer.sh stc-to-eth 10 --token USDT
 
 # Withdraw from Starcoin to ETH (Starcoin -> ETH)
 withdraw-to-eth: build-bridge-cli init-cli-config ## Withdraw tokens from Starcoin to ETH
