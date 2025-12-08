@@ -397,7 +397,7 @@ where
                 );
                 continue;
             };
-            
+
             return status;
         }
     }
@@ -568,7 +568,7 @@ pub trait StarcoinClientInner: Send + Sync {
         // Default implementation - filter events by module
         let filter = EventFilter::default();
         let events = self.query_events(filter, cursor).await?;
-        
+
         // Filter to matching module (Starcoin uses 16-byte addresses in last 16 bytes of ObjectID)
         let starcoin_addr = &package[16..32];
         let filtered_data: Vec<_> = events
@@ -971,14 +971,14 @@ mod tests {
     use crate::{
         events::{EmittedStarcoinToEthTokenBridgeV1, MoveTokenDepositedEvent},
         starcoin_bridge_mock_client::StarcoinMockClient,
+        test_utils::{StarcoinAddressTestExt, TransactionDigestTestExt},
         types::StarcoinToEthBridgeAction,
-        test_utils::{TransactionDigestTestExt, StarcoinAddressTestExt},
     };
     use ethers::types::Address as EthAddress;
     use move_core_types::account_address::AccountAddress;
     use serde::{Deserialize, Serialize};
-    use std::str::FromStr;
     use starcoin_bridge_types::bridge::{BridgeChainId, TOKEN_ID_STARCOIN, TOKEN_ID_USDC};
+    use std::str::FromStr;
 
     use super::*;
     use crate::events::{init_all_struct_tags, StarcoinToEthTokenBridgeV1};
@@ -1042,11 +1042,12 @@ mod tests {
                 starcoin_bridge_event_3.clone(),
             ],
         );
-        let expected_action_1 = BridgeAction::StarcoinToEthBridgeAction(StarcoinToEthBridgeAction {
-            starcoin_bridge_tx_digest: tx_digest,
-            starcoin_bridge_tx_event_index: 0,
-            starcoin_bridge_event: sanitized_event_1.clone(),
-        });
+        let expected_action_1 =
+            BridgeAction::StarcoinToEthBridgeAction(StarcoinToEthBridgeAction {
+                starcoin_bridge_tx_digest: tx_digest,
+                starcoin_bridge_tx_event_index: 0,
+                starcoin_bridge_event: sanitized_event_1.clone(),
+            });
         assert_eq!(
             starcoin_bridge_client
                 .get_bridge_action_by_tx_digest_and_event_idx_maybe(&tx_digest, 0)
@@ -1054,11 +1055,12 @@ mod tests {
                 .unwrap(),
             expected_action_1,
         );
-        let expected_action_2 = BridgeAction::StarcoinToEthBridgeAction(StarcoinToEthBridgeAction {
-            starcoin_bridge_tx_digest: tx_digest,
-            starcoin_bridge_tx_event_index: 2,
-            starcoin_bridge_event: sanitized_event_1.clone(),
-        });
+        let expected_action_2 =
+            BridgeAction::StarcoinToEthBridgeAction(StarcoinToEthBridgeAction {
+                starcoin_bridge_tx_digest: tx_digest,
+                starcoin_bridge_tx_event_index: 2,
+                starcoin_bridge_event: sanitized_event_1.clone(),
+            });
         assert_eq!(
             starcoin_bridge_client
                 .get_bridge_action_by_tx_digest_and_event_idx_maybe(&tx_digest, 2)

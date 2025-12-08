@@ -73,7 +73,29 @@ pub struct BridgeCommittee {
 }
 
 impl BridgeCommittee {
+    /// Create a new BridgeCommittee.
+    ///
+    /// # Starcoin Bridge Simplification
+    /// For Starcoin deployment, the committee has exactly ONE member with maximum voting power (10000).
+    /// This simplification removes the need for complex multi-member quorum logic.
     pub fn new(members: Vec<BridgeAuthority>) -> BridgeResult<Self> {
+        // Starcoin bridge: assert single member with max voting power
+        assert!(
+            members.len() == 1,
+            "Starcoin bridge requires exactly one committee member, got {}",
+            members.len()
+        );
+        assert!(
+            members[0].voting_power == BRIDGE_COMMITTEE_MAXIMAL_VOTING_POWER,
+            "Starcoin bridge: single member must have max voting power {}, got {}",
+            BRIDGE_COMMITTEE_MAXIMAL_VOTING_POWER,
+            members[0].voting_power
+        );
+        assert!(
+            !members[0].is_blocklisted,
+            "Starcoin bridge: the single committee member cannot be blocklisted"
+        );
+
         let mut members_map = BTreeMap::new();
         let mut total_blocklisted_stake = 0;
         let mut total_stake = 0;
@@ -265,17 +287,8 @@ impl CommitteeTrait for BridgeCommittee {
     }
 }
 
-// Implement starcoin-bridge-authority-aggregation CommitteeTrait for BridgeCommittee
-impl starcoin_bridge_authority_aggregation::CommitteeTrait for BridgeCommittee {
-    type AuthorityKey = BridgeAuthorityPublicKeyBytes;
-
-    fn weight(&self, author: &BridgeAuthorityPublicKeyBytes) -> u64 {
-        self.members
-            .get(author)
-            .map(|a| a.voting_power)
-            .unwrap_or(0)
-    }
-}
+// NOTE: starcoin_bridge_authority_aggregation::CommitteeTrait implementation removed
+// Starcoin bridge uses a single-member committee, no quorum aggregation needed
 
 #[derive(Serialize, Copy, Clone, PartialEq, Eq, TryFromPrimitive, Hash, Display)]
 #[repr(u8)]
@@ -699,75 +712,70 @@ mod tests {
     use crate::test_utils::get_test_starcoin_bridge_to_eth_bridge_action;
     use ethers::types::Address as EthAddress;
     use fastcrypto::traits::KeyPair;
-    use starcoin_bridge_types::bridge::TOKEN_ID_BTC;
+    use starcoin_bridge_types::bridge::{BRIDGE_COMMITTEE_MAXIMAL_VOTING_POWER, TOKEN_ID_BTC};
     use starcoin_bridge_types::crypto::get_key_pair;
     use std::collections::HashSet;
 
     use super::*;
 
+    /// Test single-member committee construction for Starcoin bridge
     #[test]
     fn test_bridge_committee_construction() -> anyhow::Result<()> {
-        let (mut authority, _, _) = get_test_authority_and_key(8000, 9999);
-        // This is ok
-        let _ = BridgeCommittee::new(vec![authority.clone()]).unwrap();
+        // Single member with max voting power - this is the only valid configuration
+        let (authority, _, _) =
+            get_test_authority_and_key(BRIDGE_COMMITTEE_MAXIMAL_VOTING_POWER, 9999);
+        let committee = BridgeCommittee::new(vec![authority.clone()]).unwrap();
+        assert_eq!(committee.members().len(), 1);
+        assert_eq!(committee.total_blocklisted_stake(), 0);
 
-        // This is not ok - total voting power < BRIDGE_COMMITTEE_MINIMAL_VOTING_POWER
-        authority.voting_power = BRIDGE_COMMITTEE_MINIMAL_VOTING_POWER - 1;
-        let _ = BridgeCommittee::new(vec![authority.clone()]).unwrap_err();
+        // Single member must have max voting power
+        let (mut authority_low_power, _, _) = get_test_authority_and_key(5000, 9999);
+        authority_low_power.voting_power = 5000;
+        // This should panic due to assert in new()
+        let result = std::panic::catch_unwind(|| BridgeCommittee::new(vec![authority_low_power]));
+        assert!(result.is_err(), "Single member must have max voting power");
 
-        // This is not ok - total voting power > BRIDGE_COMMITTEE_MAXIMAL_VOTING_POWER
-        authority.voting_power = BRIDGE_COMMITTEE_MAXIMAL_VOTING_POWER + 1;
-        let _ = BridgeCommittee::new(vec![authority.clone()]).unwrap_err();
+        // Blocklisted single member should panic
+        let (mut authority_blocklisted, _, _) =
+            get_test_authority_and_key(BRIDGE_COMMITTEE_MAXIMAL_VOTING_POWER, 9999);
+        authority_blocklisted.is_blocklisted = true;
+        let result = std::panic::catch_unwind(|| BridgeCommittee::new(vec![authority_blocklisted]));
+        assert!(result.is_err(), "Single member cannot be blocklisted");
 
-        // This is ok
-        authority.voting_power = 5000;
-        let mut authority_2 = authority.clone();
-        let (_, kp): (_, fastcrypto::secp256k1::Secp256k1KeyPair) = get_key_pair();
-        let pubkey = kp.public().clone();
-        authority_2.pubkey = pubkey.clone();
-        let _ = BridgeCommittee::new(vec![authority.clone(), authority_2.clone()]).unwrap();
-
-        // This is not ok - duplicate pub key
-        authority_2.pubkey = authority.pubkey.clone();
-        let _ = BridgeCommittee::new(vec![authority.clone(), authority.clone()]).unwrap_err();
         Ok(())
+    }
+
+    /// Test that multi-member committees are rejected in Starcoin bridge
+    #[test]
+    fn test_bridge_committee_rejects_multi_member() {
+        // Multi-member committee should panic
+        let (auth1, _, _) = get_test_authority_and_key(5000, 9999);
+        let (auth2, _, _) = get_test_authority_and_key(5000, 9998);
+        let result = std::panic::catch_unwind(|| BridgeCommittee::new(vec![auth1, auth2]));
+        assert!(result.is_err(), "Multi-member committee should be rejected");
     }
 
     #[test]
-    fn test_bridge_committee_total_blocklisted_stake() -> anyhow::Result<()> {
-        let (mut authority1, _, _) = get_test_authority_and_key(10000, 9999);
-        assert_eq!(
-            BridgeCommittee::new(vec![authority1.clone()])
-                .unwrap()
-                .total_blocklisted_stake(),
-            0
-        );
-        authority1.voting_power = 6000;
+    fn test_bridge_committee_single_member_stake() -> anyhow::Result<()> {
+        let (authority, _, _) =
+            get_test_authority_and_key(BRIDGE_COMMITTEE_MAXIMAL_VOTING_POWER, 9999);
+        let committee = BridgeCommittee::new(vec![authority.clone()]).unwrap();
 
-        let (mut authority2, _, _) = get_test_authority_and_key(4000, 9999);
-        authority2.is_blocklisted = true;
+        // Total blocklisted stake should be 0 for valid single member
+        assert_eq!(committee.total_blocklisted_stake(), 0);
+
+        // Active stake should be max voting power
         assert_eq!(
-            BridgeCommittee::new(vec![authority1.clone(), authority2.clone()])
-                .unwrap()
-                .total_blocklisted_stake(),
-            4000
+            committee.active_stake(&authority.pubkey_bytes()),
+            BRIDGE_COMMITTEE_MAXIMAL_VOTING_POWER
         );
 
-        authority1.voting_power = 7000;
-        authority2.voting_power = 2000;
-        let (mut authority3, _, _) = get_test_authority_and_key(1000, 9999);
-        authority3.is_blocklisted = true;
-        assert_eq!(
-            BridgeCommittee::new(vec![authority1, authority2, authority3])
-                .unwrap()
-                .total_blocklisted_stake(),
-            3000
-        );
+        // is_active_member should return true
+        assert!(committee.is_active_member(&authority.pubkey_bytes()));
 
         Ok(())
     }
 
-    // Regression test to avoid accidentally change to approval threshold
     #[test]
     fn test_bridge_action_approval_threshold_regression_test() -> anyhow::Result<()> {
         let action =
@@ -826,43 +834,6 @@ mod tests {
         Ok(())
     }
 
-    #[test]
-    fn test_bridge_committee_filter_blocklisted_authorities() -> anyhow::Result<()> {
-        // Note: today BridgeCommittee does not shuffle authorities
-        let (authority1, _, _) = get_test_authority_and_key(5000, 9999);
-        let (mut authority2, _, _) = get_test_authority_and_key(3000, 9999);
-        authority2.is_blocklisted = true;
-        let (authority3, _, _) = get_test_authority_and_key(2000, 9999);
-        let committee = BridgeCommittee::new(vec![
-            authority1.clone(),
-            authority2.clone(),
-            authority3.clone(),
-        ])
-        .unwrap();
-
-        // No explicit exclude, but authority2 is blocklisted so should be filtered out
-        let result = committee.shuffle_by_stake(None, None);
-        assert_eq!(result.len(), 2); // authority1 and authority3, but not blocklisted authority2
-        assert!(result.contains(&authority1.pubkey_bytes()));
-        assert!(result.contains(&authority3.pubkey_bytes()));
-        assert!(!result.contains(&authority2.pubkey_bytes()));
-
-        // Explicitly exclude authority1 and authority2 (authority2 already blocklisted)
-        // So only authority3 should remain
-        let result = committee.shuffle_by_stake(
-            None,
-            Some(
-                &[authority1.pubkey_bytes(), authority2.pubkey_bytes()]
-                    .iter()
-                    .cloned()
-                    .collect(),
-            ),
-        );
-        assert_eq!(result.len(), 1); // only authority3 remains
-        assert!(result.contains(&authority3.pubkey_bytes()));
-        assert!(!result.contains(&authority1.pubkey_bytes()));
-        assert!(!result.contains(&authority2.pubkey_bytes()));
-
-        Ok(())
-    }
+    // NOTE: test_bridge_committee_filter_blocklisted_authorities removed
+    // Starcoin bridge uses single-member committee, shuffle_by_stake is only for testing
 }

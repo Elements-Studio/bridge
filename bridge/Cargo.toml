@@ -9,7 +9,7 @@ edition = "2021"
 ethers = "2.0"
 tokio = { workspace = true, features = ["full"] }
 starcoin-bridge-types.workspace = true
-starcoin-bridge-authority-aggregation.workspace = true
+# NOTE: starcoin-bridge-authority-aggregation removed - single member committee, no quorum needed
 arc-swap.workspace = true
 strum_macros.workspace = true
 num_enum.workspace = true

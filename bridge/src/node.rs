@@ -552,7 +552,8 @@ mod tests {
         // no stored watermark, use override
         // EventID is now (u64, u64) - (block_number, event_seq)
         let override_cursor: EventID = (100, 42);
-        let starcoin_bridge_modules_to_watch = get_starcoin_bridge_modules_to_watch(&store, Some(override_cursor));
+        let starcoin_bridge_modules_to_watch =
+            get_starcoin_bridge_modules_to_watch(&store, Some(override_cursor));
         assert_eq!(
             starcoin_bridge_modules_to_watch,
             vec![
@@ -590,7 +591,8 @@ mod tests {
         store
             .update_starcoin_bridge_event_cursor(committee_module.clone(), stored_cursor2)
             .unwrap();
-        let starcoin_bridge_modules_to_watch = get_starcoin_bridge_modules_to_watch(&store, Some(override_cursor));
+        let starcoin_bridge_modules_to_watch =
+            get_starcoin_bridge_modules_to_watch(&store, Some(override_cursor));
         assert_eq!(
             starcoin_bridge_modules_to_watch,
             vec![

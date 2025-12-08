@@ -11014,7 +11014,6 @@ dependencies = [
  "serial_test",
  "shared-crypto",
  "starcoin-account-api 1.13.20 (git+https://github.com/starcoinorg/starcoin?rev=98eefde70a1059ad6d5b5afa54a7eeb403384dec)",
- "starcoin-bridge-authority-aggregation",
  "starcoin-bridge-config",
  "starcoin-bridge-json-rpc-api",
  "starcoin-bridge-json-rpc-types",

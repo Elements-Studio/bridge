@@ -97,7 +97,7 @@ async fn test_local_env_eth_connection() {
 #[tokio::test]
 async fn test_embedded_starcoin_node() {
     println!("Starting embedded Starcoin node...");
-    
+
     // Start embedded node - no port configuration needed, automatic random ports
     let node = match EmbeddedStarcoinNode::start() {
         Ok(n) => n,
@@ -114,8 +114,11 @@ async fn test_embedded_starcoin_node() {
     // Test block generation
     match node.generate_block() {
         Ok(block) => {
-            println!("✓ Generated block: height={}, hash={:?}", 
-                block.header().number(), block.id());
+            println!(
+                "✓ Generated block: height={}, hash={:?}",
+                block.header().number(),
+                block.id()
+            );
         }
         Err(e) => {
             println!("ℹ️  Block generation: {:?}", e);
@@ -123,45 +126,58 @@ async fn test_embedded_starcoin_node() {
     }
 
     println!("\n✅ Embedded node test passed!");
-    
+
     // Stop node gracefully in blocking context to avoid runtime drop panic
     tokio::task::spawn_blocking(move || {
         node.stop();
-    }).await.expect("Failed to stop node");
+    })
+    .await
+    .expect("Failed to stop node");
 }
 
 #[tokio::test]
 async fn test_multiple_embedded_nodes_no_port_conflict() {
     println!("Testing multiple embedded Starcoin nodes simultaneously...");
-    
+
     // Start 3 nodes at the same time - should not have port conflicts
     let node1 = EmbeddedStarcoinNode::start().expect("Failed to start node 1");
     println!("✓ Node 1 started: network={:?}", node1.network().id());
-    
+
     let node2 = EmbeddedStarcoinNode::start().expect("Failed to start node 2");
     println!("✓ Node 2 started: network={:?}", node2.network().id());
-    
+
     let node3 = EmbeddedStarcoinNode::start().expect("Failed to start node 3");
     println!("✓ Node 3 started: network={:?}", node3.network().id());
 
     // Test that each node can generate blocks independently
     let block1 = node1.generate_block().expect("Node 1 generate block");
-    println!("✓ Node 1 generated block: height={}", block1.header().number());
-    
+    println!(
+        "✓ Node 1 generated block: height={}",
+        block1.header().number()
+    );
+
     let block2 = node2.generate_block().expect("Node 2 generate block");
-    println!("✓ Node 2 generated block: height={}", block2.header().number());
-    
+    println!(
+        "✓ Node 2 generated block: height={}",
+        block2.header().number()
+    );
+
     let block3 = node3.generate_block().expect("Node 3 generate block");
-    println!("✓ Node 3 generated block: height={}", block3.header().number());
+    println!(
+        "✓ Node 3 generated block: height={}",
+        block3.header().number()
+    );
 
     println!("\n✅ Multiple nodes test passed - no port conflicts!");
-    
+
     // Stop all nodes gracefully in blocking context
     tokio::task::spawn_blocking(move || {
         node1.stop();
         node2.stop();
         node3.stop();
-    }).await.expect("Failed to stop nodes");
+    })
+    .await
+    .expect("Failed to stop nodes");
 }
 
 #[tokio::test]
@@ -323,17 +339,19 @@ async fn test_local_env_full_chain_verification() {
             }
         }
     }
-    
+
     if !key_found {
         println!("  ℹ️  Authority key not found (optional for this test)");
     }
 
     println!("\n=== All Verifications Passed ===");
-    
+
     // Stop node gracefully
     tokio::task::spawn_blocking(move || {
         node.stop();
-    }).await.expect("Failed to stop node");
+    })
+    .await
+    .expect("Failed to stop node");
 }
 
 /// Test: Verify bridge limiter contract and its configuration
@@ -484,9 +502,12 @@ async fn test_local_env_committee_consistency() {
     let committee = EthBridgeCommittee::new(committee_addr, provider.clone());
 
     println!("  ✓ ETH committee contract: {:?}", committee_addr);
-    
+
     // Verify committee contract is deployed
-    let code = provider.get_code(committee_addr, None).await.expect("Get contract code");
+    let code = provider
+        .get_code(committee_addr, None)
+        .await
+        .expect("Get contract code");
     if !code.is_empty() {
         println!("  ✓ Committee contract is deployed");
     } else {
@@ -494,11 +515,13 @@ async fn test_local_env_committee_consistency() {
     }
 
     println!("\n=== Consistency Test Completed ===");
-    
+
     // Stop node gracefully
     tokio::task::spawn_blocking(move || {
         node.stop();
-    }).await.expect("Failed to stop node");
+    })
+    .await
+    .expect("Failed to stop node");
 }
 
 /// Test: Verify Starcoin treasury (with embedded node)
@@ -514,29 +537,34 @@ async fn test_local_env_starcoin_treasury() {
             return;
         }
     };
-    
+
     println!("✓ Embedded Starcoin node started");
     println!("  Network: {:?}", node.network().id());
     println!("  Chain ID: {:?}", node.network().chain_id());
-    
+
     // Note: Treasury queries would require bridge deployment
     // For now, just verify node is working
     match node.generate_block() {
         Ok(block) => {
-            println!("✓ Node operational - generated block {}", block.header().number());
+            println!(
+                "✓ Node operational - generated block {}",
+                block.header().number()
+            );
         }
         Err(e) => {
             println!("ℹ️  Block generation: {:?}", e);
         }
     }
-    
+
     println!("ℹ️  Treasury queries require deployed bridge contract");
     println!("=== Treasury Test Completed ===");
-    
+
     // Stop node gracefully
     tokio::task::spawn_blocking(move || {
         node.stop();
-    }).await.expect("Failed to stop node");
+    })
+    .await
+    .expect("Failed to stop node");
 }
 
 /// Test: Verify chain identifiers match expected values (with embedded node)
@@ -566,23 +594,25 @@ async fn test_local_env_chain_identifiers() {
             return;
         }
     };
-    
+
     // Get Starcoin chain info from embedded node
     let network = node.network();
     println!("✓ Starcoin network: {:?}", network.id());
     println!("✓ Starcoin chain ID: {:?}", network.chain_id());
-    
+
     // Test network is typically chain ID 255
     if network.chain_id().id() == 255 {
         println!("✓ Using Test network (chain ID: 255)");
     }
 
     println!("=== Chain Identifier Test Completed ===");
-    
+
     // Stop node gracefully
     tokio::task::spawn_blocking(move || {
         node.stop();
-    }).await.expect("Failed to stop node");
+    })
+    .await
+    .expect("Failed to stop node");
 }
 
 /// Test: Check bridge pause status (ETH side only - Starcoin uses embedded node)
@@ -629,11 +659,13 @@ async fn test_local_env_bridge_pause_status() {
     println!("  Network: {:?}", node.network().id());
 
     println!("=== Pause Status Test Completed ===");
-    
+
     // Stop node gracefully
     tokio::task::spawn_blocking(move || {
         node.stop();
-    }).await.expect("Failed to stop node");
+    })
+    .await
+    .expect("Failed to stop node");
 }
 
 /// Test: Complete ETH -> Starcoin -> ETH bridge flow

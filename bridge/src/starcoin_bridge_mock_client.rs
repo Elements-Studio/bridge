@@ -254,12 +254,12 @@ impl StarcoinClientInner for StarcoinMockClient {
     ) -> Result<EventPage, Self::Error> {
         let events = self.events_by_module.lock().unwrap();
         let key = (package, module.clone(), cursor);
-        
+
         self.past_event_query_params
             .lock()
             .unwrap()
             .push_back(key.clone());
-        
+
         // Return preset events if available, otherwise empty page
         Ok(events.get(&key).cloned().unwrap_or_else(|| EventPage {
             data: vec![],
@@ -412,7 +412,12 @@ impl StarcoinClientInner for StarcoinMockClient {
             return response;
         }
         // Fall back to wildcard response if set
-        if let Some(response) = self.wildcard_sign_and_submit_response.lock().unwrap().clone() {
+        if let Some(response) = self
+            .wildcard_sign_and_submit_response
+            .lock()
+            .unwrap()
+            .clone()
+        {
             return response;
         }
         // Default: return success with a dummy tx hash

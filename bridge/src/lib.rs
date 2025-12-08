@@ -29,10 +29,6 @@ pub mod error;
 pub mod eth_client;
 pub mod eth_syncer;
 
-#[cfg(test)]
-mod starcoin_node_test;
-#[cfg(test)]
-pub mod starcoin_test_utils;
 pub mod eth_transaction_builder;
 pub mod events;
 pub mod metered_eth_provider;
@@ -47,6 +43,10 @@ pub mod starcoin_bridge_syncer;
 pub mod starcoin_bridge_transaction_builder;
 pub mod starcoin_bridge_watchdog;
 pub mod starcoin_jsonrpc_client;
+#[cfg(test)]
+mod starcoin_node_test;
+#[cfg(test)]
+pub mod starcoin_test_utils;
 pub mod storage;
 pub mod types;
 pub mod utils;

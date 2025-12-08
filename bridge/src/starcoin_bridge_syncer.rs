@@ -173,7 +173,9 @@ mod tests {
     use super::*;
 
     use crate::test_utils::TransactionDigestTestExt;
-    use crate::{starcoin_bridge_client::StarcoinClient, starcoin_bridge_mock_client::StarcoinMockClient};
+    use crate::{
+        starcoin_bridge_client::StarcoinClient, starcoin_bridge_mock_client::StarcoinMockClient,
+    };
     use prometheus::Registry;
     use starcoin_bridge_json_rpc_types::EventPage;
     use starcoin_bridge_types::Identifier;
@@ -193,18 +195,31 @@ mod tests {
         let empty_events = EventPage::empty();
         // EventID is (u64, u64) - (block_number, event_seq)
         let cursor: EventID = (100, 0);
-        add_event_response(&mock, bridge_package_id, module_foo.clone(), cursor, empty_events.clone());
-        add_event_response(&mock, bridge_package_id, module_bar.clone(), cursor, empty_events.clone());
+        add_event_response(
+            &mock,
+            bridge_package_id,
+            module_foo.clone(),
+            cursor,
+            empty_events.clone(),
+        );
+        add_event_response(
+            &mock,
+            bridge_package_id,
+            module_bar.clone(),
+            cursor,
+            empty_events.clone(),
+        );
 
         let target_modules = HashMap::from_iter(vec![
             (module_foo.clone(), Some(cursor)),
             (module_bar.clone(), Some(cursor)),
         ]);
         let interval = Duration::from_millis(200);
-        let (_handles, mut events_rx) = StarcoinSyncer::new(client, bridge_package_id, target_modules, metrics.clone())
-            .run(interval)
-            .await
-            .unwrap();
+        let (_handles, mut events_rx) =
+            StarcoinSyncer::new(client, bridge_package_id, target_modules, metrics.clone())
+                .run(interval)
+                .await
+                .unwrap();
 
         // Initially there are no events
         assert_no_more_events(interval, &mut events_rx).await;
@@ -213,14 +228,21 @@ mod tests {
         // Module Foo has new events
         let mut event_1: StarcoinEvent = StarcoinEvent::random_for_testing();
         event_1.type_.module = module_foo.clone();
-        // Create cursor from event's id  
+        // Create cursor from event's id
         let event_1_cursor: EventID = event_1.id.into();
-        let module_foo_events_1: starcoin_bridge_json_rpc_types::Page<StarcoinEvent, (u64, u64)> = EventPage {
-            data: vec![event_1.clone(), event_1.clone()],
-            next_cursor: Some(event_1_cursor),
-            has_next_page: false,
-        };
-        add_event_response(&mock, bridge_package_id, module_foo.clone(), event_1_cursor, empty_events.clone());
+        let module_foo_events_1: starcoin_bridge_json_rpc_types::Page<StarcoinEvent, (u64, u64)> =
+            EventPage {
+                data: vec![event_1.clone(), event_1.clone()],
+                next_cursor: Some(event_1_cursor),
+                has_next_page: false,
+            };
+        add_event_response(
+            &mock,
+            bridge_package_id,
+            module_foo.clone(),
+            event_1_cursor,
+            empty_events.clone(),
+        );
         add_event_response(
             &mock,
             bridge_package_id,
@@ -253,9 +275,21 @@ mod tests {
             next_cursor: Some(event_2_cursor),
             has_next_page: true, // Set to true so that the syncer will not update the last synced checkpoint
         };
-        add_event_response(&mock, bridge_package_id, module_bar.clone(), event_2_cursor, empty_events.clone());
+        add_event_response(
+            &mock,
+            bridge_package_id,
+            module_bar.clone(),
+            event_2_cursor,
+            empty_events.clone(),
+        );
 
-        add_event_response(&mock, bridge_package_id, module_bar.clone(), cursor, module_bar_events_1);
+        add_event_response(
+            &mock,
+            bridge_package_id,
+            module_bar.clone(),
+            cursor,
+            module_bar_events_1,
+        );
 
         let (identifier, received_events) = events_rx.recv().await.unwrap();
         assert_eq!(identifier, module_bar);
@@ -276,7 +310,10 @@ mod tests {
 
     async fn assert_no_more_events(
         interval: Duration,
-        events_rx: &mut starcoin_metrics::metered_channel::Receiver<(Identifier, Vec<StarcoinEvent>)>,
+        events_rx: &mut starcoin_metrics::metered_channel::Receiver<(
+            Identifier,
+            Vec<StarcoinEvent>,
+        )>,
     ) {
         match timeout(interval * 2, events_rx.recv()).await {
             Err(_e) => (),

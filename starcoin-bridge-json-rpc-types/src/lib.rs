@@ -90,8 +90,8 @@ impl StarcoinEvent {
 
     /// Create a random StarcoinEvent for testing
     pub fn random_for_testing() -> Self {
-        use std::str::FromStr;
         use rand::RngCore;
+        use std::str::FromStr;
 
         let mut tx_digest = [0u8; 32];
         rand::thread_rng().fill_bytes(&mut tx_digest);

@@ -627,10 +627,7 @@ where
                         "[APPROVE] ✗ Failed to submit approve transaction! action_key={:?}",
                         action_key
                     );
-                    error!(
-                        "[APPROVE] Error details: {:?}",
-                        err
-                    );
+                    error!("[APPROVE] Error details: {:?}", err);
                     error!(
                         "[APPROVE] Transaction params: sender={:?}, seq={}, source_chain={}, seq_num={}",
                         sender_address, seq_number, source_chain, seq_num
@@ -717,16 +714,12 @@ where
         }
 
         if !approved {
-            error!(
-                "[APPROVE] ✗ Approve transaction NOT confirmed after 60 seconds!"
-            );
+            error!("[APPROVE] ✗ Approve transaction NOT confirmed after 60 seconds!");
             error!(
                 "[APPROVE] action_key={:?}, source_chain={}, seq_num={}",
                 action_key, source_chain, seq_num
             );
-            error!(
-                "[APPROVE] Will retry this transaction..."
-            );
+            error!("[APPROVE] Will retry this transaction...");
             let metrics_clone = metrics.clone();
             let sender_clone = execution_queue_sender.clone();
             spawn_logged_monitored_task!(async move {
@@ -751,15 +744,11 @@ where
                 "[STARCOIN→ETH] ✓ Approve phase COMPLETE! action_key={:?}",
                 action_key
             );
-            info!(
-                "[STARCOIN→ETH] User must now claim tokens on Ethereum by calling:"
-            );
+            info!("[STARCOIN→ETH] User must now claim tokens on Ethereum by calling:");
             info!(
                 "[STARCOIN→ETH]   Bridge.transferBridgedTokensWithSignatures(signatures, message)"
             );
-            info!(
-                "[STARCOIN→ETH]   Or use: make claim-on-eth"
-            );
+            info!("[STARCOIN→ETH]   Or use: make claim-on-eth");
             metrics.starcoin_bridge_eth_token_transfer_approved.inc();
             store
                 .remove_pending_actions(&[action.digest()])
@@ -802,9 +791,7 @@ where
                         tokio::time::sleep(std::time::Duration::from_millis(500)).await;
                     }
                     Err(e) => {
-                        error!(
-                            "[CLAIM] ✗ Failed to get sequence number for claim transaction!"
-                        );
+                        error!("[CLAIM] ✗ Failed to get sequence number for claim transaction!");
                         error!(
                             "[CLAIM] Error: {:?}, sender={:?}, approve_seq={}",
                             e, sender_address, seq_number
@@ -824,13 +811,8 @@ where
         let claim_block_timestamp_ms = match starcoin_bridge_client.get_block_timestamp().await {
             Ok(ts) => ts,
             Err(e) => {
-                error!(
-                    "[CLAIM] ✗ Failed to get block timestamp for claim transaction!"
-                );
-                error!(
-                    "[CLAIM] Error: {:?}",
-                    e
-                );
+                error!("[CLAIM] ✗ Failed to get block timestamp for claim transaction!");
+                error!("[CLAIM] Error: {:?}", e);
                 store
                     .remove_pending_actions(&[action.digest()])
                     .unwrap_or_else(|e| {
@@ -841,9 +823,7 @@ where
         };
 
         // Build claim transaction
-        info!(
-            "[CLAIM] Building claim transaction with parameters:"
-        );
+        info!("[CLAIM] Building claim transaction with parameters:");
         info!(
             "[CLAIM]   bridge_address={:?}, sender={:?}, claim_seq={}",
             starcoin_bridge_address, sender_address, claim_seq_number
@@ -865,13 +845,8 @@ where
         ) {
             Ok(txn) => txn,
             Err(err) => {
-                error!(
-                    "[CLAIM] ✗ Failed to build claim transaction!"
-                );
-                error!(
-                    "[CLAIM] Error: {:?}",
-                    err
-                );
+                error!("[CLAIM] ✗ Failed to build claim transaction!");
+                error!("[CLAIM] Error: {:?}", err);
                 error!(
                     "[CLAIM] Params: source_chain={}, seq_num={}, token_type={}, claim_seq={}",
                     source_chain, seq_num, token_type, claim_seq_number
@@ -896,9 +871,7 @@ where
                     "[CLAIM] ✓ Transaction submitted successfully! claim_txn_hash={}, action_key={:?}",
                     claim_txn_hash, action_key
                 );
-                info!(
-                    "[CLAIM] Polling for claim confirmation (max 30s)..."
-                );
+                info!("[CLAIM] Polling for claim confirmation (max 30s)...");
 
                 // Poll for claim confirmation (max 30 seconds)
                 for i in 0..30 {
@@ -909,14 +882,14 @@ where
                             seq_num,
                         )
                         .await;
-                    
+
                     if i == 0 || i % 5 == 0 {
                         info!(
                             "[CLAIM] Poll iteration {}/30: on-chain status = {:?}",
                             i, status
                         );
                     }
-                    
+
                     if status == BridgeActionStatus::Claimed {
                         info!(
                             "[CLAIM] ✓ CLAIMED on chain after {}s! claim_txn_hash={}, bridge transfer COMPLETE!",
@@ -1058,22 +1031,22 @@ pub async fn submit_to_executor(
 mod tests {
     use crate::events::init_all_struct_tags;
     use crate::starcoin_bridge_transaction_builder::build_starcoin_bridge_transaction;
-    use crate::test_utils::DUMMY_MUTALBE_BRIDGE_OBJECT_ARG;
     use crate::test_utils::TransactionDigestTestExt;
+    use crate::test_utils::DUMMY_MUTALBE_BRIDGE_OBJECT_ARG;
     use crate::types::BRIDGE_PAUSED;
     use fastcrypto::traits::KeyPair;
     use prometheus::Registry;
     use serial_test::serial;
-    use std::collections::{BTreeMap, HashMap};
-    use std::str::FromStr;
     use starcoin_bridge_json_rpc_types::StarcoinTransactionBlockEffects;
     use starcoin_bridge_json_rpc_types::StarcoinTransactionBlockEvents;
     use starcoin_bridge_json_rpc_types::{StarcoinEvent, StarcoinTransactionBlockResponse};
+    use starcoin_bridge_types::base_types::random_object_ref;
     use starcoin_bridge_types::base_types::TransactionDigest;
     use starcoin_bridge_types::crypto::get_key_pair;
     use starcoin_bridge_types::gas_coin::GasCoin;
     use starcoin_bridge_types::TypeTag;
-    use starcoin_bridge_types::base_types::random_object_ref;
+    use std::collections::{BTreeMap, HashMap};
+    use std::str::FromStr;
 
     use crate::{
         crypto::{
@@ -1083,8 +1056,9 @@ mod tests {
         server::mock_handler::BridgeRequestMockHandler,
         starcoin_bridge_mock_client::StarcoinMockClient,
         test_utils::{
-            get_test_authorities_and_run_mock_bridge_server, get_test_eth_to_starcoin_bridge_action,
-            get_test_starcoin_bridge_to_eth_bridge_action, sign_action_with_key,
+            get_test_authorities_and_run_mock_bridge_server,
+            get_test_eth_to_starcoin_bridge_action, get_test_starcoin_bridge_to_eth_bridge_action,
+            sign_action_with_key,
         },
         types::{BridgeCommittee, BridgeCommitteeValiditySignInfo, CertifiedBridgeAction},
     };
@@ -1112,13 +1086,14 @@ mod tests {
             _starcoin_bridge_token_type_tags,
             _bridge_pause_tx,
         ) = setup().await;
-        
+
         /////////////////////////////////////////////////////////////////
         // Test 1: Transaction succeeds and action is approved on-chain
         /////////////////////////////////////////////////////////////////
+        // Single member committee - only use mock0 and secrets[0]
         let (action_certificate, _, _) = get_bridge_authority_approved_action_with_nonce(
-            vec![&mock0, &mock1, &mock2],
-            vec![&secrets[0], &secrets[1], &secrets[2]],
+            vec![&mock0],
+            vec![&secrets[0]],
             None,
             true,
             1, // nonce = 1
@@ -1133,7 +1108,8 @@ mod tests {
 
         // Set the on-chain status to Approved BEFORE submitting
         // This simulates the on-chain state after transaction confirmation
-        starcoin_bridge_client_mock.set_action_onchain_status(&action, BridgeActionStatus::Approved);
+        starcoin_bridge_client_mock
+            .set_action_onchain_status(&action, BridgeActionStatus::Approved);
 
         // Kick it
         submit_to_executor(&signing_tx, action.clone())
@@ -1143,16 +1119,17 @@ mod tests {
         // Wait for the executor to poll and detect Approved status
         // The polling happens every 1 second, so we wait a bit
         tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
-        
+
         // Action should be removed from WAL since it's Approved on-chain
         assert!(store.get_all_pending_actions().is_empty());
 
         /////////////////////////////////////////////////////////////////
         // Test 2: Transaction submission fails, then succeeds on retry
         /////////////////////////////////////////////////////////////////
+        // Single member committee - only use mock0 and secrets[0]
         let (action_certificate, _, _) = get_bridge_authority_approved_action_with_nonce(
-            vec![&mock0, &mock1, &mock2],
-            vec![&secrets[0], &secrets[1], &secrets[2]],
+            vec![&mock0],
+            vec![&secrets[0]],
             None,
             true,
             2, // nonce = 2 (different from first action)
@@ -1168,9 +1145,9 @@ mod tests {
 
         // Don't set Approved status - leave it as Pending (default)
         // Mock sign_and_submit to fail
-        starcoin_bridge_client_mock.set_wildcard_sign_and_submit_response(
-            Err(BridgeError::Generic("Transaction submission failed".to_string()))
-        );
+        starcoin_bridge_client_mock.set_wildcard_sign_and_submit_response(Err(
+            BridgeError::Generic("Transaction submission failed".to_string()),
+        ));
 
         // Kick it
         submit_to_executor(&signing_tx, action.clone())
@@ -1186,14 +1163,15 @@ mod tests {
             .contains_key(&action.digest()));
 
         // Now let it succeed by setting the on-chain status
-        starcoin_bridge_client_mock.set_wildcard_sign_and_submit_response(
-            Ok("0x0000000000000000000000000000000000000000000000000000000000000001".to_string())
-        );
-        starcoin_bridge_client_mock.set_action_onchain_status(&action, BridgeActionStatus::Approved);
+        starcoin_bridge_client_mock.set_wildcard_sign_and_submit_response(Ok(
+            "0x0000000000000000000000000000000000000000000000000000000000000001".to_string(),
+        ));
+        starcoin_bridge_client_mock
+            .set_action_onchain_status(&action, BridgeActionStatus::Approved);
 
         // Give it time to retry and succeed
         tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
-        
+
         // The action should now be removed from WAL
         assert!(!store
             .get_all_pending_actions()
@@ -1221,21 +1199,21 @@ mod tests {
             _starcoin_bridge_token_type_tags,
             _bridge_pause_tx,
         ) = setup().await;
-        
+
         // Create action with nonce=3 to avoid conflicts with other tests
         let (action_certificate, starcoin_bridge_tx_digest, starcoin_bridge_tx_event_index) =
             get_bridge_authority_approved_action_with_nonce(
-                vec![&mock0, &mock1, &mock2],
-                vec![&secrets[0], &secrets[1], &secrets[2]],
+                vec![&mock0],
+                vec![&secrets[0]],
                 None,
                 true,
                 3, // nonce = 3
             );
         let action = action_certificate.data().clone();
-        
+
         // Initially mock signing errors for authorities 0, 1, 2
         mock_bridge_authority_signing_errors(
-            vec![&mock0, &mock1, &mock2],
+            vec![&mock0],
             starcoin_bridge_tx_digest,
             starcoin_bridge_tx_event_index,
         );
@@ -1243,7 +1221,7 @@ mod tests {
         let _sigs = mock_bridge_authority_sigs(
             vec![&mock3],
             &action,
-            vec![&secrets[3]],
+            vec![&secrets[0]],
             starcoin_bridge_tx_digest,
             starcoin_bridge_tx_event_index,
         );
@@ -1261,14 +1239,16 @@ mod tests {
 
         // Wait until the transaction is retried at least once (instead of being dropped)
         loop {
-            let requested_times =
-                mock0.get_starcoin_bridge_token_events_requested(starcoin_bridge_tx_digest, starcoin_bridge_tx_event_index);
+            let requested_times = mock0.get_starcoin_bridge_token_events_requested(
+                starcoin_bridge_tx_digest,
+                starcoin_bridge_tx_event_index,
+            );
             if requested_times >= 2 {
                 break;
             }
             tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
         }
-        
+
         // Action should still be in WAL (not enough signatures yet)
         assert_eq!(
             store.get_all_pending_actions()[&action.digest()],
@@ -1279,23 +1259,27 @@ mod tests {
         let _sig_from_2 = mock_bridge_authority_sigs(
             vec![&mock2],
             &action,
-            vec![&secrets[2]],
+            vec![&secrets[0]],
             starcoin_bridge_tx_digest,
             starcoin_bridge_tx_event_index,
         );
 
         // Set on-chain status to Approved so the execution loop will complete
-        starcoin_bridge_client_mock.set_action_onchain_status(&action, BridgeActionStatus::Approved);
+        starcoin_bridge_client_mock
+            .set_action_onchain_status(&action, BridgeActionStatus::Approved);
 
         // Wait for the action to be processed and removed from WAL
         let now = std::time::Instant::now();
-        while store.get_all_pending_actions().contains_key(&action.digest()) {
+        while store
+            .get_all_pending_actions()
+            .contains_key(&action.digest())
+        {
             if now.elapsed().as_secs() > 10 {
                 panic!("Timeout waiting for action to be removed from WAL");
             }
             tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
         }
-        
+
         // The action should be removed from WAL now
         assert!(!store
             .get_all_pending_actions()
@@ -1337,7 +1321,7 @@ mod tests {
             None,
         );
         mock_bridge_authority_signing_errors(
-            vec![&mock0, &mock1, &mock2],
+            vec![&mock0],
             starcoin_bridge_tx_digest,
             starcoin_bridge_tx_event_index,
         );
@@ -1358,7 +1342,8 @@ mod tests {
         // And the action is still in WAL
         assert!(store.get_all_pending_actions().contains_key(&action_digest));
 
-        starcoin_bridge_client_mock.set_action_onchain_status(&action, BridgeActionStatus::Approved);
+        starcoin_bridge_client_mock
+            .set_action_onchain_status(&action, BridgeActionStatus::Approved);
 
         // The next retry will see the action is already processed on chain and remove it from WAL
         let now = std::time::Instant::now();
@@ -1391,11 +1376,11 @@ mod tests {
             _starcoin_bridge_token_type_tags,
             _bridge_pause_tx,
         ) = setup().await;
-        
+
         // Use nonce=5 to avoid conflicts
         let (action_certificate, _, _) = get_bridge_authority_approved_action_with_nonce(
-            vec![&mock0, &mock1, &mock2],
-            vec![&secrets[0], &secrets[1], &secrets[2]],
+            vec![&mock0],
+            vec![&secrets[0]],
             None,
             true,
             5, // nonce = 5
@@ -1404,9 +1389,9 @@ mod tests {
         let action = action_certificate.data().clone();
 
         // Mock sign_and_submit to fail initially
-        starcoin_bridge_client_mock.set_wildcard_sign_and_submit_response(
-            Err(BridgeError::Generic("some random error".to_string()))
-        );
+        starcoin_bridge_client_mock.set_wildcard_sign_and_submit_response(Err(
+            BridgeError::Generic("some random error".to_string()),
+        ));
 
         starcoin_bridge_client_mock.set_action_onchain_status(&action, BridgeActionStatus::Pending);
 
@@ -1426,7 +1411,8 @@ mod tests {
         tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
 
         // Set the action to be already approved on chain
-        starcoin_bridge_client_mock.set_action_onchain_status(&action, BridgeActionStatus::Approved);
+        starcoin_bridge_client_mock
+            .set_action_onchain_status(&action, BridgeActionStatus::Approved);
 
         // The next retry will see the action is already processed on chain and remove it from WAL
         let now = std::time::Instant::now();
@@ -1460,11 +1446,11 @@ mod tests {
             _starcoin_bridge_token_type_tags,
             bridge_pause_tx,
         ) = setup().await;
-        
+
         // Use nonce=6 to avoid conflicts
         let (action_certificate, _, _) = get_bridge_authority_approved_action_with_nonce(
-            vec![&mock0, &mock1, &mock2],
-            vec![&secrets[0], &secrets[1], &secrets[2]],
+            vec![&mock0],
+            vec![&secrets[0]],
             None,
             true,
             6, // nonce = 6
@@ -1505,7 +1491,7 @@ mod tests {
             .unwrap();
 
         tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
-        
+
         // Still in WAL because bridge is paused
         assert_eq!(
             store.get_all_pending_actions()[&action_digest],
@@ -1536,15 +1522,16 @@ mod tests {
             starcoin_bridge_token_type_tags,
             _bridge_pause_tx,
         ) = setup().await;
-        let mut id_token_map: HashMap<u8, TypeTag> = (*starcoin_bridge_token_type_tags.load().clone()).clone();
-        
+        let mut id_token_map: HashMap<u8, TypeTag> =
+            (*starcoin_bridge_token_type_tags.load().clone()).clone();
+
         // Use nonce=7 to avoid conflicts
         let (action_certificate, _, _) = get_bridge_authority_approved_action_with_nonce(
-            vec![&mock0, &mock1, &mock2],
-            vec![&secrets[0], &secrets[1], &secrets[2]],
+            vec![&mock0],
+            vec![&secrets[0]],
             Some(new_token_id),
             false, // we need an eth -> starcoin action that entails the new token type tag in transaction building
-            7, // nonce = 7
+            7,     // nonce = 7
         );
 
         let action = action_certificate.data().clone();
@@ -1568,7 +1555,8 @@ mod tests {
         starcoin_bridge_token_type_tags.store(Arc::new(id_token_map));
 
         // Set action to Approved so the execution loop can complete
-        starcoin_bridge_client_mock.set_action_onchain_status(&action, BridgeActionStatus::Approved);
+        starcoin_bridge_client_mock
+            .set_action_onchain_status(&action, BridgeActionStatus::Approved);
 
         // Kick it again
         execution_tx
@@ -1628,7 +1616,13 @@ mod tests {
         token_id: Option<u8>,
         starcoin_bridge_to_eth: bool,
     ) -> (VerifiedCertifiedBridgeAction, TransactionDigest, u16) {
-        get_bridge_authority_approved_action_with_nonce(mocks, secrets, token_id, starcoin_bridge_to_eth, 0)
+        get_bridge_authority_approved_action_with_nonce(
+            mocks,
+            secrets,
+            token_id,
+            starcoin_bridge_to_eth,
+            0,
+        )
     }
 
     // Create a BridgeAction with a specific nonce and mock authorities to return signatures
@@ -1655,8 +1649,13 @@ mod tests {
             get_test_eth_to_starcoin_bridge_action(Some(nonce), None, None, token_id)
         };
 
-        let sigs =
-            mock_bridge_authority_sigs(mocks, &action, secrets, starcoin_bridge_tx_digest, starcoin_bridge_tx_event_index);
+        let sigs = mock_bridge_authority_sigs(
+            mocks,
+            &action,
+            secrets,
+            starcoin_bridge_tx_digest,
+            starcoin_bridge_tx_event_index,
+        );
         let certified_action = CertifiedBridgeAction::new_from_data_and_sig(
             action,
             BridgeCommitteeValiditySignInfo { signatures: sigs },
@@ -1742,21 +1741,26 @@ mod tests {
         let store = BridgeOrchestratorTables::new(temp_dir.path());
         let starcoin_bridge_client_mock = StarcoinMockClient::default();
         let tx_subscription = starcoin_bridge_client_mock.subscribe_to_requested_transactions();
-        let starcoin_bridge_client = Arc::new(StarcoinClient::new_for_testing(starcoin_bridge_client_mock.clone()));
+        let starcoin_bridge_client = Arc::new(StarcoinClient::new_for_testing(
+            starcoin_bridge_client_mock.clone(),
+        ));
 
         // The dummy key is used to sign transaction so we can get TransactionDigest easily.
         // User signature is not part of the transaction so it does not matter which key it is.
         let (_, dummy_kp): (_, fastcrypto::secp256k1::Secp256k1KeyPair) = get_key_pair();
         let dummy_starcoin_bridge_key = StarcoinKeyPair::Secp256k1(dummy_kp);
 
+        // Starcoin bridge: single member committee with max voting power
         let mock0 = BridgeRequestMockHandler::new();
+        // Unused mocks kept for API compatibility
         let mock1 = BridgeRequestMockHandler::new();
         let mock2 = BridgeRequestMockHandler::new();
         let mock3 = BridgeRequestMockHandler::new();
 
+        // Single authority with max voting power (10000)
         let (mut handles, authorities, secrets) = get_test_authorities_and_run_mock_bridge_server(
-            vec![2500, 2500, 2500, 2500],
-            vec![mock0.clone(), mock1.clone(), mock2.clone(), mock3.clone()],
+            vec![starcoin_bridge_types::bridge::BRIDGE_COMMITTEE_MAXIMAL_VOTING_POWER],
+            vec![mock0.clone()],
         );
 
         let committee = BridgeCommittee::new(authorities).unwrap();
@@ -1765,8 +1769,10 @@ mod tests {
             BridgeAuthorityAggregator::new_for_testing(Arc::new(committee)),
         )));
         let metrics = Arc::new(BridgeMetrics::new(&registry));
-        let starcoin_bridge_token_type_tags = starcoin_bridge_client.get_token_id_map().await.unwrap();
-        let starcoin_bridge_token_type_tags = Arc::new(ArcSwap::new(Arc::new(starcoin_bridge_token_type_tags)));
+        let starcoin_bridge_token_type_tags =
+            starcoin_bridge_client.get_token_id_map().await.unwrap();
+        let starcoin_bridge_token_type_tags =
+            Arc::new(ArcSwap::new(Arc::new(starcoin_bridge_token_type_tags)));
         let (bridge_pause_tx, bridge_pause_rx) = tokio::sync::watch::channel(false);
         let executor = BridgeActionExecutor::new(
             starcoin_bridge_client.clone(),

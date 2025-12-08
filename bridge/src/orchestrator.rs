@@ -314,7 +314,10 @@ mod tests {
     use super::*;
     use crate::events::init_all_struct_tags;
     use crate::test_utils::get_test_starcoin_bridge_to_eth_bridge_action;
-    use crate::{events::tests::get_test_starcoin_bridge_event_and_action, starcoin_bridge_mock_client::StarcoinMockClient};
+    use crate::{
+        events::tests::get_test_starcoin_bridge_event_and_action,
+        starcoin_bridge_mock_client::StarcoinMockClient,
+    };
 
     #[tokio::test]
     #[serial_test::serial]
@@ -351,7 +354,8 @@ mod tests {
         .await;
 
         let identifier = Identifier::from_str("test_starcoin_bridge_watcher_task").unwrap();
-        let (starcoin_bridge_event, bridge_action) = get_test_starcoin_bridge_event_and_action(identifier.clone());
+        let (starcoin_bridge_event, bridge_action) =
+            get_test_starcoin_bridge_event_and_action(identifier.clone());
         starcoin_bridge_events_tx
             .send((identifier.clone(), vec![starcoin_bridge_event.clone()]))
             .await
@@ -378,7 +382,10 @@ mod tests {
             // Convert EventID struct to tuple (block_number, event_seq) for comparison
             let expected_cursor: (u64, u64) = starcoin_bridge_event.id.into();
             assert_eq!(
-                store.get_starcoin_bridge_event_cursors(&[identifier]).unwrap()[0].unwrap(),
+                store
+                    .get_starcoin_bridge_event_cursors(&[identifier])
+                    .unwrap()[0]
+                    .unwrap(),
                 expected_cursor,
             );
             break;
@@ -552,20 +559,22 @@ mod tests {
                 .with_label_values(&["unit_test_eth_events_queue"]),
         );
 
-        let (starcoin_bridge_events_tx, starcoin_bridge_events_rx) = starcoin_metrics::metered_channel::channel(
-            100,
-            &starcoin_metrics::get_metrics()
-                .unwrap()
-                .channel_inflight
-                .with_label_values(&["unit_test_starcoin_bridge_events_queue"]),
-        );
-        let (starcoin_bridge_monitor_tx, starcoin_bridge_monitor_rx) = starcoin_metrics::metered_channel::channel(
-            10000,
-            &starcoin_metrics::get_metrics()
-                .unwrap()
-                .channel_inflight
-                .with_label_values(&["starcoin_bridge_monitor_queue"]),
-        );
+        let (starcoin_bridge_events_tx, starcoin_bridge_events_rx) =
+            starcoin_metrics::metered_channel::channel(
+                100,
+                &starcoin_metrics::get_metrics()
+                    .unwrap()
+                    .channel_inflight
+                    .with_label_values(&["unit_test_starcoin_bridge_events_queue"]),
+            );
+        let (starcoin_bridge_monitor_tx, starcoin_bridge_monitor_rx) =
+            starcoin_metrics::metered_channel::channel(
+                10000,
+                &starcoin_metrics::get_metrics()
+                    .unwrap()
+                    .channel_inflight
+                    .with_label_values(&["starcoin_bridge_monitor_queue"]),
+            );
         let (eth_monitor_tx, eth_monitor_rx) = starcoin_metrics::metered_channel::channel(
             10000,
             &starcoin_metrics::get_metrics()

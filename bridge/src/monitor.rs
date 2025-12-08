@@ -174,11 +174,17 @@ where
             }
 
             StarcoinBridgeEvent::BlocklistValidatorEvent(event) => {
-                bump_starcoin_bridge_counter!(if event.blocklisted {
-                    "validator_blocklisted"
-                } else {
-                    "validator_unblocklisted"
-                });
+                // Starcoin bridge: single member committee cannot be blocklisted
+                // If this event is received, it's a critical error
+                if event.blocklisted {
+                    panic!(
+                        "CRITICAL: BlocklistValidatorEvent received for single-member committee. \
+                         The single committee member cannot be blocklisted. Event: {:?}",
+                        event
+                    );
+                }
+                bump_starcoin_bridge_counter!("validator_unblocklisted");
+                // For unblocklist events, we still update the committee
                 let new_committee = get_latest_bridge_committee_with_blocklist_event(
                     starcoin_bridge_client.clone(),
                     event,
@@ -191,7 +197,7 @@ where
                     bridge_metrics.clone(),
                     committee_names,
                 )));
-                info!("Committee updated with BlocklistValidatorEvent");
+                info!("Committee updated with BlocklistValidatorEvent (unblocklist)");
             }
 
             StarcoinBridgeEvent::TokenRegistrationEvent(_) => {
@@ -640,220 +646,9 @@ mod tests {
         assert!(elapsed < 1000);
     }
 
-    #[tokio::test]
-    async fn test_get_latest_bridge_committee_with_blocklist_event() {
-        telemetry_subscribers::init_for_testing();
-        let starcoin_bridge_client_mock = StarcoinMockClient::default();
-        let starcoin_bridge_client = Arc::new(StarcoinClient::new_for_testing(
-            starcoin_bridge_client_mock.clone(),
-        ));
-        let (_, kp): (_, fastcrypto::secp256k1::Secp256k1KeyPair) = get_key_pair();
-        let pk = kp.public().clone();
-        let pk_as_bytes = BridgeAuthorityPublicKeyBytes::from(&pk);
-        let pk_bytes = pk_as_bytes.as_bytes().to_vec();
-
-        // Test the case where the onchain status is the same as the event (blocklisted)
-        let event = BlocklistValidatorEvent {
-            blocklisted: true,
-            public_keys: vec![pk.clone()],
-        };
-        let summary = BridgeCommitteeSummary {
-            members: vec![(
-                pk_bytes.clone(),
-                MoveTypeCommitteeMember {
-                    starcoin_bridge_address: StarcoinAddress::random_for_testing_only(),
-                    bridge_pubkey_bytes: pk_bytes.clone(),
-                    voting_power: 10000,
-                    http_rest_url: "http://new.url".to_string().as_bytes().to_vec(),
-                    blocklisted: true,
-                },
-            )],
-            member_registration: vec![],
-            last_committee_update_epoch: 0,
-        };
-        starcoin_bridge_client_mock.set_bridge_committee(summary.clone());
-        let timer = std::time::Instant::now();
-        let committee = get_latest_bridge_committee_with_blocklist_event(
-            starcoin_bridge_client.clone(),
-            event.clone(),
-            Duration::from_secs(2),
-        )
-        .await;
-        assert!(committee.member(&pk_as_bytes).unwrap().is_blocklisted);
-        assert!(timer.elapsed().as_millis() < 500);
-
-        // Test the case where the onchain status is the same as the event (unblocklisted)
-        let event = BlocklistValidatorEvent {
-            blocklisted: false,
-            public_keys: vec![pk.clone()],
-        };
-        let summary = BridgeCommitteeSummary {
-            members: vec![(
-                pk_bytes.clone(),
-                MoveTypeCommitteeMember {
-                    starcoin_bridge_address: StarcoinAddress::random_for_testing_only(),
-                    bridge_pubkey_bytes: pk_bytes.clone(),
-                    voting_power: 10000,
-                    http_rest_url: "http://new.url".to_string().as_bytes().to_vec(),
-                    blocklisted: false,
-                },
-            )],
-            member_registration: vec![],
-            last_committee_update_epoch: 0,
-        };
-        starcoin_bridge_client_mock.set_bridge_committee(summary.clone());
-        let timer = std::time::Instant::now();
-        let committee = get_latest_bridge_committee_with_blocklist_event(
-            starcoin_bridge_client.clone(),
-            event.clone(),
-            Duration::from_secs(2),
-        )
-        .await;
-        assert!(!committee.member(&pk_as_bytes).unwrap().is_blocklisted);
-        assert!(timer.elapsed().as_millis() < 500);
-
-        // Test the case where the onchain status is older. Then update onchain status in 1 second.
-        // Since the retry interval is 2 seconds, it should return the next retry.
-        let old_summary = BridgeCommitteeSummary {
-            members: vec![(
-                pk_bytes.clone(),
-                MoveTypeCommitteeMember {
-                    starcoin_bridge_address: StarcoinAddress::random_for_testing_only(),
-                    bridge_pubkey_bytes: pk_bytes.clone(),
-                    voting_power: 10000,
-                    http_rest_url: "http://new.url".to_string().as_bytes().to_vec(),
-                    blocklisted: true,
-                },
-            )],
-            member_registration: vec![],
-            last_committee_update_epoch: 0,
-        };
-        starcoin_bridge_client_mock.set_bridge_committee(old_summary.clone());
-        let timer = std::time::Instant::now();
-        // update unblocklisted in 1 second
-        let starcoin_bridge_client_mock_clone = starcoin_bridge_client_mock.clone();
-        tokio::spawn(async move {
-            tokio::time::sleep(Duration::from_secs(1)).await;
-            starcoin_bridge_client_mock_clone.set_bridge_committee(summary.clone());
-        });
-        let committee = get_latest_bridge_committee_with_blocklist_event(
-            starcoin_bridge_client.clone(),
-            event.clone(),
-            Duration::from_secs(2),
-        )
-        .await;
-        assert!(!committee.member(&pk_as_bytes).unwrap().is_blocklisted);
-        let elapsed = timer.elapsed().as_millis();
-        assert!(elapsed > 1000 && elapsed < 3000);
-
-        // Test the case where the onchain url is newer. It should retry up to
-        // REFRESH_BRIDGE_RETRY_TIMES time then return the onchain record.
-        let newer_summary = BridgeCommitteeSummary {
-            members: vec![(
-                pk_bytes.clone(),
-                MoveTypeCommitteeMember {
-                    starcoin_bridge_address: StarcoinAddress::random_for_testing_only(),
-                    bridge_pubkey_bytes: pk_bytes.clone(),
-                    voting_power: 10000,
-                    http_rest_url: "http://new.url".to_string().as_bytes().to_vec(),
-                    blocklisted: true,
-                },
-            )],
-            member_registration: vec![],
-            last_committee_update_epoch: 0,
-        };
-        starcoin_bridge_client_mock.set_bridge_committee(newer_summary.clone());
-        let timer = std::time::Instant::now();
-        let committee = get_latest_bridge_committee_with_blocklist_event(
-            starcoin_bridge_client.clone(),
-            event.clone(),
-            Duration::from_millis(500),
-        )
-        .await;
-        assert!(committee.member(&pk_as_bytes).unwrap().is_blocklisted);
-        let elapsed = timer.elapsed().as_millis();
-        assert!(elapsed > 500 * REFRESH_BRIDGE_RETRY_TIMES as u128);
-
-        // Test the case where the member onchain url is not found in the committee
-        // It should return the onchain record after retrying a few times.
-        let (_, kp2): (_, fastcrypto::secp256k1::Secp256k1KeyPair) = get_key_pair();
-        let pk2 = kp2.public().clone();
-        let pk_as_bytes2 = BridgeAuthorityPublicKeyBytes::from(&pk2);
-        let pk_bytes2 = pk_as_bytes2.as_bytes().to_vec();
-        let summary = BridgeCommitteeSummary {
-            members: vec![(
-                pk_bytes2.clone(),
-                MoveTypeCommitteeMember {
-                    starcoin_bridge_address: StarcoinAddress::random_for_testing_only(),
-                    bridge_pubkey_bytes: pk_bytes2.clone(),
-                    voting_power: 10000,
-                    http_rest_url: "http://newer.url".to_string().as_bytes().to_vec(),
-                    blocklisted: false,
-                },
-            )],
-            member_registration: vec![],
-            last_committee_update_epoch: 0,
-        };
-        starcoin_bridge_client_mock.set_bridge_committee(summary.clone());
-        let timer = std::time::Instant::now();
-        let committee = get_latest_bridge_committee_with_blocklist_event(
-            starcoin_bridge_client.clone(),
-            event.clone(),
-            Duration::from_secs(1),
-        )
-        .await;
-        assert_eq!(
-            committee.member(&pk_as_bytes2).unwrap().base_url,
-            "http://newer.url"
-        );
-        assert!(committee.member(&pk_as_bytes).is_none());
-        let elapsed = timer.elapsed().as_millis();
-        assert!(elapsed > 500 * REFRESH_BRIDGE_RETRY_TIMES as u128);
-
-        // Test any mismtach in the blocklist status should retry a few times
-        let event = BlocklistValidatorEvent {
-            blocklisted: true,
-            public_keys: vec![pk, pk2],
-        };
-        let summary = BridgeCommitteeSummary {
-            members: vec![
-                (
-                    pk_bytes.clone(),
-                    MoveTypeCommitteeMember {
-                        starcoin_bridge_address: StarcoinAddress::random_for_testing_only(),
-                        bridge_pubkey_bytes: pk_bytes.clone(),
-                        voting_power: 5000,
-                        http_rest_url: "http://pk.url".to_string().as_bytes().to_vec(),
-                        blocklisted: true,
-                    },
-                ),
-                (
-                    pk_bytes2.clone(),
-                    MoveTypeCommitteeMember {
-                        starcoin_bridge_address: StarcoinAddress::random_for_testing_only(),
-                        bridge_pubkey_bytes: pk_bytes2.clone(),
-                        voting_power: 5000,
-                        http_rest_url: "http://pk2.url".to_string().as_bytes().to_vec(),
-                        blocklisted: false,
-                    },
-                ),
-            ],
-            member_registration: vec![],
-            last_committee_update_epoch: 0,
-        };
-        starcoin_bridge_client_mock.set_bridge_committee(summary.clone());
-        let timer = std::time::Instant::now();
-        let committee = get_latest_bridge_committee_with_blocklist_event(
-            starcoin_bridge_client.clone(),
-            event.clone(),
-            Duration::from_millis(500),
-        )
-        .await;
-        assert!(committee.member(&pk_as_bytes).unwrap().is_blocklisted);
-        assert!(!committee.member(&pk_as_bytes2).unwrap().is_blocklisted);
-        let elapsed = timer.elapsed().as_millis();
-        assert!(elapsed > 500 * REFRESH_BRIDGE_RETRY_TIMES as u128);
-    }
+    // NOTE: test_get_latest_bridge_committee_with_blocklist_event removed
+    // Starcoin bridge uses single-member committee, blocklist operations are not supported.
+    // If the single member is blocklisted, the bridge becomes inoperable.
 
     #[tokio::test]
     async fn test_get_bridge_pause_status_with_emergency_event() {
@@ -986,62 +781,8 @@ mod tests {
         );
     }
 
-    #[tokio::test]
-    async fn test_update_bridge_authority_aggregation_with_blocklist_event() {
-        let (
-            starcoin_bridge_monitor_tx,
-            starcoin_bridge_monitor_rx,
-            _eth_monitor_tx,
-            eth_monitor_rx,
-            starcoin_bridge_client_mock,
-            starcoin_bridge_client,
-            bridge_pause_tx,
-            _bridge_pause_rx,
-            mut authorities,
-            bridge_metrics,
-        ) = setup();
-        let old_committee = BridgeCommittee::new(authorities.clone()).unwrap();
-        let agg = Arc::new(ArcSwap::new(Arc::new(
-            BridgeAuthorityAggregator::new_for_testing(Arc::new(old_committee)),
-        )));
-        let starcoin_bridge_token_type_tags = Arc::new(ArcSwap::from(Arc::new(HashMap::new())));
-        let _handle = tokio::task::spawn(
-            BridgeMonitor::new(
-                starcoin_bridge_client.clone(),
-                starcoin_bridge_monitor_rx,
-                eth_monitor_rx,
-                agg.clone(),
-                bridge_pause_tx,
-                starcoin_bridge_token_type_tags,
-                bridge_metrics,
-            )
-            .run(),
-        );
-        authorities[0].is_blocklisted = true;
-        let to_blocklist = &authorities[0];
-        let new_committee = BridgeCommittee::new(authorities.clone()).unwrap();
-        let new_committee_summary =
-            bridge_committee_to_bridge_committee_summary(new_committee.clone());
-        starcoin_bridge_client_mock.set_bridge_committee(new_committee_summary.clone());
-        starcoin_bridge_monitor_tx
-            .send(StarcoinBridgeEvent::BlocklistValidatorEvent(
-                BlocklistValidatorEvent {
-                    public_keys: vec![to_blocklist.pubkey.clone()],
-                    blocklisted: true,
-                },
-            ))
-            .await
-            .unwrap();
-        // Wait for the monitor to process the event
-        tokio::time::sleep(Duration::from_secs(1)).await;
-        assert!(
-            agg.load()
-                .committee
-                .member(&BridgeAuthorityPublicKeyBytes::from(&to_blocklist.pubkey))
-                .unwrap()
-                .is_blocklisted,
-        );
-    }
+    // NOTE: test_update_bridge_authority_aggregation_with_blocklist_event removed
+    // Starcoin bridge uses single-member committee, blocklist operations are not supported.
 
     #[tokio::test]
     async fn test_update_bridge_pause_status_with_emergency_event() {
@@ -1183,11 +924,13 @@ mod tests {
         );
 
         let (bridge_pause_tx, bridge_pause_rx) = tokio::sync::watch::channel(false);
+        // Starcoin bridge: single member with max voting power
         let authorities = vec![
-            get_test_authority_and_key(2500, 0 /* port, dummy value */).0,
-            get_test_authority_and_key(2500, 0 /* port, dummy value */).0,
-            get_test_authority_and_key(2500, 0 /* port, dummy value */).0,
-            get_test_authority_and_key(2500, 0 /* port, dummy value */).0,
+            get_test_authority_and_key(
+                starcoin_bridge_types::bridge::BRIDGE_COMMITTEE_MAXIMAL_VOTING_POWER,
+                0, /* port, dummy value */
+            )
+            .0,
         ];
         (
             starcoin_bridge_monitor_tx,

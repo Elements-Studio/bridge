@@ -215,6 +215,7 @@ mod tests {
     use std::sync::Arc;
 
     use super::*;
+    use starcoin_bridge_types::bridge::BRIDGE_COMMITTEE_MAXIMAL_VOTING_POWER;
 
     #[test]
     fn test_sign_and_verify_bridge_event_basic() -> anyhow::Result<()> {
@@ -222,13 +223,12 @@ mod tests {
         let registry = Registry::new();
         starcoin_metrics::init_metrics(&registry);
 
-        let (mut authority1, pubkey, secret) = get_test_authority_and_key(5000, 9999);
+        // Single member committee for Starcoin bridge
+        let (authority, pubkey, secret) =
+            get_test_authority_and_key(BRIDGE_COMMITTEE_MAXIMAL_VOTING_POWER, 9999);
         let pubkey_bytes = BridgeAuthorityPublicKeyBytes::from(&pubkey);
 
-        let (authority2, pubkey2, _secret) = get_test_authority_and_key(5000, 9999);
-        let pubkey_bytes2 = BridgeAuthorityPublicKeyBytes::from(&pubkey2);
-
-        let committee = BridgeCommittee::new(vec![authority1.clone(), authority2.clone()]).unwrap();
+        let committee = BridgeCommittee::new(vec![authority.clone()]).unwrap();
 
         let action: BridgeAction = get_test_starcoin_bridge_to_eth_bridge_action(
             None,
@@ -249,7 +249,11 @@ mod tests {
             verify_signed_bridge_action(&action, signed_action.clone(), &pubkey_bytes, &committee)
                 .unwrap();
 
-        // Verification should fail - mismatched signer
+        // Create a different keypair for testing mismatched signer
+        let (_, kp2): (_, fastcrypto::secp256k1::Secp256k1KeyPair) = get_key_pair();
+        let pubkey_bytes2 = BridgeAuthorityPublicKeyBytes::from(kp2.public());
+
+        // Verification should fail - mismatched signer (not the committee member)
         assert!(matches!(
             verify_signed_bridge_action(&action, signed_action.clone(), &pubkey_bytes2, &committee)
                 .unwrap_err(),
@@ -294,20 +298,13 @@ mod tests {
             .unwrap_err();
 
         // Signer is not in committee, verification should fail
-        let (_, kp2): (_, fastcrypto::secp256k1::Secp256k1KeyPair) = get_key_pair();
-        let pubkey_bytes_2 = BridgeAuthorityPublicKeyBytes::from(kp2.public());
         let secret2 = Arc::pin(kp2);
         let sig2 = BridgeAuthoritySignInfo::new(&action, &secret2);
         let signed_action2 = SignedBridgeAction::new_from_data_and_sig(action.clone(), sig2);
-        let _ = verify_signed_bridge_action(&action, signed_action2, &pubkey_bytes_2, &committee)
+        let _ = verify_signed_bridge_action(&action, signed_action2, &pubkey_bytes2, &committee)
             .unwrap_err();
 
-        // Authority is blocklisted, verification should fail
-        authority1.is_blocklisted = true;
-        let committee = BridgeCommittee::new(vec![authority1, authority2]).unwrap();
-        let signed_action = SignedBridgeAction::new_from_data_and_sig(action.clone(), sig);
-        let _ = verify_signed_bridge_action(&action, signed_action, &pubkey_bytes, &committee)
-            .unwrap_err();
+        // NOTE: blocklist test removed - single member cannot be blocklisted in Starcoin bridge
 
         Ok(())
     }
@@ -318,42 +315,22 @@ mod tests {
         let registry = Registry::new();
         starcoin_metrics::init_metrics(&registry);
 
-        // Use the same keys from encoding tests for consistency
-        let keypairs = vec![
-            BridgeAuthorityKeyPair::from_bytes(
-                &Hex::decode("e42c82337ce12d4a7ad6cd65876d91b2ab6594fd50cdab1737c91773ba7451db")
-                    .unwrap(),
-            )
-            .unwrap(),
-            BridgeAuthorityKeyPair::from_bytes(
-                &Hex::decode("1aacd610da3d0cc691a04b83b01c34c6c65cda0fe8d502df25ff4b3185c85687")
-                    .unwrap(),
-            )
-            .unwrap(),
-            BridgeAuthorityKeyPair::from_bytes(
-                &Hex::decode("53e7baf8378fbc62692e3056c2e10c6666ef8b5b3a53914830f47636d1678140")
-                    .unwrap(),
-            )
-            .unwrap(),
-            BridgeAuthorityKeyPair::from_bytes(
-                &Hex::decode("08b5350a091faabd5f25b6e290bfc3f505d43208775b9110dfed5ee6c7a653f0")
-                    .unwrap(),
-            )
-            .unwrap(),
-        ];
+        // Use a single key for single-member committee
+        let keypair = BridgeAuthorityKeyPair::from_bytes(
+            &Hex::decode("e42c82337ce12d4a7ad6cd65876d91b2ab6594fd50cdab1737c91773ba7451db")
+                .unwrap(),
+        )
+        .unwrap();
 
-        let authorities: Vec<BridgeAuthority> = keypairs
-            .iter()
-            .map(|kp| BridgeAuthority {
-                starcoin_bridge_address: StarcoinAddress::random_for_testing_only(),
-                pubkey: kp.public().clone(),
-                voting_power: 2500,
-                is_blocklisted: false,
-                base_url: "".into(),
-            })
-            .collect();
+        let authority = BridgeAuthority {
+            starcoin_bridge_address: StarcoinAddress::random_for_testing_only(),
+            pubkey: keypair.public().clone(),
+            voting_power: BRIDGE_COMMITTEE_MAXIMAL_VOTING_POWER,
+            is_blocklisted: false,
+            base_url: "".into(),
+        };
 
-        let committee = BridgeCommittee::new(authorities.clone()).unwrap();
+        let committee = BridgeCommittee::new(vec![authority.clone()]).unwrap();
 
         let action = BridgeAction::StarcoinToEthBridgeAction(StarcoinToEthBridgeAction {
             starcoin_bridge_tx_digest: TransactionDigest::random(),
@@ -373,19 +350,17 @@ mod tests {
             },
         });
 
-        // Test valid signatures from each authority
-        for keypair in &keypairs {
-            let sig = BridgeAuthoritySignInfo::new(&action, keypair);
-            sig.verify(&action, &committee).unwrap();
-        }
+        // Test valid signature from the single authority
+        let sig = BridgeAuthoritySignInfo::new(&action, &keypair);
+        sig.verify(&action, &committee).unwrap();
 
         // Test invalid signature (modified signature byte)
-        let valid_sig = BridgeAuthoritySignInfo::new(&action, &keypairs[0]);
+        let valid_sig = BridgeAuthoritySignInfo::new(&action, &keypair);
         let mut invalid_sig_bytes = valid_sig.signature.as_bytes().to_vec();
         // Flip a bit in the signature to make it invalid
         invalid_sig_bytes[0] ^= 0x01;
         let invalid_sig = BridgeAuthoritySignInfo {
-            authority_pub_key: keypairs[0].public().clone(),
+            authority_pub_key: keypair.public().clone(),
             signature: BridgeAuthorityRecoverableSignature::from_bytes(&invalid_sig_bytes).unwrap(),
         };
         invalid_sig.verify(&action, &committee).unwrap_err();
