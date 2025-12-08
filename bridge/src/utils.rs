@@ -211,7 +211,6 @@ pub fn generate_bridge_node_config_and_write_to_file(
             starcoin_bridge_proxy_address: "0x0000000000000000000000000000000000000000".to_string(),
             starcoin_bridge_chain_id: BridgeChainId::StarcoinTestnet as u8,
             bridge_client_key_path: None,
-            bridge_client_gas_object: None,
             starcoin_bridge_module_last_processed_event_id_override: None,
         },
         eth: EthConfig {

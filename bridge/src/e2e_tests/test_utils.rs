@@ -799,7 +799,6 @@ pub(crate) async fn start_bridge_cluster(
                 starcoin_bridge_rpc_url: test_cluster.inner.fullnode_handle.rpc_url.clone(),
                 starcoin_bridge_chain_id: BridgeChainId::StarcoinCustom as u8,
                 bridge_client_key_path: None,
-                bridge_client_gas_object: None,
                 starcoin_bridge_module_last_processed_event_id_override: None,
             },
             metrics_key_pair: default_ed25519_key_pair(),
