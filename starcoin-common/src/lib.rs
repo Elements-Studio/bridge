@@ -29,5 +29,5 @@ pub fn in_antithesis() -> bool {
 
 #[inline(always)]
 pub fn in_test_configuration() -> bool {
-    in_antithesis() || cfg!(msim) || cfg!(debug_assertions)
+    in_antithesis() || cfg!(debug_assertions)
 }

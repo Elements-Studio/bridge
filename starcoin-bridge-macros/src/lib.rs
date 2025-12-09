@@ -9,18 +9,7 @@ use std::collections::HashMap;
 use std::future::Future;
 use std::sync::Arc;
 
-/// Evaluates an expression in a new thread which will not be subject to interception of
-/// getrandom(), clock_gettime(), etc.
-#[cfg(msim)]
-#[macro_export]
-macro_rules! nondeterministic {
-    ($expr: expr) => {
-        std::thread::scope(move |s| s.spawn(move || $expr).join().unwrap())
-    };
-}
-
 /// Simply evaluates expr.
-#[cfg(not(msim))]
 #[macro_export]
 macro_rules! nondeterministic {
     ($expr: expr) => {
@@ -31,16 +20,6 @@ macro_rules! nondeterministic {
 type FpCallback = dyn Fn() -> Box<dyn std::any::Any + Send + 'static> + Send + Sync;
 type FpMap = HashMap<&'static str, Arc<FpCallback>>;
 
-#[cfg(msim)]
-fn with_fp_map<T>(func: impl FnOnce(&mut FpMap) -> T) -> T {
-    thread_local! {
-        static MAP: std::cell::RefCell<FpMap> = Default::default();
-    }
-
-    MAP.with(|val| func(&mut val.borrow_mut()))
-}
-
-#[cfg(not(msim))]
 fn with_fp_map<T>(func: impl FnOnce(&mut FpMap) -> T) -> T {
     use once_cell::sync::Lazy;
     use std::sync::Mutex;
@@ -196,7 +175,7 @@ pub fn clear_fail_point(identifier: &'static str) {
 }
 
 /// Trigger a fail point.
-#[cfg(any(msim, fail_points))]
+#[cfg(fail_points)]
 #[macro_export]
 macro_rules! fail_point {
     ($tag: expr) => {
@@ -205,7 +184,7 @@ macro_rules! fail_point {
 }
 
 /// Trigger an async fail point.
-#[cfg(any(msim, fail_points))]
+#[cfg(fail_points)]
 #[macro_export]
 macro_rules! fail_point_async {
     ($tag: expr) => {
@@ -213,7 +192,7 @@ macro_rules! fail_point_async {
     };
 }
 
-#[cfg(any(msim, fail_points))]
+#[cfg(fail_points)]
 #[macro_export]
 macro_rules! fail_point_if {
     ($tag: expr, $callback: expr) => {
@@ -223,7 +202,7 @@ macro_rules! fail_point_if {
     };
 }
 
-#[cfg(any(msim, fail_points))]
+#[cfg(fail_points)]
 #[macro_export]
 macro_rules! fail_point_arg {
     ($tag: expr, $callback: expr) => {
@@ -233,25 +212,25 @@ macro_rules! fail_point_arg {
     };
 }
 
-#[cfg(not(any(msim, fail_points)))]
+#[cfg(not(fail_points))]
 #[macro_export]
 macro_rules! fail_point {
     ($tag: expr) => {};
 }
 
-#[cfg(not(any(msim, fail_points)))]
+#[cfg(not(fail_points))]
 #[macro_export]
 macro_rules! fail_point_async {
     ($tag: expr) => {};
 }
 
-#[cfg(not(any(msim, fail_points)))]
+#[cfg(not(fail_points))]
 #[macro_export]
 macro_rules! fail_point_if {
     ($tag: expr, $callback: expr) => {};
 }
 
-#[cfg(not(any(msim, fail_points)))]
+#[cfg(not(fail_points))]
 #[macro_export]
 macro_rules! fail_point_arg {
     ($tag: expr, $callback: expr) => {};

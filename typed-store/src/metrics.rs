@@ -1009,8 +1009,10 @@ impl DBMetrics {
             .dec();
     }
     pub fn get() -> &'static Arc<DBMetrics> {
-        ONCE.get().unwrap_or_else(|| {
-            DBMetrics::init(RegistryService::new(prometheus::default_registry().clone()))
+        ONCE.get_or_init(|| {
+            Arc::new(DBMetrics::new(RegistryService::new(
+                prometheus::default_registry().clone(),
+            )))
         })
     }
 }
