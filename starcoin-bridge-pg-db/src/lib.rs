@@ -167,8 +167,7 @@ impl Db {
 
         info!("Running migrations ...");
         let conn = self.0.dedicated_connection().await?;
-        let mut wrapper: AsyncConnectionWrapper<AsyncPgConnection> =
-            diesel_async::async_connection_wrapper::AsyncConnectionWrapper::from(conn);
+        let mut wrapper: AsyncConnectionWrapper<AsyncPgConnection> = conn.into();
 
         let finished_migrations = tokio::task::spawn_blocking(move || {
             wrapper

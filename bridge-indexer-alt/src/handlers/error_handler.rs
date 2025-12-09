@@ -11,7 +11,6 @@ use starcoin_bridge_indexer_alt_framework::pipeline::concurrent::Handler;
 use starcoin_bridge_indexer_alt_framework::pipeline::Processor;
 use starcoin_bridge_indexer_alt_framework::postgres::Db;
 use starcoin_bridge_indexer_alt_framework::store::Store;
-use starcoin_bridge_indexer_alt_framework::types::effects::TransactionEffectsAPI;
 use starcoin_bridge_indexer_alt_framework::types::execution_status::ExecutionStatus;
 use starcoin_bridge_indexer_alt_framework::types::full_checkpoint_content::CheckpointData;
 

@@ -80,7 +80,7 @@ impl Processor for GovernanceActionHandler {
             if !is_bridge_txn(tx) {
                 continue;
             }
-            let txn_digest = tx.transaction.digest().inner();
+            let txn_digest = tx.transaction.digest_bytes();
             let sender_address = tx.transaction.sender_address();
 
             for ev in tx.events.iter().flat_map(|e| &e.data) {

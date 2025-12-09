@@ -35,7 +35,7 @@ url.workspace = true
 starcoin-bridge-field-count.workspace = true
 starcoin-bridge-indexer-alt-framework-store-traits.workspace = true
 starcoin-bridge-indexer-alt-metrics.workspace = true
-starcoin-bridge-rpc-api.workspace = true
+# starcoin-bridge-rpc-api.workspace = true  # RPC client is commented out in code
 starcoin-bridge-storage.workspace = true
 starcoin-bridge-types.workspace = true
 

@@ -670,9 +670,48 @@ pub mod transaction {
         }
     }
 
+    /// Transaction metadata and digest wrapper
+    #[derive(Clone, Debug, Serialize, Deserialize)]
+    pub struct TransactionDigestWrapper(pub [u8; 32]);
+
+    impl TransactionDigestWrapper {
+        /// Get reference to inner bytes
+        pub fn inner(&self) -> &[u8; 32] {
+            &self.0
+        }
+
+        /// Convert to Vec<u8> for storage
+        pub fn to_vec(&self) -> Vec<u8> {
+            self.0.to_vec()
+        }
+    }
+
     #[derive(Clone, Debug, Serialize, Deserialize)]
     pub struct TransactionDataAPI {
         pub transaction: StarcoinTransaction,
+        /// Transaction hash/digest
+        #[serde(default)]
+        pub digest: [u8; 32],
+        /// Sender address (16 bytes for Starcoin, padded to 32)
+        #[serde(default)]
+        pub sender: [u8; 32],
+    }
+
+    impl TransactionDataAPI {
+        /// Get the transaction digest wrapper (owned copy)
+        pub fn digest(&self) -> TransactionDigestWrapper {
+            TransactionDigestWrapper(self.digest)
+        }
+
+        /// Get the transaction digest as bytes directly (for cases needing longer lifetime)
+        pub fn digest_bytes(&self) -> &[u8; 32] {
+            &self.digest
+        }
+
+        /// Get the sender address as bytes
+        pub fn sender_address(&self) -> [u8; 32] {
+            self.sender
+        }
     }
 
     #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -768,11 +807,116 @@ pub mod transaction {
 }
 
 pub mod event {
+    use move_core_types::language_storage::StructTag;
+    use serde::{Deserialize, Serialize};
+
     // Use a simple tuple for EventID (checkpoint_sequence, event_index)
     pub type EventID = (u64, u64);
 
-    // Placeholder for contract event
-    pub type Event = Vec<u8>;
+    /// Contract event with type tag and BCS-encoded contents
+    #[derive(Clone, Debug, Serialize, Deserialize)]
+    pub struct Event {
+        /// The type of the event (Move struct tag)
+        pub type_: StructTag,
+        /// BCS-encoded event contents
+        pub contents: Vec<u8>,
+    }
+}
+
+/// Transaction effects containing gas usage and execution results
+pub mod effects {
+    use serde::{Deserialize, Serialize};
+
+    /// Gas cost summary for a transaction
+    #[derive(Clone, Debug, Default, Serialize, Deserialize)]
+    pub struct GasCostSummary {
+        /// Gas used for computation
+        pub computation_cost: u64,
+        /// Gas used for storage
+        pub storage_cost: u64,
+        /// Storage rebate (refund)
+        pub storage_rebate: u64,
+        /// Non-refundable storage fee
+        pub non_refundable_storage_fee: u64,
+    }
+
+    impl GasCostSummary {
+        /// Net gas usage (total cost minus rebate)
+        pub fn net_gas_usage(&self) -> i64 {
+            let total = self.computation_cost + self.storage_cost;
+            total as i64 - self.storage_rebate as i64
+        }
+
+        /// Total gas cost (computation + storage)
+        pub fn total_gas_cost(&self) -> u64 {
+            self.computation_cost + self.storage_cost
+        }
+    }
+
+    /// Transaction effects
+    #[derive(Clone, Debug, Default, Serialize, Deserialize)]
+    pub struct TransactionEffects {
+        /// Gas usage summary
+        pub gas_used: GasCostSummary,
+        /// Execution status
+        #[serde(default)]
+        pub execution_status: super::execution_status::ExecutionStatus,
+    }
+
+    impl TransactionEffects {
+        /// Get the gas cost summary
+        pub fn gas_cost_summary(&self) -> &GasCostSummary {
+            &self.gas_used
+        }
+
+        /// Get the execution status
+        pub fn status(&self) -> &super::execution_status::ExecutionStatus {
+            &self.execution_status
+        }
+    }
+
+    /// Trait for types that provide transaction effects info
+    pub trait TransactionEffectsAPI {
+        fn gas_cost_summary(&self) -> &GasCostSummary;
+    }
+
+    impl TransactionEffectsAPI for TransactionEffects {
+        fn gas_cost_summary(&self) -> &GasCostSummary {
+            &self.gas_used
+        }
+    }
+}
+
+/// Execution status of a transaction
+pub mod execution_status {
+    use serde::{Deserialize, Serialize};
+
+    /// Execution status enum
+    #[derive(Clone, Debug, Default, Serialize, Deserialize)]
+    pub enum ExecutionStatus {
+        /// Transaction executed successfully
+        #[default]
+        Success,
+        /// Transaction failed with error
+        Failure {
+            /// Error message or code
+            error: String,
+            /// Command index that failed (if applicable)
+            command: Option<u64>,
+        },
+    }
+
+    impl ExecutionStatus {
+        /// Check if the execution was successful
+        pub fn is_success(&self) -> bool {
+            matches!(self, ExecutionStatus::Success)
+        }
+
+        /// Check if the execution failed
+        pub fn is_failure(&self) -> bool {
+            matches!(self, ExecutionStatus::Failure { .. })
+        }
+    }
 }
 
 pub mod programmable_transaction_builder {
@@ -882,6 +1026,9 @@ pub mod full_checkpoint_content {
         pub input_objects: Vec<object::Object>,
         pub output_objects: Vec<object::Object>,
         pub events: Option<TransactionEvents>,
+        /// Transaction effects containing gas usage info
+        #[serde(default)]
+        pub effects: effects::TransactionEffects,
     }
 
     #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -935,11 +1082,24 @@ pub const BRIDGE_PACKAGE_ID: [u8; 32] = [
 // Note: Starcoin doesn't have a separate bridge object like Starcoin
 pub const STARCOIN_BRIDGE_OBJECT_ID: [u8; 32] = [0; 32];
 
+/// Bridge address constant as [u8; 32] (for backward compatibility)
+pub const BRIDGE_ADDRESS_BYTES: [u8; 32] = BRIDGE_PACKAGE_ID;
+
+/// Starcoin bridge contract address (16 bytes)
+/// 0x0b8e0206e990e41e913a7f03d1c60675
+pub const BRIDGE_ADDRESS_16: [u8; 16] = [
+    0x0b, 0x8e, 0x02, 0x06, 0xe9, 0x90, 0xe4, 0x1e,
+    0x91, 0x3a, 0x7f, 0x03, 0xd1, 0xc6, 0x06, 0x75,
+];
+
 // Use Starcoin/Move types instead of stubs
 use move_core_types::account_address::AccountAddress;
 pub use move_core_types::identifier::Identifier;
 use move_core_types::language_storage::StructTag;
 pub use move_core_types::language_storage::TypeTag;
+
+/// Bridge address as Move AccountAddress (for StructTag usage)
+pub const BRIDGE_ADDRESS: AccountAddress = AccountAddress::new(BRIDGE_ADDRESS_16);
 
 /// Parse a Starcoin type tag from hex-encoded BCS bytes
 /// Format: 0x<address><module_name_len><module_name><struct_name_len><struct_name>

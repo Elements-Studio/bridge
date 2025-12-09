@@ -137,6 +137,9 @@ impl Default for Owner {
 /// The `data` field contains the BCS-serialized resource data.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Object {
+    /// Object ID (32 bytes for compatibility with Sui-style IDs)
+    #[serde(default)]
+    pub object_id: ObjectID,
     /// The owner of this resource
     pub owner: Owner,
     /// BCS-serialized data of the resource
@@ -144,14 +147,33 @@ pub struct Object {
 }
 
 impl Object {
+    /// Get the object ID (32 bytes)
+    pub fn id(&self) -> ObjectID {
+        self.object_id
+    }
+
     /// Create a new Object with the given owner and data
     pub fn new(owner: Owner, data: Vec<u8>) -> Self {
-        Self { owner, data }
+        Self {
+            object_id: ObjectID::default(),
+            owner,
+            data,
+        }
+    }
+
+    /// Create a new Object with explicit ID
+    pub fn with_id(id: ObjectID, owner: Owner, data: Vec<u8>) -> Self {
+        Self {
+            object_id: id,
+            owner,
+            data,
+        }
     }
 
     /// Create an Object owned by an address
     pub fn owned_by(addr: StarcoinAddress, data: Vec<u8>) -> Self {
         Self {
+            object_id: ObjectID::default(),
             owner: Owner::AddressOwner(addr),
             data,
         }
@@ -160,6 +182,7 @@ impl Object {
     /// Create a shared Object
     pub fn shared(data: Vec<u8>) -> Self {
         Self {
+            object_id: ObjectID::default(),
             owner: Owner::shared(),
             data,
         }
@@ -168,6 +191,7 @@ impl Object {
     /// Create an immutable Object
     pub fn immutable(data: Vec<u8>) -> Self {
         Self {
+            object_id: ObjectID::default(),
             owner: Owner::Immutable,
             data,
         }
