@@ -2,3 +2,4 @@
 // SPDX-License-Identifier: Apache-2.0
 pub mod handlers;
 pub mod metrics;
+pub mod eth_indexer;

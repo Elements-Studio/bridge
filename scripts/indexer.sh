@@ -19,11 +19,17 @@ if [ -f "$CONFIG_FILE" ]; then
     BRIDGE_ADDRESS=$(grep -E "^\s*starcoin-bridge-proxy-address:" "$CONFIG_FILE" | sed 's/.*starcoin-bridge-proxy-address:\s*//' | tr -d '"' | tr -d "'" | xargs)
     # Extract metrics port from config
     METRICS_PORT=$(grep -E "^metrics-port:" "$CONFIG_FILE" | sed 's/.*metrics-port:\s*//' | xargs)
+    # Extract ETH settings from config
+    ETH_RPC_URL=$(grep -E "^\s*eth-rpc-url:" "$CONFIG_FILE" | sed 's/.*eth-rpc-url:\s*//' | tr -d '"' | tr -d "'" | xargs)
+    ETH_BRIDGE_ADDRESS=$(grep -E "^\s*eth-bridge-proxy-address:" "$CONFIG_FILE" | sed 's/.*eth-bridge-proxy-address:\s*//' | tr -d '"' | tr -d "'" | xargs)
 fi
 
 # Fallback to environment variables or defaults
 RPC_URL="${RPC_URL:-http://localhost:9850}"
 BRIDGE_ADDRESS="${BRIDGE_ADDRESS:-0x8410d7aa5a55957450fa2493499eabcf}"
+ETH_RPC_URL="${ETH_RPC_URL:-http://localhost:8545}"
+ETH_BRIDGE_ADDRESS="${ETH_BRIDGE_ADDRESS:-0x0B306BF915C4d645ff596e518fAf3F9669b97016}"
+ETH_START_BLOCK="${ETH_START_BLOCK:-0}"
 RUST_LOG="${RUST_LOG:-info}"
 
 # Find an available port starting from the given port
@@ -142,6 +148,7 @@ build_indexer() {
 start_indexer() {
     local first_block="${1:-}"
     local background="${2:-false}"
+    local enable_eth="${3:-false}"
     
     # Auto-detect available metrics port if not specified
     local preferred_port="${METRICS_PORT:-9184}"
@@ -163,6 +170,12 @@ start_indexer() {
     log_info "  Database: $DATABASE_URL"
     log_info "  Metrics: $metrics_addr"
     log_info "  Log File: $LOG_FILE"
+    if [ "$enable_eth" = "true" ]; then
+        log_info "  ETH Indexer: ENABLED"
+        log_info "  ETH RPC URL: $ETH_RPC_URL"
+        log_info "  ETH Bridge Address: $ETH_BRIDGE_ADDRESS"
+        log_info "  ETH Start Block: $ETH_START_BLOCK"
+    fi
     
     cd "$PROJECT_DIR"
     
@@ -184,6 +197,11 @@ start_indexer() {
         log_info "  Starting from block: $first_block"
     fi
     
+    # Add ETH indexer arguments if enabled
+    if [ "$enable_eth" = "true" ]; then
+        args="$args --enable-eth --eth-rpc-url $ETH_RPC_URL --eth-bridge-address $ETH_BRIDGE_ADDRESS --eth-start-block $ETH_START_BLOCK"
+    fi
+
     if [ "$background" = "true" ]; then
         log_info "Running in background, logging to $LOG_FILE"
         # Clear log file and start fresh
@@ -289,37 +307,46 @@ print_help() {
     echo "Usage: $0 <command> [options]"
     echo ""
     echo "Commands:"
-    echo "  start             Start PostgreSQL and indexer (foreground)"
-    echo "  start-bg          Start PostgreSQL and indexer (background)"
-    echo "  clean-start       Reset database and start fresh from block 0 (foreground)"
-    echo "  clean-start-bg    Reset database and start fresh from block 0 (background)"
-    echo "  stop              Stop indexer"
-    echo "  stop-all          Stop indexer and PostgreSQL"
-    echo "  build             Build the indexer"
-    echo "  reset-db          Reset database (drop and recreate)"
-    echo "  status            Show current status"
-    echo "  logs              Show recent data from database"
-    echo "  tail-logs         Tail the indexer log file"
-    echo "  psql              Open psql shell to bridge database"
-    echo "  help              Show this help message"
+    echo "  start               Start PostgreSQL and Starcoin indexer (foreground)"
+    echo "  start-bg            Start PostgreSQL and Starcoin indexer (background)"
+    echo "  start-eth           Start PostgreSQL and indexer with ETH support (foreground)"
+    echo "  start-eth-bg        Start PostgreSQL and indexer with ETH support (background)"
+    echo "  clean-start         Reset database and start fresh from block 0 (foreground)"
+    echo "  clean-start-bg      Reset database and start fresh from block 0 (background)"
+    echo "  clean-start-eth     Reset database and start with ETH support from block 0"
+    echo "  clean-start-eth-bg  Reset database and start with ETH support (background)"
+    echo "  stop                Stop indexer"
+    echo "  stop-all            Stop indexer and PostgreSQL"
+    echo "  build               Build the indexer"
+    echo "  reset-db            Reset database (drop and recreate)"
+    echo "  status              Show current status"
+    echo "  logs                Show recent data from database"
+    echo "  tail-logs           Tail the indexer log file"
+    echo "  psql                Open psql shell to bridge database"
+    echo "  help                Show this help message"
     echo ""
     echo "Config file: $CONFIG_FILE"
     echo ""
     echo "Current settings (from config):"
-    echo "  RPC_URL:        $RPC_URL"
-    echo "  BRIDGE_ADDRESS: $BRIDGE_ADDRESS"
-    echo "  METRICS:        $METRICS_ADDRESS"
+    echo "  RPC_URL:            $RPC_URL"
+    echo "  BRIDGE_ADDRESS:     $BRIDGE_ADDRESS"
+    echo "  METRICS:            $METRICS_ADDRESS"
+    echo "  ETH_RPC_URL:        $ETH_RPC_URL"
+    echo "  ETH_BRIDGE_ADDRESS: $ETH_BRIDGE_ADDRESS"
     echo ""
     echo "Environment variables (override config):"
-    echo "  RPC_URL           Starcoin RPC URL"
-    echo "  BRIDGE_ADDRESS    Bridge contract address"
-    echo "  METRICS_ADDRESS   Metrics server address"
-    echo "  RUST_LOG          Log level (default: info)"
+    echo "  RPC_URL             Starcoin RPC URL"
+    echo "  BRIDGE_ADDRESS      Bridge contract address"
+    echo "  METRICS_ADDRESS     Metrics server address"
+    echo "  ETH_RPC_URL         Ethereum RPC URL"
+    echo "  ETH_BRIDGE_ADDRESS  Ethereum bridge contract address"
+    echo "  ETH_START_BLOCK     ETH indexer start block (default: 0)"
+    echo "  RUST_LOG            Log level (default: info)"
     echo ""
     echo "Examples:"
-    echo "  $0 start                    # Start in foreground"
-    echo "  $0 start-bg                 # Start in background"
-    echo "  $0 clean-start-bg           # Fresh start from block 0 (background)"
+    echo "  $0 start                    # Start Starcoin indexer in foreground"
+    echo "  $0 start-eth-bg             # Start with ETH support in background"
+    echo "  $0 clean-start-eth-bg       # Fresh start with ETH from block 0 (background)"
     echo "  RUST_LOG=debug $0 start-bg  # Start with debug logging"
     echo "  $0 tail-logs                # Follow indexer logs"
     echo ""
@@ -335,6 +362,14 @@ case "${1:-help}" in
         start_postgres
         start_indexer "" true
         ;;
+    start-eth)
+        start_postgres
+        start_indexer "" false true
+        ;;
+    start-eth-bg)
+        start_postgres
+        start_indexer "" true true
+        ;;
     clean-start)
         start_postgres
         reset_database
@@ -344,6 +379,16 @@ case "${1:-help}" in
         start_postgres
         reset_database
         start_indexer 0 true
+        ;;
+    clean-start-eth)
+        start_postgres
+        reset_database
+        start_indexer 0 false true
+        ;;
+    clean-start-eth-bg)
+        start_postgres
+        reset_database
+        start_indexer 0 true true
         ;;
     start-indexer)
         if ! check_postgres; then

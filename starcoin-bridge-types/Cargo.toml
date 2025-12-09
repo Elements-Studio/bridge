@@ -17,3 +17,4 @@ starcoin-bridge-vm-types = { path = "../starcoin-bridge-vm-types" }
 move-core-types = { workspace = true }
 rand = "0.8"
 ed25519-dalek = "2.0"
+ethers = "2.0"

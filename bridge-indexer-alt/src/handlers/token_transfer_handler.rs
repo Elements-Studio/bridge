@@ -76,7 +76,8 @@ impl Processor for TokenTransferHandler {
                     "Event type: {:?}, expected deposited: {:?}, expected approved: {:?}",
                     ev.type_, self.deposited_event_type, self.approved_event_type
                 );
-                let (chain_id, nonce) = if self.deposited_event_type == ev.type_ {
+                
+                if self.deposited_event_type == ev.type_ {
                     info!("Observed Starcoin Deposit {:?}", ev);
                     let event: MoveTokenDepositedEvent = bcs::from_bytes(&ev.contents)?;
 
@@ -98,7 +99,18 @@ impl Processor for TokenTransferHandler {
                         .with_label_values(&["starcoin_bridge_to_eth", "true"])
                         .inc_by(tx.effects.gas_cost_summary().net_gas_usage() as u64);
 
-                    (event.source_chain, event.seq_num)
+                    results.push(TokenTransfer {
+                        chain_id: event.source_chain as i32,
+                        nonce: event.seq_num as i64,
+                        block_height,
+                        timestamp_ms,
+                        status: TokenTransferStatus::Deposited,
+                        data_source: BridgeDataSource::STARCOIN,
+                        is_finalized: true,
+                        txn_hash: tx.transaction.digest().inner().to_vec(),
+                        txn_sender: tx.transaction.sender_address().to_vec(),
+                        gas_usage: tx.effects.gas_cost_summary().net_gas_usage(),
+                    });
                 } else if self.approved_event_type == ev.type_ {
                     info!("Observed Starcoin Approval {:?}", ev);
                     let event: MoveTokenTransferApproved = bcs::from_bytes(&ev.contents)?;
@@ -113,10 +125,18 @@ impl Processor for TokenTransferHandler {
                         .with_label_values(&["eth_to_starcoin", "approved", "unknown"])
                         .inc();
 
-                    (
-                        event.message_key.source_chain,
-                        event.message_key.bridge_seq_num,
-                    )
+                    results.push(TokenTransfer {
+                        chain_id: event.message_key.source_chain as i32,
+                        nonce: event.message_key.bridge_seq_num as i64,
+                        block_height,
+                        timestamp_ms,
+                        status: TokenTransferStatus::Approved,
+                        data_source: BridgeDataSource::STARCOIN,
+                        is_finalized: true,
+                        txn_hash: tx.transaction.digest().inner().to_vec(),
+                        txn_sender: tx.transaction.sender_address().to_vec(),
+                        gas_usage: tx.effects.gas_cost_summary().net_gas_usage(),
+                    });
                 } else if self.claimed_event_type == ev.type_ {
                     info!("Observed Starcoin Claim {:?}", ev);
                     let event: MoveTokenTransferClaimed = bcs::from_bytes(&ev.contents)?;
@@ -131,26 +151,20 @@ impl Processor for TokenTransferHandler {
                         .with_label_values(&["eth_to_starcoin", "claimed", "unknown"])
                         .inc();
 
-                    (
-                        event.message_key.source_chain,
-                        event.message_key.bridge_seq_num,
-                    )
-                } else {
-                    return Ok(results);
-                };
-
-                results.push(TokenTransfer {
-                    chain_id: chain_id as i32,
-                    nonce: nonce as i64,
-                    block_height,
-                    timestamp_ms,
-                    status: TokenTransferStatus::Deposited,
-                    data_source: BridgeDataSource::STARCOIN,
-                    is_finalized: true,
-                    txn_hash: tx.transaction.digest().inner().to_vec(),
-                    txn_sender: tx.transaction.sender_address().to_vec(),
-                    gas_usage: tx.effects.gas_cost_summary().net_gas_usage(),
-                });
+                    results.push(TokenTransfer {
+                        chain_id: event.message_key.source_chain as i32,
+                        nonce: event.message_key.bridge_seq_num as i64,
+                        block_height,
+                        timestamp_ms,
+                        status: TokenTransferStatus::Claimed,
+                        data_source: BridgeDataSource::STARCOIN,
+                        is_finalized: true,
+                        txn_hash: tx.transaction.digest().inner().to_vec(),
+                        txn_sender: tx.transaction.sender_address().to_vec(),
+                        gas_usage: tx.effects.gas_cost_summary().net_gas_usage(),
+                    });
+                }
+                // Ignore other event types
             }
         }
         Ok(results)

@@ -18,13 +18,15 @@ tracing.workspace = true
 bcs.workspace = true
 move-core-types.workspace = true
 diesel.workspace = true
-diesel-async.workspace = true
+diesel-async = { workspace = true, features = ["deadpool"] }
 clap.workspace = true
 url.workspace = true
 starcoin-metrics.workspace = true
 telemetry-subscribers.workspace = true
 prometheus.workspace = true
 serde_json.workspace = true
+ethers = "2.0"
+futures.workspace = true
 
 [[bin]]
 name = "bridge-indexer-alt"

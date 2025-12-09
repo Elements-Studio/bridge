@@ -55,7 +55,7 @@ struct JsonRpcError {
 }
 
 /// Starcoin event from RPC
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 #[allow(dead_code)]
 struct RpcEvent {
     type_tag: String,
@@ -215,8 +215,8 @@ impl StarcoinRpcClient {
             return Err(BlockFetchError::NotFound);
         }
         
-        // Get events for this block
-        let bridge_events = self.fetch_bridge_events_for_block(block_height).await
+        // Get events for this block (grouped by transaction)
+        let tx_events = self.fetch_bridge_events_for_block(block_height).await
             .map_err(|e| BlockFetchError::Other(e))?;
 
         // Create checkpoint summary
@@ -232,22 +232,35 @@ impl StarcoinRpcClient {
 
         let mut transactions = Vec::new();
 
-        if !bridge_events.is_empty() {
+        for (tx_hash, events) in tx_events {
+            if events.is_empty() {
+                continue;
+            }
+            
             debug!(
-                "Found {} bridge events in block {}",
-                bridge_events.len(),
-                block_height
+                "Found {} bridge events in block {} for tx {}",
+                events.len(),
+                block_height,
+                tx_hash
             );
+            
+            // Parse transaction hash from hex string
+            let tx_hash_hex = tx_hash.strip_prefix("0x").unwrap_or(&tx_hash);
+            let mut digest = [0u8; 32];
+            if let Ok(hash_bytes) = hex::decode(tx_hash_hex) {
+                let len = hash_bytes.len().min(32);
+                digest[..len].copy_from_slice(&hash_bytes[..len]);
+            }
 
             let checkpoint_tx = CheckpointTransaction {
                 transaction: TransactionDataAPI {
                     transaction: vec![],
-                    digest: [0u8; 32],
-                    sender: [0u8; 32],
+                    digest,
+                    sender: [0u8; 32], // We don't have sender info from events API
                 },
                 input_objects: vec![],
                 output_objects: vec![],
-                events: Some(TransactionEvents { data: bridge_events }),
+                events: Some(TransactionEvents { data: events }),
                 effects: TransactionEffects {
                     gas_used: GasCostSummary {
                         computation_cost: 0,
@@ -268,7 +281,8 @@ impl StarcoinRpcClient {
     }
 
     /// Fetch bridge events for a specific block using a single RPC call with all type tags
-    async fn fetch_bridge_events_for_block(&self, block_height: u64) -> anyhow::Result<Vec<Event>> {
+    /// Returns events grouped by transaction hash
+    async fn fetch_bridge_events_for_block(&self, block_height: u64) -> anyhow::Result<Vec<(String, Vec<Event>)>> {
         // Ensure bridge address has 0x prefix for RPC calls
         let bridge_addr = if self.bridge_address.starts_with("0x") {
             self.bridge_address.clone()
@@ -304,14 +318,20 @@ impl StarcoinRpcClient {
             }
         };
 
-        let mut all_events = Vec::new();
+        // Group events by transaction hash
+        use std::collections::HashMap;
+        let mut tx_events: HashMap<String, Vec<Event>> = HashMap::new();
+        
         for rpc_event in events {
             if let Some(event) = self.parse_rpc_event(&rpc_event) {
-                all_events.push(event);
+                tx_events
+                    .entry(rpc_event.transaction_hash.clone())
+                    .or_default()
+                    .push(event);
             }
         }
 
-        Ok(all_events)
+        Ok(tx_events.into_iter().collect())
     }
 
     /// Parse an RPC event into our Event type

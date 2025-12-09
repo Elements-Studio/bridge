@@ -2596,6 +2596,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "deadpool"
+version = "0.12.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0be2b1d1d6ec8d846f05e137292d0b89133caf95ef33695424c09568bdd39b1b"
+dependencies = [
+ "deadpool-runtime",
+ "lazy_static",
+ "num_cpus",
+ "tokio",
+]
+
+[[package]]
 name = "deadpool-runtime"
 version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2846,6 +2858,7 @@ checksum = "51a307ac00f7c23f526a04a77761a0519b9f0eb2838ebf5b905a58580095bdcb"
 dependencies = [
  "async-trait",
  "bb8",
+ "deadpool 0.12.3",
  "diesel",
  "futures-util",
  "scoped-futures",
@@ -11447,6 +11460,8 @@ dependencies = [
  "clap 4.5.53",
  "diesel",
  "diesel-async",
+ "ethers",
+ "futures 0.3.31",
  "move-core-types 0.0.4 (git+https://github.com/starcoinorg/move?rev=babf994a38cda17b84186c7992f92fb3554347f0)",
  "prometheus",
  "serde_json",
@@ -11478,6 +11493,7 @@ dependencies = [
  "diesel",
  "diesel-async",
  "diesel_migrations",
+ "ethers",
  "futures 0.3.31",
  "hex",
  "move-core-types 0.0.4 (git+https://github.com/starcoinorg/move?rev=babf994a38cda17b84186c7992f92fb3554347f0)",
@@ -11717,6 +11733,7 @@ dependencies = [
  "base64ct",
  "bcs",
  "ed25519-dalek 2.2.0",
+ "ethers",
  "eyre",
  "fastcrypto",
  "hex",
@@ -16421,7 +16438,7 @@ dependencies = [
  "assert-json-diff",
  "async-trait",
  "base64 0.21.7",
- "deadpool",
+ "deadpool 0.9.5",
  "futures 0.3.31",
  "futures-timer",
  "http-types",

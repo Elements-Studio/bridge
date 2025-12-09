@@ -43,6 +43,7 @@ starcoin-rpc-client.workspace = true
 hex.workspace = true
 bcs.workspace = true
 move-core-types.workspace = true
+ethers = "2.0"
 
 starcoin-bridge-pg-db = { workspace = true, optional = true }
 

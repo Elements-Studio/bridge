@@ -4,11 +4,14 @@ use anyhow::Context;
 use clap::Parser;
 use prometheus::Registry;
 use std::net::SocketAddr;
+use std::sync::Arc;
+use starcoin_bridge_indexer_alt::eth_indexer::start_eth_indexer;
 use starcoin_bridge_indexer_alt::handlers::error_handler::ErrorTransactionHandler;
 use starcoin_bridge_indexer_alt::handlers::governance_action_handler::GovernanceActionHandler;
 use starcoin_bridge_indexer_alt::handlers::token_transfer_data_handler::TokenTransferDataHandler;
 use starcoin_bridge_indexer_alt::handlers::token_transfer_handler::TokenTransferHandler;
 use starcoin_bridge_indexer_alt::metrics::BridgeIndexerMetrics;
+use starcoin_bridge::metrics::BridgeMetrics;
 use starcoin_bridge_schema::MIGRATIONS;
 use starcoin_bridge_indexer_alt_framework::ingestion::{ClientArgs, IngestionConfig};
 use starcoin_bridge_indexer_alt_framework::postgres::DbArgs;
@@ -41,6 +44,20 @@ struct Args {
     /// Bridge contract address on Starcoin (used with --rpc-api-url)
     #[clap(env, long, default_value = "0xefa1e687a64f869193f109f75d0432be")]
     bridge_address: String,
+    
+    // ETH indexer options
+    /// Enable ETH indexing
+    #[clap(env, long)]
+    enable_eth: bool,
+    /// Ethereum RPC URL
+    #[clap(env, long)]
+    eth_rpc_url: Option<String>,
+    /// Ethereum bridge proxy contract address
+    #[clap(env, long)]
+    eth_bridge_address: Option<String>,
+    /// Starting block for ETH syncing
+    #[clap(env, long, default_value = "0")]
+    eth_start_block: u64,
 }
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
@@ -56,14 +73,22 @@ async fn main() -> Result<(), anyhow::Error> {
         remote_store_url,
         rpc_api_url,
         bridge_address,
+        enable_eth,
+        eth_rpc_url,
+        eth_bridge_address,
+        eth_start_block,
     } = Args::parse();
 
     let cancel = CancellationToken::new();
     let registry = Registry::new_custom(Some("bridge".into()), None)
         .context("Failed to create Prometheus registry.")?;
 
+    // Initialize starcoin_metrics (required by EthSyncer)
+    starcoin_metrics::init_metrics(&registry);
+
     // Initialize bridge-specific metrics
-    let bridge_metrics = BridgeIndexerMetrics::new(&registry);
+    let bridge_indexer_metrics = BridgeIndexerMetrics::new(&registry);
+    let bridge_metrics = Arc::new(BridgeMetrics::new(&registry));
 
     let metrics = MetricsService::new(
         MetricsArgs { metrics_address },
@@ -85,7 +110,7 @@ async fn main() -> Result<(), anyhow::Error> {
     };
     
     let mut indexer = Indexer::new_from_pg(
-        database_url,
+        database_url.clone(),
         db_args,
         indexer_args,
         ClientArgs {
@@ -109,18 +134,18 @@ async fn main() -> Result<(), anyhow::Error> {
 
     indexer
         .concurrent_pipeline(
-            TokenTransferHandler::new(bridge_metrics.clone(), bridge_addr),
+            TokenTransferHandler::new(bridge_indexer_metrics.clone(), bridge_addr),
             Default::default(),
         )
         .await?;
 
     indexer
-        .concurrent_pipeline(TokenTransferDataHandler::default(), Default::default())
+        .concurrent_pipeline(TokenTransferDataHandler::new(bridge_addr), Default::default())
         .await?;
 
     indexer
         .concurrent_pipeline(
-            GovernanceActionHandler::new(bridge_metrics.clone(), bridge_addr),
+            GovernanceActionHandler::new(bridge_indexer_metrics.clone(), bridge_addr),
             Default::default(),
         )
         .await?;
@@ -132,8 +157,58 @@ async fn main() -> Result<(), anyhow::Error> {
     let h_indexer = indexer.run().await?;
     let h_metrics = metrics.run().await?;
 
-    let _ = h_indexer.await;
+    // Start ETH indexer if enabled
+    let mut eth_handles = vec![];
+    if enable_eth {
+        let eth_rpc = eth_rpc_url.context("--eth-rpc-url required when --enable-eth is set")?;
+        let eth_addr = eth_bridge_address.context("--eth-bridge-address required when --enable-eth is set")?;
+        
+        // Create a separate connection pool for ETH indexer
+        use diesel_async::pooled_connection::deadpool::Pool;
+        use diesel_async::pooled_connection::AsyncDieselConnectionManager;
+        use diesel_async::AsyncPgConnection;
+        
+        let config = AsyncDieselConnectionManager::<AsyncPgConnection>::new(database_url.as_str());
+        let pool = Pool::builder(config).build()?;
+        
+        match start_eth_indexer(eth_rpc, eth_addr, eth_start_block, pool, bridge_metrics).await {
+            Ok(handles) => {
+                tracing::info!("ETH indexer started successfully");
+                eth_handles = handles;
+            }
+            Err(e) => {
+                tracing::error!("Failed to start ETH indexer: {:?}", e);
+                return Err(e);
+            }
+        }
+    }
+
+    // Wait for all tasks
+    if eth_handles.is_empty() {
+        // No ETH indexer, just wait for Starcoin indexer and metrics
+        tokio::select! {
+            _ = h_indexer => {
+                tracing::warn!("Starcoin indexer stopped");
+            }
+            _ = h_metrics => {
+                tracing::warn!("Metrics server stopped");
+            }
+        }
+    } else {
+        // Both Starcoin and ETH indexers running
+        tokio::select! {
+            _ = h_indexer => {
+                tracing::warn!("Starcoin indexer stopped");
+            }
+            _ = h_metrics => {
+                tracing::warn!("Metrics server stopped");
+            }
+            _ = futures::future::join_all(eth_handles) => {
+                tracing::warn!("ETH indexer stopped");
+            }
+        }
+    }
+    
     cancel.cancel();
-    let _ = h_metrics.await;
     Ok(())
 }

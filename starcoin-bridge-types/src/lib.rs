@@ -22,6 +22,12 @@ pub mod starcoin_transaction_builder;
 pub use starcoin_transaction_builder::*;
 
 // =============================================================================
+// Ethereum Checkpoint Content Types
+// =============================================================================
+
+pub mod eth_checkpoint_content;
+
+// =============================================================================
 // Re-exports from starcoin_bridge_vm_types
 // =============================================================================
 

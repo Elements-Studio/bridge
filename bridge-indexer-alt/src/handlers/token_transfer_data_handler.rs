@@ -4,6 +4,7 @@ use crate::handlers::{is_bridge_txn, BRIDGE, TOKEN_DEPOSITED_EVENT};
 use crate::struct_tag;
 use async_trait::async_trait;
 use diesel_async::RunQueryDsl;
+use move_core_types::account_address::AccountAddress;
 use move_core_types::language_storage::StructTag;
 use std::sync::Arc;
 use starcoin_bridge::events::MoveTokenDepositedEvent;
@@ -14,17 +15,16 @@ use starcoin_bridge_indexer_alt_framework::pipeline::Processor;
 use starcoin_bridge_indexer_alt_framework::postgres::Db;
 use starcoin_bridge_indexer_alt_framework::store::Store;
 use starcoin_bridge_indexer_alt_framework::types::full_checkpoint_content::CheckpointData;
-use starcoin_bridge_indexer_alt_framework::types::BRIDGE_ADDRESS;
 use tracing::info;
 
 pub struct TokenTransferDataHandler {
     deposited_event_type: StructTag,
 }
 
-impl Default for TokenTransferDataHandler {
-    fn default() -> Self {
+impl TokenTransferDataHandler {
+    pub fn new(bridge_address: AccountAddress) -> Self {
         Self {
-            deposited_event_type: struct_tag!(BRIDGE_ADDRESS, BRIDGE, TOKEN_DEPOSITED_EVENT),
+            deposited_event_type: struct_tag!(bridge_address, BRIDGE, TOKEN_DEPOSITED_EVENT),
         }
     }
 }
