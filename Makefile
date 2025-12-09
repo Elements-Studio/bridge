@@ -58,16 +58,20 @@ define safe_rm
 endef
 
 # ============================================================
-# Configuration Variables (override with env vars)
+# Configuration Variables (REQUIRED - must be set by user)
 # ============================================================
-# Parent directory for dev node
-STARCOIN_DATA_DIR ?= /tmp
+# Parent directory for dev node (REQUIRED)
+ifndef STARCOIN_DATA_DIR
+$(error STARCOIN_DATA_DIR is not set. Please set it to the Starcoin data directory, e.g., export STARCOIN_DATA_DIR=/path/to/starcoin/data)
+endif
 # Dev node data directory
 STARCOIN_DEV_DIR = $(STARCOIN_DATA_DIR)/dev
 # IPC socket for RPC
 STARCOIN_RPC = $(STARCOIN_DEV_DIR)/starcoin.ipc
-# Move contracts location
-MOVE_CONTRACT_DIR ?= ../stc-bridge-move
+# Move contracts location (REQUIRED)
+ifndef MOVE_CONTRACT_DIR
+$(error MOVE_CONTRACT_DIR is not set. Please set it to the stc-bridge-move directory, e.g., export MOVE_CONTRACT_DIR=/path/to/stc-bridge-move)
+endif
 
 # ============================================================
 # Help & Documentation
@@ -75,8 +79,12 @@ MOVE_CONTRACT_DIR ?= ../stc-bridge-move
 help: ## Show this help message
 	@echo '$(GREEN)Starcoin Bridge Deployment Automation$(NC)'
 	@echo ''
-	@echo '$(YELLOW)Environment Variables:$(NC)'
-	@echo '  STARCOIN_PATH        Path to starcoin binary (default: starcoin)'
+	@echo '$(RED)Required Environment Variables:$(NC)'
+	@echo '  STARCOIN_DATA_DIR    Path to Starcoin data directory (REQUIRED)'
+	@echo '  MOVE_CONTRACT_DIR    Path to stc-bridge-move directory (REQUIRED)'
+	@echo '  STARCOIN_PATH        Path to starcoin binary (REQUIRED)'
+	@echo ''
+	@echo '$(YELLOW)Optional Environment Variables:$(NC)'
 	@echo '  MPM_PATH             Path to mpm binary (default: mpm)'
 	@echo '  STARCOIN_RPC         Starcoin RPC URL (default: ws://127.0.0.1:9870)'
 	@echo '  MOVE_CONTRACT_DIR    Move contracts directory (default: ../stc-bridge-move)'
@@ -861,7 +869,7 @@ run-bridge-server: ## Start bridge server (requires ETH network + Starcoin node 
 # ============================================================
 BRIDGE_CLI := ./target/debug/starcoin-bridge-cli
 CLI_CONFIG := bridge-config/cli-config.yaml
-STARCOIN_BRIDGE_ADDRESS ?= $(shell grep "starcoin-bridge-proxy-address:" bridge-config/server-config.yaml 2>/dev/null | awk '{print $$2}' | tr -d '"')
+STARCOIN_BRIDGE_ADDRESS := $(shell grep "starcoin-bridge-proxy-address:" bridge-config/server-config.yaml 2>/dev/null | awk '{print $$2}' | tr -d '"')
 
 build-bridge-cli: ## Build bridge CLI tool
 	@echo "$(YELLOW)Building bridge CLI...$(NC)"
@@ -874,9 +882,10 @@ view-bridge: build-bridge-cli ## View Starcoin bridge status
 		--starcoin-bridge-rpc-url http://127.0.0.1:9850 \
 		--starcoin-bridge-proxy-address $(STARCOIN_BRIDGE_ADDRESS)
 
-# Default values for quick testing
-AMOUNT ?= 0.1
-RECIPIENT ?= $(STARCOIN_BRIDGE_ADDRESS)
+# Transfer parameters (REQUIRED for transfer commands)
+# AMOUNT: Required for deposit/withdraw commands
+# RECIPIENT: Defaults to STARCOIN_BRIDGE_ADDRESS if not set
+RECIPIENT := $(STARCOIN_BRIDGE_ADDRESS)
 
 # Anvil default account private key (10000 ETH)
 ANVIL_PRIVATE_KEY := 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
@@ -918,15 +927,18 @@ deposit-eth-core: build-bridge-cli
 		$(STARCOIN_PATH) -c $(STARCOIN_RPC) dev get-coin -v 1000000 $$RECIPIENT 2>&1 | grep -v "^[0-9].*INFO" || true; \
 	fi
 	@RECIPIENT=$$($(BRIDGE_CLI) examine-key bridge-node/server-config/bridge_client.key 2>/dev/null | grep "Starcoin address:" | awk '{print $$NF}'); \
-	AMOUNT_VAL=$${AMOUNT:-0.1}; \
-	echo "$(YELLOW)Depositing $$AMOUNT_VAL ETH to Starcoin...$(NC)"; \
+	if [ -z "$$AMOUNT" ]; then \
+		echo "$(RED)✗ AMOUNT is required. Usage: make deposit-eth AMOUNT=0.1$(NC)"; \
+		exit 1; \
+	fi; \
+	echo "$(YELLOW)Depositing $$AMOUNT ETH to Starcoin...$(NC)"; \
 	echo "$(YELLOW)Recipient: $$RECIPIENT$(NC)"; \
 	echo "$(BLUE)[DEBUG] Executing:$(NC)"; \
-	echo "  $(BRIDGE_CLI) client --config-path $(CLI_CONFIG) deposit-native-ether-on-eth --ether-amount $$AMOUNT_VAL --target-chain 2 --starcoin-bridge-recipient-address $$RECIPIENT"; \
+	echo "  $(BRIDGE_CLI) client --config-path $(CLI_CONFIG) deposit-native-ether-on-eth --ether-amount $$AMOUNT --target-chain 2 --starcoin-bridge-recipient-address $$RECIPIENT"; \
 	NO_PROXY=localhost,127.0.0.1 $(BRIDGE_CLI) client \
 		--config-path $(CLI_CONFIG) \
 		deposit-native-ether-on-eth \
-		--ether-amount $$AMOUNT_VAL \
+		--ether-amount $$AMOUNT \
 		--target-chain 2 \
 		--starcoin-bridge-recipient-address $$RECIPIENT; \
 	echo "$(GREEN)✓ Deposit transaction submitted$(NC)"
@@ -959,11 +971,12 @@ deposit-eth-test: build-bridge-cli fund-eth-account fund-starcoin-bridge-account
 
 # Bridge transfer with token support
 # Usage: make bridge-transfer DIRECTION=eth-to-stc AMOUNT=0.1 TOKEN=ETH
-# TOKEN: ETH (default), USDT, USDC, BTC
-DIRECTION ?= eth-to-stc
-TOKEN ?= ETH
+# All parameters are REQUIRED
 
 bridge-transfer: build-bridge-cli ## Bridge transfer with token support (usage: make bridge-transfer DIRECTION=eth-to-stc AMOUNT=0.1 TOKEN=USDT)
+	@if [ -z "$$DIRECTION" ]; then echo "$(RED)✗ DIRECTION is required (eth-to-stc or stc-to-eth)$(NC)"; exit 1; fi
+	@if [ -z "$$AMOUNT" ]; then echo "$(RED)✗ AMOUNT is required$(NC)"; exit 1; fi
+	@if [ -z "$$TOKEN" ]; then echo "$(RED)✗ TOKEN is required (ETH, USDT, USDC, BTC)$(NC)"; exit 1; fi
 	@./scripts/bridge_transfer.sh $(DIRECTION) $(AMOUNT) --token $(TOKEN)
 
 # Quick USDT transfer tests
@@ -986,18 +999,24 @@ withdraw-to-eth: build-bridge-cli init-cli-config ## Withdraw tokens from Starco
 	if [ -z "$$ETH_RECIPIENT" ]; then \
 		ETH_RECIPIENT="0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"; \
 	fi; \
-	AMOUNT_VAL=$${AMOUNT:-10000000}; \
-	TOKEN_VAL=$${TOKEN:-ETH}; \
-	COIN_TYPE="$${BRIDGE_ADDR}::$${TOKEN_VAL}::$${TOKEN_VAL}"; \
-	echo "$(YELLOW)Withdrawing $$AMOUNT_VAL $$TOKEN_VAL to ETH...$(NC)"; \
+	if [ -z "$$AMOUNT" ]; then \
+		echo "$(RED)✗ AMOUNT is required. Usage: make withdraw-to-eth AMOUNT=10000000 TOKEN=ETH$(NC)"; \
+		exit 1; \
+	fi; \
+	if [ -z "$$TOKEN" ]; then \
+		echo "$(RED)✗ TOKEN is required (ETH, USDT, USDC, BTC)$(NC)"; \
+		exit 1; \
+	fi; \
+	COIN_TYPE="$${BRIDGE_ADDR}::$${TOKEN}::$${TOKEN}"; \
+	echo "$(YELLOW)Withdrawing $$AMOUNT $$TOKEN to ETH...$(NC)"; \
 	echo "$(YELLOW)Coin type: $$COIN_TYPE$(NC)"; \
 	echo "$(YELLOW)ETH Recipient: $$ETH_RECIPIENT$(NC)"; \
 	echo "$(BLUE)[DEBUG] Executing:$(NC)"; \
-	echo "  $(BRIDGE_CLI) client --config-path $(CLI_CONFIG) deposit-on-starcoin --amount $$AMOUNT_VAL --coin-type $$COIN_TYPE --target-chain 12 --recipient-address $$ETH_RECIPIENT"; \
+	echo "  $(BRIDGE_CLI) client --config-path $(CLI_CONFIG) deposit-on-starcoin --amount $$AMOUNT --coin-type $$COIN_TYPE --target-chain 12 --recipient-address $$ETH_RECIPIENT"; \
 	NO_PROXY=localhost,127.0.0.1 $(BRIDGE_CLI) client \
 		--config-path $(CLI_CONFIG) \
 		deposit-on-starcoin \
-		--amount $$AMOUNT_VAL \
+		--amount $$AMOUNT \
 		--coin-type "$$COIN_TYPE" \
 		--target-chain 12 \
 		--recipient-address $$ETH_RECIPIENT; \

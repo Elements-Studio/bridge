@@ -100,16 +100,31 @@ The Starcoin Bridge is a decentralized cross-chain bridge that allows users to t
 - Starcoin binary (`starcoin`)
 - Move Package Manager (`mpm`)
 
-### One-Click Deployment
+### Required Environment Variables
 
-Set environment variables and run:
+The following environment variables **must be set** before running any bridge commands:
+
+| Variable | Description | Example |
+|----------|-------------|----------|
+| `STARCOIN_PATH` | Path to starcoin binary | `/path/to/starcoin` |
+| `STARCOIN_DATA_DIR` | Parent directory for dev node data | `/tmp` |
+| `MPM_PATH` | Path to Move Package Manager binary | `/path/to/mpm` |
+| `MOVE_CONTRACT_DIR` | Path to stc-bridge-move directory | `/path/to/stc-bridge-move` |
+
+Add these to your shell profile (e.g., `~/.zshrc` or `~/.bashrc`):
 
 ```bash
-export STARCOIN_PATH=/path/to/starcoin
-export STARCOIN_DATA_DIR=/tmp
-export MPM_PATH=/path/to/mpm
-export MOVE_CONTRACT_DIR=/path/to/move-contract
+export STARCOIN_PATH='/path/to/starcoin'
+export STARCOIN_DATA_DIR='/tmp'
+export MPM_PATH='/path/to/mpm'
+export MOVE_CONTRACT_DIR='/path/to/stc-bridge-move'
+```
 
+### One-Click Deployment
+
+With environment variables set, run:
+
+```bash
 cd bridge
 ./setup.sh -y   # -y for auto-confirm, omit for interactive mode
 ```
@@ -125,14 +140,23 @@ This script will:
 Use the transfer script for cross-chain operations:
 
 ```bash
-# ETH → Starcoin: Transfer 0.5 ETH (unit: ETH)
-./scripts/bridge_transfer.sh eth-to-stc 0.5
+# Usage: bridge_transfer.sh <DIRECTION> <AMOUNT> --token <TOKEN>
+# TOKEN options: ETH, USDT, USDC, BTC
 
-# Starcoin → ETH: Transfer 0.1 ETH (unit: ETH)
-./scripts/bridge_transfer.sh stc-to-eth 0.1
+# ETH → Starcoin: Transfer 0.5 ETH
+./scripts/bridge_transfer.sh eth-to-stc 0.5 --token ETH
+
+# Starcoin → ETH: Transfer 0.1 ETH
+./scripts/bridge_transfer.sh stc-to-eth 0.1 --token ETH
+
+# ETH → Starcoin: Transfer 10 USDT
+./scripts/bridge_transfer.sh eth-to-stc 10 --token USDT
+
+# Starcoin → ETH: Transfer 10 USDT
+./scripts/bridge_transfer.sh stc-to-eth 10 --token USDT
 ```
 
-> **Note**: For Starcoin→ETH, the bridge only approves on Starcoin. You need to manually claim on Ethereum.
+> **Note**: The `--token` parameter is **required**. For Starcoin→ETH, the bridge only approves on Starcoin. You need to manually claim on Ethereum.
 
 ### Manual Deployment (Step by Step)
 

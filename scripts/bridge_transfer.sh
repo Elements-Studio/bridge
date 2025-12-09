@@ -1,9 +1,34 @@
 #!/bin/bash
 # Bridge Transfer Script with Polling
-# Usage: bridge_transfer.sh [eth-to-stc|stc-to-eth] [amount] [--token TOKEN]
-# TOKEN: ETH (default), USDT, USDC, BTC
+# Usage: bridge_transfer.sh <DIRECTION> <AMOUNT> --token <TOKEN>
+#   DIRECTION: eth-to-stc or stc-to-eth
+#   AMOUNT: Amount to transfer (in token units, e.g., 0.5 for 0.5 ETH)
+#   TOKEN: ETH, USDT, USDC, BTC (required)
+#
+# Examples:
+#   ./bridge_transfer.sh eth-to-stc 0.5 --token ETH
+#   ./bridge_transfer.sh stc-to-eth 10 --token USDT
+#
+# Required Environment Variables:
+#   STARCOIN_DATA_DIR  - Path to Starcoin data directory
+#   STARCOIN_PATH      - Path to starcoin binary
 
 set -e
+
+# Check required environment variables
+if [ -z "$STARCOIN_DATA_DIR" ]; then
+    echo "Error: STARCOIN_DATA_DIR is not set." >&2
+    echo "Please set it to the Starcoin data directory, e.g.:" >&2
+    echo "  export STARCOIN_DATA_DIR=/path/to/starcoin/data" >&2
+    exit 1
+fi
+
+if [ -z "$STARCOIN_PATH" ]; then
+    echo "Error: STARCOIN_PATH is not set." >&2
+    echo "Please set it to the path of starcoin binary, e.g.:" >&2
+    echo "  export STARCOIN_PATH=/path/to/starcoin" >&2
+    exit 1
+fi
 
 # Colors
 RED='\033[0;31m'
@@ -17,10 +42,22 @@ ETH_RPC="http://localhost:8545"
 POLL_INTERVAL=3
 MAX_WAIT=120
 
-# Parse arguments
-DIRECTION=${1:-eth-to-stc}
-AMOUNT=${2:-0.1}
-TOKEN="ETH"  # Default token
+# Parse arguments (all required)
+DIRECTION=$1
+AMOUNT=$2
+TOKEN=""
+
+if [ -z "$DIRECTION" ]; then
+    echo "Error: DIRECTION is required (eth-to-stc or stc-to-eth)" >&2
+    echo "Usage: $0 <DIRECTION> <AMOUNT> --token <TOKEN>" >&2
+    exit 1
+fi
+
+if [ -z "$AMOUNT" ]; then
+    echo "Error: AMOUNT is required" >&2
+    echo "Usage: $0 <DIRECTION> <AMOUNT> --token <TOKEN>" >&2
+    exit 1
+fi
 
 # Parse --token argument
 shift 2 2>/dev/null || true
@@ -35,6 +72,14 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+# Validate TOKEN is set
+if [ -z "$TOKEN" ]; then
+    echo "Error: TOKEN is required" >&2
+    echo "Usage: $0 <DIRECTION> <AMOUNT> --token <TOKEN>" >&2
+    echo "TOKEN options: ETH, USDT, USDC, BTC" >&2
+    exit 1
+fi
 
 # Token configuration
 # Token ID mapping: BTC=1, ETH=2, USDC=3, USDT=4
@@ -227,9 +272,9 @@ get_eth_erc20_balance() {
 # This is needed before the account can accept tokens
 fund_starcoin_account() {
     local account=$1
-    local starcoin_data_dir="${STARCOIN_DATA_DIR:-/tmp}"
+    local starcoin_data_dir="$STARCOIN_DATA_DIR"
     local starcoin_ipc="${starcoin_data_dir}/dev/starcoin.ipc"
-    local starcoin_cmd="${STARCOIN_PATH:-starcoin}"
+    local starcoin_cmd="$STARCOIN_PATH"
     
     if [ ! -S "$starcoin_ipc" ]; then
         echo -e "${RED}✗ Starcoin IPC socket not found at $starcoin_ipc${NC}" >&2
@@ -318,9 +363,9 @@ accept_token_on_starcoin() {
     
     # Use starcoin CLI to execute accept_token
     # Build IPC path same way as Makefile: $(STARCOIN_DATA_DIR)/dev/starcoin.ipc
-    local starcoin_data_dir="${STARCOIN_DATA_DIR:-/tmp}"
+    local starcoin_data_dir="$STARCOIN_DATA_DIR"
     local starcoin_ipc="${starcoin_data_dir}/dev/starcoin.ipc"
-    local starcoin_cmd="${STARCOIN_PATH:-starcoin}"
+    local starcoin_cmd="$STARCOIN_PATH"
     
     if [ ! -S "$starcoin_ipc" ]; then
         echo -e "${RED}✗ Starcoin IPC socket not found at $starcoin_ipc${NC}" >&2
