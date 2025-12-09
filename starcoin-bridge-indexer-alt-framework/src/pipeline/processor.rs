@@ -124,7 +124,7 @@ pub(super) fn processor<P: Processor + Send + Sync + 'static>(
             .await
         {
             Ok(()) => {
-                info!(pipeline = P::NAME, "Checkpoints done, stopping processor");
+                info!(pipeline = P::NAME, "Blocks done, stopping processor");
             }
 
             Err(Break::Cancel) => {

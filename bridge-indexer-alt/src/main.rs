@@ -10,7 +10,7 @@ use starcoin_bridge_indexer_alt::handlers::token_transfer_data_handler::TokenTra
 use starcoin_bridge_indexer_alt::handlers::token_transfer_handler::TokenTransferHandler;
 use starcoin_bridge_indexer_alt::metrics::BridgeIndexerMetrics;
 use starcoin_bridge_schema::MIGRATIONS;
-use starcoin_bridge_indexer_alt_framework::ingestion::ClientArgs;
+use starcoin_bridge_indexer_alt_framework::ingestion::{ClientArgs, IngestionConfig};
 use starcoin_bridge_indexer_alt_framework::postgres::DbArgs;
 use starcoin_bridge_indexer_alt_framework::{Indexer, IndexerArgs};
 use starcoin_bridge_indexer_alt_metrics::{MetricsArgs, MetricsService};
@@ -32,8 +32,15 @@ struct Args {
         default_value = "postgres://postgres:postgrespw@localhost:5432/bridge"
     )]
     database_url: Url,
-    #[clap(env, long, default_value = "https://checkpoints.mainnet.starcoin.io")]
-    remote_store_url: Url,
+    /// Remote checkpoint store URL (mutually exclusive with --rpc-api-url)
+    #[clap(env, long)]
+    remote_store_url: Option<Url>,
+    /// Starcoin RPC URL to fetch blocks/events from
+    #[clap(env, long)]
+    rpc_api_url: Option<Url>,
+    /// Bridge contract address on Starcoin (used with --rpc-api-url)
+    #[clap(env, long, default_value = "0xefa1e687a64f869193f109f75d0432be")]
+    bridge_address: String,
 }
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
@@ -47,6 +54,8 @@ async fn main() -> Result<(), anyhow::Error> {
         metrics_address,
         database_url,
         remote_store_url,
+        rpc_api_url,
+        bridge_address,
     } = Args::parse();
 
     let cancel = CancellationToken::new();
@@ -63,18 +72,29 @@ async fn main() -> Result<(), anyhow::Error> {
     );
 
     let metrics_prefix = None;
+    
+    // Use lower concurrency when using RPC mode to avoid rate limiting
+    let ingestion_config = if rpc_api_url.is_some() {
+        IngestionConfig {
+            checkpoint_buffer_size: 100,   // Reduced buffer
+            ingest_concurrency: 5,         // Low concurrency for RPC
+            retry_interval_ms: 500,        // Longer retry interval
+        }
+    } else {
+        IngestionConfig::default()
+    };
+    
     let mut indexer = Indexer::new_from_pg(
         database_url,
         db_args,
         indexer_args,
         ClientArgs {
-            remote_store_url: Some(remote_store_url),
+            remote_store_url,
             local_ingestion_path: None,
-            rpc_api_url: None,
-            rpc_username: None,
-            rpc_password: None,
+            rpc_api_url,
+            bridge_address: Some(bridge_address.clone()),
         },
-        Default::default(),
+        ingestion_config,
         Some(&MIGRATIONS),
         metrics_prefix,
         metrics.registry(),
@@ -82,9 +102,14 @@ async fn main() -> Result<(), anyhow::Error> {
     )
     .await?;
 
+    // Parse bridge address for handlers
+    // bridge_address already includes "0x" prefix
+    let bridge_addr = move_core_types::account_address::AccountAddress::from_hex_literal(&bridge_address)
+        .context("Failed to parse bridge address")?;
+
     indexer
         .concurrent_pipeline(
-            TokenTransferHandler::new(bridge_metrics.clone()),
+            TokenTransferHandler::new(bridge_metrics.clone(), bridge_addr),
             Default::default(),
         )
         .await?;
@@ -95,7 +120,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     indexer
         .concurrent_pipeline(
-            GovernanceActionHandler::new(bridge_metrics.clone()),
+            GovernanceActionHandler::new(bridge_metrics.clone(), bridge_addr),
             Default::default(),
         )
         .await?;

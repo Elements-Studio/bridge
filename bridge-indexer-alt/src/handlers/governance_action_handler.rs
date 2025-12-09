@@ -20,7 +20,7 @@ use starcoin_bridge_indexer_alt_framework::pipeline::Processor;
 use starcoin_bridge_indexer_alt_framework::postgres::Db;
 use starcoin_bridge_indexer_alt_framework::store::Store;
 use starcoin_bridge_indexer_alt_framework::types::full_checkpoint_content::CheckpointData;
-use starcoin_bridge_indexer_alt_framework::types::BRIDGE_ADDRESS;
+use move_core_types::account_address::AccountAddress;
 use tracing::info;
 
 const UPDATE_ROUTE_LIMIT_EVENT: &IdentStr = ident_str!("UpdateRouteLimitEvent");
@@ -41,18 +41,19 @@ pub struct GovernanceActionHandler {
 }
 
 impl GovernanceActionHandler {
-    pub fn new(metrics: Arc<BridgeIndexerMetrics>) -> Self {
+    /// Create a new GovernanceActionHandler with the given bridge address
+    pub fn new(metrics: Arc<BridgeIndexerMetrics>, bridge_address: AccountAddress) -> Self {
         Self {
-            update_limit_event_type: struct_tag!(BRIDGE_ADDRESS, LIMITER, UPDATE_ROUTE_LIMIT_EVENT),
-            emergency_op_event_type: struct_tag!(BRIDGE_ADDRESS, BRIDGE, EMERGENCY_OP_EVENT),
-            blocklist_event_type: struct_tag!(BRIDGE_ADDRESS, COMMITTEE, BLOCKLIST_VALIDATOR_EVENT),
-            token_reg_event_type: struct_tag!(BRIDGE_ADDRESS, TREASURY, TOKEN_REGISTRATION_EVENT),
+            update_limit_event_type: struct_tag!(bridge_address, LIMITER, UPDATE_ROUTE_LIMIT_EVENT),
+            emergency_op_event_type: struct_tag!(bridge_address, BRIDGE, EMERGENCY_OP_EVENT),
+            blocklist_event_type: struct_tag!(bridge_address, COMMITTEE, BLOCKLIST_VALIDATOR_EVENT),
+            token_reg_event_type: struct_tag!(bridge_address, TREASURY, TOKEN_REGISTRATION_EVENT),
             update_price_event_type: struct_tag!(
-                BRIDGE_ADDRESS,
+                bridge_address,
                 TREASURY,
                 UPDATE_TOKEN_PRICE_EVENT
             ),
-            new_token_event_type: struct_tag!(BRIDGE_ADDRESS, TREASURY, NEW_TOKEN_EVENT),
+            new_token_event_type: struct_tag!(bridge_address, TREASURY, NEW_TOKEN_EVENT),
             metrics,
         }
     }
@@ -61,9 +62,10 @@ impl GovernanceActionHandler {
 impl Default for GovernanceActionHandler {
     fn default() -> Self {
         use prometheus::Registry;
+        use starcoin_bridge_indexer_alt_framework::types::BRIDGE_ADDRESS;
         let registry = Registry::new();
         let metrics = BridgeIndexerMetrics::new(&registry);
-        Self::new(metrics)
+        Self::new(metrics, BRIDGE_ADDRESS)
     }
 }
 

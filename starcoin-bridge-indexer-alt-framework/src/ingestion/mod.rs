@@ -42,18 +42,14 @@ pub struct ClientArgs {
     #[clap(long, group = "source")]
     pub local_ingestion_path: Option<PathBuf>,
 
-    // Starcoin fullnode gRPC url to fetch checkpoints from.
+    // Starcoin fullnode RPC url to fetch blocks/events from.
     // If all remote_store_url, local_ingestion_path and rpc_api_url are provided, remote_store_url will be used.
     #[clap(long, env, group = "source")]
     pub rpc_api_url: Option<Url>,
 
-    // Optional username for the gRPC service.
+    // Bridge contract address on Starcoin (required when using rpc_api_url)
     #[clap(long, env)]
-    pub rpc_username: Option<String>,
-
-    // Optional password for the gRPC service.
-    #[clap(long, env)]
-    pub rpc_password: Option<String>,
+    pub bridge_address: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -86,7 +82,7 @@ impl IngestionConfig {
 impl IngestionService {
     // TODO: If we want to expose this as part of the framework, so people can run just an
     // ingestion service, we will need to split `IngestionMetrics` out from `IndexerMetrics`.
-    pub fn new(
+    pub async fn new(
         args: ClientArgs,
         config: IngestionConfig,
         metrics: Arc<IndexerMetrics>,
@@ -97,17 +93,14 @@ impl IngestionService {
             IngestionClient::new_remote(url.clone(), metrics.clone())?
         } else if let Some(path) = args.local_ingestion_path.as_ref() {
             IngestionClient::new_local(path.clone(), metrics.clone())
-        }
-        /*else if let Some(rpc_api_url) = args.rpc_api_url.as_ref() {
-            IngestionClient::new_rpc(
-                rpc_api_url.clone(),
-                args.rpc_username,
-                args.rpc_password,
-                metrics.clone(),
-            )?
-        }*/
-        else {
-            panic!("One of remote_store_url or local_ingestion_path must be provided");
+        } else if let Some(rpc_api_url) = args.rpc_api_url.as_ref() {
+            let bridge_address = args.bridge_address.clone().unwrap_or_else(|| {
+                // Default bridge address for Starcoin dev network
+                "0xefa1e687a64f869193f109f75d0432be".to_string()
+            });
+            IngestionClient::new_rpc(rpc_api_url.clone(), bridge_address, metrics.clone()).await?
+        } else {
+            panic!("One of remote_store_url, local_ingestion_path, or rpc_api_url must be provided");
         };
 
         let subscribers = Vec::new();
@@ -229,8 +222,7 @@ mod tests {
                 remote_store_url: Some(Url::parse(&uri).unwrap()),
                 local_ingestion_path: None,
                 rpc_api_url: None,
-                rpc_username: None,
-                rpc_password: None,
+                bridge_address: None,
             },
             IngestionConfig {
                 checkpoint_buffer_size,
@@ -240,6 +232,7 @@ mod tests {
             test_metrics(),
             cancel,
         )
+        .await
         .unwrap()
     }
 

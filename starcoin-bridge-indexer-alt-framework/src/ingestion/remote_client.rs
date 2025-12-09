@@ -108,7 +108,7 @@ impl IngestionClientTrait for RemoteIngestionClient {
 
             // Treat 404s as a special case so we can match on this error type.
             code @ StatusCode::NOT_FOUND => {
-                debug!(checkpoint, %code, "Checkpoint not found");
+                debug!(checkpoint, %code, "Block not found");
                 Err(FetchError::NotFound)
             }
 

@@ -5,13 +5,13 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
-    #[error("Checkpoint {0} not found")]
+    #[error("Block {0} not found")]
     NotFound(u64),
 
-    #[error("Failed to deserialize checkpoint {0}: {1}")]
+    #[error("Failed to deserialize block {0}: {1}")]
     DeserializationError(u64, #[source] anyhow::Error),
 
-    #[error("Failed to fetch checkpoint {0}: {1}")]
+    #[error("Failed to fetch block {0}: {1}")]
     FetchError(u64, #[source] anyhow::Error),
 
     #[error(transparent)]
@@ -22,7 +22,7 @@ pub enum Error {
 
     #[error("Shutdown signal received, stopping ingestion service")]
     Cancelled,
-    // todo: recover this after remove tonic
-    // #[error(transparent)]
-    // RpcClientError(#[from] tonic::Status),
+
+    #[error("RPC client error: {0}")]
+    RpcError(String),
 }

@@ -153,7 +153,8 @@ impl<S: Store> Indexer<S> {
             ingestion_config,
             metrics.clone(),
             cancel.clone(),
-        )?;
+        )
+        .await?;
 
         Ok(Self {
             store,
@@ -278,7 +279,7 @@ impl<S: Store> Indexer<S> {
 
         let last_checkpoint = self.last_checkpoint.unwrap_or(u64::MAX);
 
-        info!(first_checkpoint, last_checkpoint = ?self.last_checkpoint, "Ingestion range");
+        info!(first_block = first_checkpoint, last_block = ?self.last_checkpoint, "Ingestion range");
 
         let (regulator_handle, broadcaster_handle) = self
             .ingestion_service

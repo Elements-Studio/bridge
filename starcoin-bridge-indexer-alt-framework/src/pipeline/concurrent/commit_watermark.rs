@@ -80,7 +80,7 @@ pub(super) fn commit_watermark<H: Handler + 'static>(
 
         info!(
             pipeline = H::NAME,
-            next_checkpoint, "Starting commit watermark task"
+            next_block = next_checkpoint, "Starting commit watermark task"
         );
 
         loop {

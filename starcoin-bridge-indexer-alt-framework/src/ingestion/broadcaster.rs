@@ -45,7 +45,7 @@ pub(super) fn broadcaster(
                 let cancel = cancel.clone();
 
                 async move {
-                    // Repeatedly retry if the checkpoint is not found, assuming that we are at the
+                    // Repeatedly retry if the block is not found, assuming that we are at the
                     // tip of the network and it will become available soon.
                     let checkpoint = tokio::select! {
                         cp = client.wait_for(cp, retry_interval) => cp?,
@@ -67,7 +67,7 @@ pub(super) fn broadcaster(
             .await
         {
             Ok(()) => {
-                info!("Checkpoints done, stopping ingestion broadcaster");
+                info!("Blocks done, stopping ingestion broadcaster");
             }
 
             Err(Error::Cancelled) => {

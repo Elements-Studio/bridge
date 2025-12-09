@@ -19,9 +19,10 @@ diesel_migrations.workspace = true
 futures.workspace = true
 pin-project-lite.workspace = true
 prometheus.workspace = true
-reqwest.workspace = true
+reqwest = { workspace = true, features = ["json"] }
 scoped-futures.workspace = true
 serde.workspace = true
+serde_json.workspace = true
 tempfile.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
@@ -35,9 +36,13 @@ url.workspace = true
 starcoin-bridge-field-count.workspace = true
 starcoin-bridge-indexer-alt-framework-store-traits.workspace = true
 starcoin-bridge-indexer-alt-metrics.workspace = true
-# starcoin-bridge-rpc-api.workspace = true  # RPC client is commented out in code
+starcoin-bridge-sdk.workspace = true
 starcoin-bridge-storage.workspace = true
 starcoin-bridge-types.workspace = true
+starcoin-rpc-client.workspace = true
+hex.workspace = true
+bcs.workspace = true
+move-core-types.workspace = true
 
 starcoin-bridge-pg-db = { workspace = true, optional = true }
 

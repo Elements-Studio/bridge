@@ -88,19 +88,17 @@ impl IngestionClient {
         Self::new_impl(client, metrics)
     }
 
-    /*pub(crate) fn new_rpc(
+    pub(crate) async fn new_rpc(
         url: Url,
-        username: Option<String>,
-        password: Option<String>,
+        bridge_address: String,
         metrics: Arc<IndexerMetrics>,
     ) -> IngestionResult<Self> {
-        let client = if let Some(username) = username {
-            Client::new(url.to_string())?.with_auth(AuthInterceptor::basic(username, password))
-        } else {
-            Client::new(url.to_string())?
-        };
+        use crate::ingestion::rpc_client::StarcoinRpcClient;
+        let client = StarcoinRpcClient::new(url, bridge_address)
+            .await
+            .map_err(|e| IngestionError::RpcError(e.to_string()))?;
         Ok(Self::new_impl(Arc::new(client), metrics))
-    }*/
+    }
 
     fn new_impl(client: Arc<dyn IngestionClientTrait>, metrics: Arc<IndexerMetrics>) -> Self {
         let checkpoint_lag_reporter = CheckpointLagMetricReporter::new(
@@ -129,8 +127,8 @@ impl IngestionClient {
         let fetch = || async move {
             use backoff::Error as BE;
             self.fetch(checkpoint).await.map_err(|e| match e {
-                IngestionError::NotFound(checkpoint) => {
-                    debug!(checkpoint, "Checkpoint not found, retrying...");
+                IngestionError::NotFound(block) => {
+                    debug!(block, "Block not found, retrying...");
                     self.metrics.total_ingested_not_found_retries.inc();
                     BE::transient(e)
                 }

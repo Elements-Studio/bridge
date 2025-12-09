@@ -19,7 +19,7 @@ use starcoin_bridge_indexer_alt_framework::pipeline::Processor;
 use starcoin_bridge_indexer_alt_framework::postgres::Db;
 use starcoin_bridge_indexer_alt_framework::store::Store;
 use starcoin_bridge_indexer_alt_framework::types::full_checkpoint_content::CheckpointData;
-use starcoin_bridge_indexer_alt_framework::types::BRIDGE_ADDRESS;
+use move_core_types::account_address::AccountAddress;
 use tracing::info;
 
 pub struct TokenTransferHandler {
@@ -30,11 +30,12 @@ pub struct TokenTransferHandler {
 }
 
 impl TokenTransferHandler {
-    pub fn new(metrics: Arc<BridgeIndexerMetrics>) -> Self {
+    /// Create a new TokenTransferHandler with the given bridge address
+    pub fn new(metrics: Arc<BridgeIndexerMetrics>, bridge_address: AccountAddress) -> Self {
         Self {
-            deposited_event_type: struct_tag!(BRIDGE_ADDRESS, BRIDGE, TOKEN_DEPOSITED_EVENT),
-            approved_event_type: struct_tag!(BRIDGE_ADDRESS, BRIDGE, TOKEN_TRANSFER_APPROVED),
-            claimed_event_type: struct_tag!(BRIDGE_ADDRESS, BRIDGE, TOKEN_TRANSFER_CLAIMED),
+            deposited_event_type: struct_tag!(bridge_address, BRIDGE, TOKEN_DEPOSITED_EVENT),
+            approved_event_type: struct_tag!(bridge_address, BRIDGE, TOKEN_TRANSFER_APPROVED),
+            claimed_event_type: struct_tag!(bridge_address, BRIDGE, TOKEN_TRANSFER_CLAIMED),
             metrics,
         }
     }
@@ -44,9 +45,10 @@ impl Default for TokenTransferHandler {
     fn default() -> Self {
         // For compatibility with existing code that doesn't pass metrics
         use prometheus::Registry;
+        use starcoin_bridge_indexer_alt_framework::types::BRIDGE_ADDRESS;
         let registry = Registry::new();
         let metrics = BridgeIndexerMetrics::new(&registry);
-        Self::new(metrics)
+        Self::new(metrics, BRIDGE_ADDRESS)
     }
 }
 
@@ -64,7 +66,16 @@ impl Processor for TokenTransferHandler {
             if !is_bridge_txn(tx) {
                 continue;
             }
+            info!(
+                "Processing bridge txn at block {}, events count: {:?}",
+                block_height,
+                tx.events.as_ref().map(|e| e.data.len())
+            );
             for ev in tx.events.iter().flat_map(|e| &e.data) {
+                info!(
+                    "Event type: {:?}, expected deposited: {:?}, expected approved: {:?}",
+                    ev.type_, self.deposited_event_type, self.approved_event_type
+                );
                 let (chain_id, nonce) = if self.deposited_event_type == ev.type_ {
                     info!("Observed Starcoin Deposit {:?}", ev);
                     let event: MoveTokenDepositedEvent = bcs::from_bytes(&ev.contents)?;
