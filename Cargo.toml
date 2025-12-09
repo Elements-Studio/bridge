@@ -13,6 +13,7 @@ members = [
     "starcoin-bridge-data-ingestion-core",
     "starcoin-bridge-sql-macro",
     "starcoin-bridge-macros",
+    "starcoin-bridge-metrics-push-client",
     "prometheus-closure-metric",
     "bridge",
     "bridge-cli",
@@ -91,6 +92,7 @@ starcoin-bridge-test-transaction-builder = { path = "./starcoin-bridge-test-tran
 starcoin-bridge-types = { path = "./starcoin-bridge-types" }
 starcoin-bridge-vm-types = { path = "./starcoin-bridge-vm-types" }
 starcoin-bridge-macros = { path = "./starcoin-bridge-macros" }
+starcoin-bridge-metrics-push-client = { path = "./starcoin-bridge-metrics-push-client" }
 prometheus-closure-metric = { path = "./prometheus-closure-metric" }
 starcoin-bridge-sql-macro = { path = "./starcoin-bridge-sql-macro" }
 # Starcoin native types from starcoin-vm1
@@ -103,6 +105,8 @@ bcs-ext = { git = "https://github.com/starcoinorg/starcoin", rev = "98eefde70a10
 starcoin-test-helper = { git = "https://github.com/starcoinorg/starcoin", rev = "98eefde70a1059ad6d5b5afa54a7eeb403384dec", package = "test-helper" }
 starcoin-transaction-builder = { git = "https://github.com/starcoinorg/starcoin", rev = "98eefde70a1059ad6d5b5afa54a7eeb403384dec" }
 starcoin-txpool-api = { git = "https://github.com/starcoinorg/starcoin", rev = "98eefde70a1059ad6d5b5afa54a7eeb403384dec", package = "starcoin-txpool-api" }
+# Starcoin native metrics with push support (renamed to avoid conflict with bridge's starcoin-metrics)
+starcoin-native-metrics = { git = "https://github.com/starcoinorg/starcoin", rev = "98eefde70a1059ad6d5b5afa54a7eeb403384dec", package = "starcoin-metrics", features = ["server"] }
 telemetry-subscribers = { path = "./telemetry-subscribers" }
 test-cluster = { path = "./test-cluster" }
 typed-store = { path = "./typed-store" }

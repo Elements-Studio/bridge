@@ -7,12 +7,12 @@ use starcoin_bridge::config::BridgeNodeConfig;
 use starcoin_bridge::node::run_bridge_node;
 use starcoin_bridge::server::BridgeNodePublicMetadata;
 use starcoin_bridge_config::Config;
+use starcoin_bridge_metrics_push_client::{start_metrics_push_task, MetricsPushConfig};
 use starcoin_metrics::start_prometheus_server;
 use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr},
     path::PathBuf,
 };
-// use starcoin_bridge_metrics_push_client::start_metrics_push_task;  // Disabled: conflicts with starcoin's subtle version
 use tracing::info;
 
 // Define the `GIT_REVISION` and `VERSION` consts
@@ -50,17 +50,16 @@ async fn main() -> anyhow::Result<()> {
 
     let metadata = BridgeNodePublicMetadata::new(VERSION, config.metrics_key_pair.public().clone());
 
-    // Metrics push functionality disabled due to rustls/subtle version conflicts with starcoin
-    /*
+    // Start metrics push task if configured
     if let Some(metrics_config) = &config.metrics {
-        start_metrics_push_task(
-            metrics_config.push_interval_seconds,
-            metrics_config.push_url.clone(),
-            config.metrics_key_pair.copy(),
-            registry_service.clone(),
-        );
+        let push_config = MetricsPushConfig {
+            push_interval_seconds: metrics_config.push_interval_seconds.unwrap_or(60),
+            push_url: metrics_config.push_url.clone(),
+            auth_username: metrics_config.auth_username.clone(),
+            auth_password: metrics_config.auth_password.clone(),
+        };
+        start_metrics_push_task(push_config, registry_service.clone());
     }
-    */
 
     let handle = run_bridge_node(config, metadata, prometheus_registry).await?;
     handle

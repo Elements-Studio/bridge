@@ -1,55 +1,106 @@
-// Copyright (c) Mysten Labs, Inc.
+// Copyright (c) The Starcoin Core Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-use client::MetricsPushClient;
+//! Metrics push client for Starcoin Bridge.
+//!
+//! This module wraps starcoin-native-metrics' push_metrics functionality
+//! to provide periodic metrics pushing with tokio async runtime.
+
 use starcoin_metrics::RegistryService;
 use std::time::Duration;
-use starcoin_bridge_types::crypto::{NetworkKeyPair, NetworkKeyPairExt};
 
-mod client;
+/// Configuration for metrics push
+#[derive(Clone, Debug)]
+pub struct MetricsPushConfig {
+    /// Push interval in seconds (default: 60)
+    pub push_interval_seconds: u64,
+    /// Push gateway URL (e.g., "http://pushgateway:9091")
+    pub push_url: String,
+    /// Optional username for Basic Auth
+    pub auth_username: Option<String>,
+    /// Password for Basic Auth (required if username is set)
+    pub auth_password: String,
+}
 
-// Starts a task to periodically push metrics to a configured endpoint if a metrics push endpoint
-// is configured.
-pub fn start_metrics_push_task(
-    push_interval_seconds: Option<u64>,
-    push_url: String,
-    metrics_key_pair: NetworkKeyPair,
-    registry: RegistryService,
-) {
-    use fastcrypto::traits::KeyPair;
+impl Default for MetricsPushConfig {
+    fn default() -> Self {
+        Self {
+            push_interval_seconds: 60,
+            push_url: String::new(),
+            auth_username: None,
+            auth_password: String::new(),
+        }
+    }
+}
 
-    const DEFAULT_METRICS_PUSH_INTERVAL: Duration = Duration::from_secs(60);
+/// Starts a background task to periodically push metrics to a Prometheus Pushgateway.
+///
+/// Uses starcoin-native-metrics' `push_metrics` function which supports:
+/// - Basic Auth authentication
+/// - Standard Prometheus push format
+///
+/// # Arguments
+/// * `config` - Push configuration including URL and auth credentials
+/// * `_registry` - Registry service (currently uses default prometheus registry)
+///
+/// # Example
+/// ```ignore
+/// let config = MetricsPushConfig {
+///     push_interval_seconds: 60,
+///     push_url: "http://pushgateway:9091".to_string(),
+///     auth_username: Some("user".to_string()),
+///     auth_password: "password".to_string(),
+/// };
+/// start_metrics_push_task(config, registry);
+/// ```
+pub fn start_metrics_push_task(config: MetricsPushConfig, _registry: RegistryService) {
+    if config.push_url.is_empty() {
+        tracing::warn!("Metrics push URL is empty, skipping metrics push task");
+        return;
+    }
 
-    let interval = push_interval_seconds
-        .map(Duration::from_secs)
-        .unwrap_or(DEFAULT_METRICS_PUSH_INTERVAL);
-    let url = reqwest::Url::parse(&push_url).expect("unable to parse metrics push url");
-
-    let mut client = MetricsPushClient::new(metrics_key_pair.copy());
+    let interval = Duration::from_secs(config.push_interval_seconds);
 
     tokio::spawn(async move {
-        tracing::info!(push_url =% url, interval =? interval, "Started Metrics Push Service");
+        tracing::info!(
+            push_url = %config.push_url,
+            interval = ?interval,
+            "Started Metrics Push Service"
+        );
 
-        let mut interval = tokio::time::interval(interval);
-        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+        let mut interval_timer = tokio::time::interval(interval);
+        interval_timer.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
-        let mut errors = 0;
         loop {
-            interval.tick().await;
+            interval_timer.tick().await;
 
-            if let Err(error) = client.push_metrics(&url, &registry).await {
-                errors += 1;
-                if errors >= 10 {
-                    // If we hit 10 failures in a row, start logging errors.
-                    tracing::error!("unable to push metrics: {error}; new client will be created");
-                } else {
-                    tracing::warn!("unable to push metrics: {error}; new client will be created");
-                }
-                // aggressively recreate our client connection if we hit an error
-                client = MetricsPushClient::new(metrics_key_pair.copy());
-            } else {
-                errors = 0;
-            }
+            // Use starcoin-native-metrics' push_metrics function
+            // It uses prometheus::gather() internally to collect all registered metrics
+            starcoin_native_metrics::metric_server::push_metrics(
+                config.push_url.clone(),
+                config.auth_username.clone(),
+                config.auth_password.clone(),
+            );
         }
     });
+}
+
+/// Legacy API compatibility - starts metrics push with individual parameters
+///
+/// This function is provided for backward compatibility.
+/// Prefer using `start_metrics_push_task` with `MetricsPushConfig` instead.
+pub fn start_metrics_push_task_legacy(
+    push_interval_seconds: Option<u64>,
+    push_url: String,
+    auth_username: Option<String>,
+    auth_password: String,
+    registry: RegistryService,
+) {
+    let config = MetricsPushConfig {
+        push_interval_seconds: push_interval_seconds.unwrap_or(60),
+        push_url,
+        auth_username,
+        auth_password,
+    };
+    start_metrics_push_task(config, registry);
 }

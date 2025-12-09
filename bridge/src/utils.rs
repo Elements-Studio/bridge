@@ -228,6 +228,8 @@ pub fn generate_bridge_node_config_and_write_to_file(
         metrics: Some(MetricsConfig {
             push_interval_seconds: None, // use default value
             push_url: "metrics_proxy_url".to_string(),
+            auth_username: None,
+            auth_password: String::new(),
         }),
         watchdog_config: Some(WatchdogConfig {
             total_supplies: BTreeMap::from_iter(vec![(

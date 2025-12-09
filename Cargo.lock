@@ -11018,6 +11018,7 @@ dependencies = [
  "starcoin-bridge-json-rpc-api",
  "starcoin-bridge-json-rpc-types",
  "starcoin-bridge-keys",
+ "starcoin-bridge-metrics-push-client",
  "starcoin-bridge-sdk",
  "starcoin-bridge-test-transaction-builder",
  "starcoin-bridge-types",
@@ -11140,6 +11141,16 @@ version = "0.1.0"
 dependencies = [
  "futures 0.3.31",
  "once_cell",
+ "tracing",
+]
+
+[[package]]
+name = "starcoin-bridge-metrics-push-client"
+version = "0.1.0"
+dependencies = [
+ "starcoin-metrics 0.7.0",
+ "starcoin-metrics 1.13.20 (git+https://github.com/starcoinorg/starcoin?rev=98eefde70a1059ad6d5b5afa54a7eeb403384dec)",
+ "tokio",
  "tracing",
 ]
 

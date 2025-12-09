@@ -136,6 +136,12 @@ pub struct MetricsConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub push_interval_seconds: Option<u64>,
     pub push_url: String,
+    /// Optional username for Basic Auth (Prometheus Pushgateway)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auth_username: Option<String>,
+    /// Password for Basic Auth (required if auth_username is set)
+    #[serde(default)]
+    pub auth_password: String,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]

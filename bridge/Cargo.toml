@@ -54,7 +54,7 @@ starcoin-bridge-test-transaction-builder.workspace = true
 starcoin-vm-types.workspace = true
 starcoin-crypto.workspace = true
 bcs-ext.workspace = true
-# starcoin-bridge-metrics-push-client.workspace = true  # Disabled: conflicts with starcoin's subtle version
+starcoin-bridge-metrics-push-client.workspace = true
 hex-literal = { version = "0.3.4", optional = true }
 test-cluster = { workspace = true, optional = true }
 
