@@ -14,6 +14,9 @@ starcoin-bridge-types = { path = "../starcoin-bridge-types" }
 # Use fastcrypto for key operations (same as starcoin-bridge-types)
 fastcrypto.workspace = true
 
+# k256 for correct Ethereum address calculation (decompress public key)
+k256 = { version = "0.13", features = ["ecdsa"] }
+
 # Hashing for Ethereum address calculation
 sha3 = "0.10"
 

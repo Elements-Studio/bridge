@@ -84,9 +84,16 @@ fn examine_key_file(path: &PathBuf) -> Result<()> {
             println!("Key type: Secp256k1");
             println!("Public key (hex): {}", hex::encode(kp.public().as_bytes()));
 
-            // Calculate Ethereum address
+            // Calculate Ethereum address correctly using k256 to decompress
+            use k256::elliptic_curve::sec1::ToEncodedPoint;
+            use k256::PublicKey;
             use sha3::{Digest, Keccak256};
-            let pubkey_bytes = kp.public().as_bytes();
+            
+            let compressed_bytes = kp.public().as_bytes();
+            let pk = PublicKey::from_sec1_bytes(compressed_bytes)
+                .expect("Invalid public key");
+            let uncompressed = pk.to_encoded_point(false);
+            let pubkey_bytes = &uncompressed.as_bytes()[1..]; // Skip 0x04 prefix
             let hash = Keccak256::digest(pubkey_bytes);
             let mut addr = [0u8; 20];
             addr.copy_from_slice(&hash[12..]);

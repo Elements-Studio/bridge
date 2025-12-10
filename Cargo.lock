@@ -11599,6 +11599,7 @@ dependencies = [
  "clap 4.5.53",
  "fastcrypto",
  "hex",
+ "k256",
  "sha3 0.10.8",
  "starcoin-bridge-types",
 ]

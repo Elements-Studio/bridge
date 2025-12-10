@@ -69,7 +69,7 @@ library BridgeUtils {
     uint8 public constant USDC = 3;
     uint8 public constant USDT = 4;
 
-    string public constant MESSAGE_PREFIX = "SUI_BRIDGE_MESSAGE";
+    string public constant MESSAGE_PREFIX = "STARCOIN_BRIDGE_MESSAGE";
 
     /* ========== INTERNAL FUNCTIONS ========== */
 
@@ -173,14 +173,14 @@ library BridgeUtils {
 
     /// @notice Decodes a token transfer payload from bytes to a TokenTransferPayload struct.
     /// @dev The function will revert if the payload length is invalid.
-    ///     TokenTransfer payload is 64 bytes.
+    ///     TokenTransfer payload is 48 bytes (for Starcoin with 16-byte addresses).
     ///     byte 0       : sender address length
-    ///     bytes 1-32   : sender address (as we only support Sui now, it has to be 32 bytes long)
-    ///     bytes 33     : target chain id
-    ///     byte 34      : target address length
-    ///     bytes 35-54  : target address
-    ///     byte 55      : token id
-    ///     bytes 56-63  : amount
+    ///     bytes 1-16   : sender address (Starcoin address is 16 bytes)
+    ///     byte 17      : target chain id
+    ///     byte 18      : target address length
+    ///     bytes 19-38  : target address (EVM address is 20 bytes)
+    ///     byte 39      : token id
+    ///     bytes 40-47  : amount (uint64, 8 bytes)
     /// @param _payload The payload to be decoded.
     /// @return The decoded token transfer payload as a TokenTransferPayload struct.
     function decodeTokenTransferPayload(bytes memory _payload)
@@ -188,13 +188,13 @@ library BridgeUtils {
         pure
         returns (TokenTransferPayload memory)
     {
-        require(_payload.length == 64, "BridgeUtils: TokenTransferPayload must be 64 bytes");
+        require(_payload.length == 48, "BridgeUtils: TokenTransferPayload must be 48 bytes");
 
         uint8 senderAddressLength = uint8(_payload[0]);
 
         require(
-            senderAddressLength == 32,
-            "BridgeUtils: Invalid sender address length, Sui address must be 32 bytes"
+            senderAddressLength == 16,
+            "BridgeUtils: Invalid sender address length, Starcoin address must be 16 bytes"
         );
 
         // used to offset already read bytes

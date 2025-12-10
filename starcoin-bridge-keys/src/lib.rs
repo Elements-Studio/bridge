@@ -41,19 +41,30 @@ pub mod keygen {
     }
 
     /// Calculate Ethereum address from Secp256k1 public key
+    /// Uses k256 to decompress the public key and then keccak256 hash
     fn calculate_eth_address(pubkey: &fastcrypto::secp256k1::Secp256k1PublicKey) -> [u8; 20] {
         use fastcrypto::traits::ToFromBytes;
+        use k256::elliptic_curve::sec1::ToEncodedPoint;
+        use k256::PublicKey;
         use sha3::{Digest, Keccak256};
 
-        // Get uncompressed public key (65 bytes: 0x04 + x + y)
-        let pubkey_bytes = pubkey.as_bytes();
+        // Get compressed public key bytes (33 bytes)
+        let compressed_bytes = pubkey.as_bytes();
 
-        // For Ethereum address, we hash the x and y coordinates (skip the first byte 0x04)
-        // Secp256k1PublicKey in fastcrypto is 33 bytes (compressed), need to expand
-        // For now, use a simplified approach - hash the bytes we have
+        // Parse as k256 public key and decompress
+        let pk = PublicKey::from_sec1_bytes(compressed_bytes)
+            .expect("Invalid public key");
+        
+        // Get uncompressed point (65 bytes: 0x04 + x + y)
+        let uncompressed = pk.to_encoded_point(false);
+        
+        // Hash the x and y coordinates (skip the 0x04 prefix, use bytes 1..65)
+        let pubkey_bytes = &uncompressed.as_bytes()[1..];
+        assert_eq!(pubkey_bytes.len(), 64, "Uncompressed public key must be 64 bytes");
+        
         let hash = Keccak256::digest(pubkey_bytes);
 
-        // Take last 20 bytes
+        // Take last 20 bytes as Ethereum address
         let mut addr = [0u8; 20];
         addr.copy_from_slice(&hash[12..]);
         addr

@@ -559,6 +559,125 @@ check_bridge_record() {
     fi
 }
 
+# Get bridge message and signatures from Starcoin for claiming on ETH
+# Returns: message_hex signatures_array
+get_bridge_claim_data() {
+    local source_chain=$1
+    local seq_num=$2
+    local bridge_addr=$(grep "starcoin-bridge-proxy-address:" bridge-config/server-config.yaml 2>/dev/null | awk '{print $2}' | tr -d '"')
+    
+    if [ -z "$bridge_addr" ]; then
+        echo ""
+        return 1
+    fi
+    
+    local request="{\"jsonrpc\":\"2.0\",\"method\":\"state.get_resource\",\"params\":[\"$bridge_addr\",\"${bridge_addr}::Bridge::Bridge\",{\"decode\":true}],\"id\":1}"
+    
+    local result=$(curl -s -X POST -H "Content-Type: application/json" \
+        -d "$request" \
+        "$STARCOIN_RPC" 2>/dev/null)
+    
+    local record=$(echo "$result" | jq -r ".result.json.inner.token_transfer_records.data[] | select(.key.source_chain == $source_chain and .key.bridge_seq_num == $seq_num)")
+    
+    if [ -z "$record" ]; then
+        echo ""
+        return 1
+    fi
+    
+    # Get verified signatures
+    local signatures=$(echo "$record" | jq -r '.value.verified_signatures.vec[]? | @json' 2>/dev/null | tr '\n' ' ')
+    
+    # Get message data
+    local message=$(echo "$record" | jq -r '.value.message' 2>/dev/null)
+    
+    echo "$message|||$signatures"
+}
+
+# Claim tokens on ETH side using signatures from Starcoin
+claim_on_eth() {
+    local source_chain=$1
+    local seq_num=$2
+    local token=$3
+    
+    echo -e "${YELLOW}[Auto-Claim] Getting signatures from Starcoin...${NC}"
+    
+    local bridge_addr=$(grep "starcoin-bridge-proxy-address:" bridge-config/server-config.yaml 2>/dev/null | awk '{print $2}' | tr -d '"')
+    local eth_bridge=$(get_bridge_address)
+    
+    if [ -z "$bridge_addr" ] || [ -z "$eth_bridge" ]; then
+        echo -e "${RED}✗ Cannot find bridge addresses${NC}" >&2
+        return 1
+    fi
+    
+    # Get the full Bridge resource
+    local result=$(curl -s -X POST -H "Content-Type: application/json" \
+        -d "{\"jsonrpc\":\"2.0\",\"method\":\"state.get_resource\",\"params\":[\"$bridge_addr\",\"${bridge_addr}::Bridge::Bridge\",{\"decode\":true}],\"id\":1}" \
+        "$STARCOIN_RPC" 2>/dev/null)
+    
+    local record=$(echo "$result" | jq -r ".result.json.inner.token_transfer_records.data[] | select(.key.source_chain == $source_chain and .key.bridge_seq_num == $seq_num)" 2>/dev/null)
+    
+    if [ -z "$record" ] || [ "$record" = "null" ]; then
+        echo -e "${RED}✗ Cannot find bridge record for chain=$source_chain seq=$seq_num${NC}" >&2
+        return 1
+    fi
+    
+    # Check if already claimed
+    local claimed=$(echo "$record" | jq -r '.value.claimed')
+    if [ "$claimed" = "true" ]; then
+        echo -e "${YELLOW}⚠ Tokens already claimed on Starcoin side${NC}"
+        return 0
+    fi
+    
+    # Get signatures - they are already hex strings with 0x prefix
+    # Format: vec: [["0x..."]]  - nested array with single signature per inner array
+    local sig_hex=$(echo "$record" | jq -r '.value.verified_signatures.vec[0][0] // empty' 2>/dev/null)
+    
+    if [ -z "$sig_hex" ]; then
+        echo -e "${RED}✗ No signatures found - transfer not approved yet${NC}" >&2
+        return 1
+    fi
+    
+    echo -e "${GREEN}✓ Found signature: ${sig_hex:0:20}...${NC}"
+    
+    # Get message fields - payload is already hex string with 0x prefix
+    local msg_type=$(echo "$record" | jq -r '.value.message.message_type')
+    local msg_version=$(echo "$record" | jq -r '.value.message.message_version')
+    local msg_seq_num=$(echo "$record" | jq -r '.value.message.seq_num')
+    local msg_chain_id=$(echo "$record" | jq -r '.value.message.source_chain')
+    local msg_payload=$(echo "$record" | jq -r '.value.message.payload')
+    
+    echo -e "${BLUE}[DEBUG] Message: type=$msg_type version=$msg_version seq=$msg_seq_num chain=$msg_chain_id${NC}"
+    echo -e "${BLUE}[DEBUG] Payload: $msg_payload${NC}"
+    
+    # Build the Message struct for Solidity
+    # struct Message { uint8 messageType; uint8 version; uint64 nonce; uint8 chainID; bytes payload; }
+    local message_tuple="($msg_type,$msg_version,$msg_seq_num,$msg_chain_id,$msg_payload)"
+    
+    echo -e "${YELLOW}[Auto-Claim] Calling ETH bridge contract...${NC}"
+    echo -e "${BLUE}[DEBUG] ETH Bridge: $eth_bridge${NC}"
+    echo -e "${BLUE}[DEBUG] Signature: $sig_hex${NC}"
+    echo -e "${BLUE}[DEBUG] Message tuple: $message_tuple${NC}"
+    
+    # Call transferBridgedTokensWithSignatures(bytes[] signatures, Message message)
+    # Note: cast expects array format as [value] without quotes around hex
+    local tx_result=$(cast send "$eth_bridge" \
+        "transferBridgedTokensWithSignatures(bytes[],(uint8,uint8,uint64,uint8,bytes))" \
+        "[$sig_hex]" \
+        "$message_tuple" \
+        --private-key "$ANVIL_PRIVATE_KEY" \
+        --rpc-url "$ETH_RPC" \
+        2>&1)
+    
+    if echo "$tx_result" | grep -qE "transactionHash|blockHash|status.*1|success"; then
+        echo -e "${GREEN}✓ Successfully claimed tokens on ETH!${NC}"
+        return 0
+    else
+        echo -e "${RED}✗ Failed to claim on ETH:${NC}" >&2
+        echo "$tx_result" | head -10 >&2
+        return 1
+    fi
+}
+
 # Wait for transaction and poll status by checking token balance
 poll_bridge_status() {
     local direction=$1
@@ -570,6 +689,22 @@ poll_bridge_status() {
     local stc_decimals=$(get_starcoin_decimals "$token")
     
     echo -e "${YELLOW}Polling bridge status (max ${MAX_WAIT}s)...${NC}"
+    
+    # For stc-to-eth, we need to track the sequence number
+    local seq_num=0
+    if [ "$direction" = "stc-to-eth" ]; then
+        # Get current sequence number from bridge state
+        local bridge_addr=$(grep "starcoin-bridge-proxy-address:" bridge-config/server-config.yaml 2>/dev/null | awk '{print $2}' | tr -d '"')
+        if [ -n "$bridge_addr" ]; then
+            local request="{\"jsonrpc\":\"2.0\",\"method\":\"state.get_resource\",\"params\":[\"$bridge_addr\",\"${bridge_addr}::Bridge::Bridge\",{\"decode\":true}],\"id\":1}"
+            local result=$(curl -s -X POST -H "Content-Type: application/json" \
+                -d "$request" \
+                "$STARCOIN_RPC" 2>/dev/null)
+            # Get the latest seq_num for Starcoin (source_chain=2)
+            seq_num=$(echo "$result" | jq -r '[.result.json.inner.token_transfer_records.data[] | select(.key.source_chain == 2) | .key.bridge_seq_num] | max // 0' 2>/dev/null)
+            echo -e "${BLUE}[DEBUG] Current bridge seq_num for Starcoin: $seq_num${NC}"
+        fi
+    fi
     
     while true; do
         local current_time=$(date +%s)
@@ -592,11 +727,22 @@ poll_bridge_status() {
             echo -e "${YELLOW}... Waiting for token transfer... (${elapsed}s)${NC}"
         else
             # For stc-to-eth, check if approve status on Starcoin chain
-            # Bridge node only does approve on Starcoin; user must claim on ETH manually
-            local status=$(check_bridge_record 2 0)  # source_chain=2 (Starcoin), seq_num=0
-            if [ "$status" = "approved" ] || [ "$status" = "claimed" ]; then
+            local status=$(check_bridge_record 2 "$seq_num")  # source_chain=2 (Starcoin)
+            if [ "$status" = "approved" ]; then
                 echo -e "${GREEN}✓ Bridge approve completed on Starcoin!${NC}"
-                echo -e "${YELLOW}Note: To receive tokens on ETH, you need to call transferBridgedTokensWithSignatures on the ETH bridge contract.${NC}"
+                echo -e "${YELLOW}[Auto-Claim] Attempting to claim tokens on ETH...${NC}"
+                
+                # Auto claim on ETH
+                if claim_on_eth 2 "$seq_num" "$token"; then
+                    echo -e "${GREEN}✓ Auto-claim successful!${NC}"
+                    return 0
+                else
+                    echo -e "${YELLOW}⚠ Auto-claim failed. You can try manually:${NC}"
+                    echo -e "${YELLOW}  make claim-on-eth SEQ_NUM=$seq_num${NC}"
+                    return 0
+                fi
+            elif [ "$status" = "claimed" ]; then
+                echo -e "${GREEN}✓ Tokens already claimed!${NC}"
                 return 0
             fi
             echo -e "${YELLOW}... Waiting for Starcoin approve... (${elapsed}s)${NC}"
@@ -712,7 +858,7 @@ main() {
         # Record initial balances AFTER funding
         echo -e "${BLUE}[DEBUG] Getting Starcoin $TOKEN balance...${NC}"
         local initial_token_balance=$(get_bridge_token_balance "$stc_addr" "$TOKEN")
-        local initial_token_balance_display=$(python3 -c "print(f'{$initial_token_balance / (10 ** $stc_decimals):g}')" 2>/dev/null || echo "0")
+        local initial_token_balance_display=$(python3 -c "print(f'{$initial_token_balance / (10 ** $stc_decimals):.6f}')" 2>/dev/null || echo "0")
         
         # Get ETH side balance
         if [ "$TOKEN" = "ETH" ]; then
@@ -722,7 +868,7 @@ main() {
                 -d "$eth_request" \
                 "$ETH_RPC" | tee >(cat >&2))
             initial_eth_wallet=$(echo "$initial_eth_wallet" | jq -r '.result // "0x0"')
-            local eth_before=$(python3 -c "print(f'{int(\"$initial_eth_wallet\", 16) / 1e18:g}')" 2>/dev/null || echo "0")
+            local eth_before=$(python3 -c "print(f'{int(\"$initial_eth_wallet\", 16) / 1e18:.6f}')" 2>/dev/null || echo "0")
         else
             local eth_before=$(get_eth_erc20_balance "$TOKEN" "$eth_addr")
         fi
@@ -778,7 +924,7 @@ main() {
             echo -e "  Starcoin: ${GREEN}+${token_change} ${TOKEN}${NC} (${initial_token_balance_display} → ${final_token_balance_display})"
             echo -e "  Ethereum: ${GREEN}-${eth_change} ${TOKEN}${NC} (${eth_before} → ${eth_after})"
         else
-            echo -e "${YELLOW}[5/5] Starcoin approve complete!${NC}"
+            echo -e "${YELLOW}[5/5] Transfer complete (with auto-claim)!${NC}"
             
             # Get final balances
             echo -e "${BLUE}[DEBUG] Getting final Starcoin $TOKEN balance...${NC}"
@@ -793,24 +939,22 @@ main() {
                     -d "$eth_request" \
                     "$ETH_RPC" | tee >(cat >&2))
                 final_eth_wallet=$(echo "$final_eth_wallet" | jq -r '.result // "0x0"')
-                local eth_after=$(python3 -c "print(f'{int(\"$final_eth_wallet\", 16) / 1e18:g}')" 2>/dev/null || echo "0")
+                local eth_after=$(python3 -c "print(f'{int(\"$final_eth_wallet\", 16) / 1e18:.6f}')" 2>/dev/null || echo "0")
             else
                 local eth_after=$(get_eth_erc20_balance "$TOKEN" "$eth_addr")
             fi
             
-            echo -e "${BLUE}=== After Approve ===${NC}"
+            echo -e "${BLUE}=== After Transfer ===${NC}"
             echo -e "  Starcoin $TOKEN:    ${GREEN}${final_token_balance_display} ${TOKEN}${NC} (tokens burned)"
-            echo -e "  Ethereum $TOKEN:    ${GREEN}${eth_after} ${TOKEN}${NC} (pending claim)"
+            echo -e "  Ethereum $TOKEN:    ${GREEN}${eth_after} ${TOKEN}${NC}"
             
             # Calculate changes
-            local token_change=$(python3 -c "print(f'{($initial_token_balance - $final_token_balance) / (10 ** $stc_decimals):g}')" 2>/dev/null || echo "0")
+            local token_change=$(python3 -c "print(f'{($initial_token_balance - $final_token_balance) / (10 ** $stc_decimals):.6f}')" 2>/dev/null || echo "0")
+            local eth_change=$(python3 -c "print(f'{float(\"$eth_after\") - float(\"$eth_before\"):.6f}')" 2>/dev/null || echo "$AMOUNT")
             echo ""
-            echo -e "${GREEN}✓ Starcoin→ETH approve successful!${NC}"
-            echo -e "  Starcoin: ${GREEN}-${token_change} ${TOKEN}${NC} (${initial_token_balance_display} → ${final_token_balance_display})"
-            echo ""
-            echo -e "${YELLOW}  Next step: Claim tokens on ETH by calling:${NC}"
-            echo -e "${YELLOW}    Bridge.transferBridgedTokensWithSignatures(signatures, message)${NC}"
-            echo -e "${YELLOW}  You can use 'make claim-on-eth' to complete the transfer.${NC}"
+            echo -e "${GREEN}✓ Starcoin→ETH transfer successful!${NC}"
+            echo -e "  Starcoin: ${RED}-${token_change} ${TOKEN}${NC} (${initial_token_balance_display} → ${final_token_balance_display})"
+            echo -e "  Ethereum: ${GREEN}+${eth_change} ${TOKEN}${NC} (${eth_before} → ${eth_after})"
         fi
     else
         echo ""

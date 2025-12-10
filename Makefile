@@ -995,7 +995,7 @@ withdraw-usdt-test: build-bridge-cli init-cli-config ## Quick test: withdraw 10 
 # Withdraw from Starcoin to ETH (Starcoin -> ETH)
 withdraw-to-eth: build-bridge-cli init-cli-config ## Withdraw tokens from Starcoin to ETH
 	@BRIDGE_ADDR=$$(grep "starcoin-bridge-proxy-address:" bridge-config/server-config.yaml 2>/dev/null | awk '{print $$2}' | tr -d '"'); \
-	ETH_RECIPIENT=$$($(BRIDGE_CLI) examine-key bridge-node/server-config/bridge_authority.key 2>/dev/null | grep "Eth address:" | awk '{print $$NF}'); \
+	ETH_RECIPIENT=$$($(BRIDGE_CLI) examine-key bridge-node/server-config/bridge_authority.key 2>/dev/null | grep "Corresponding Ethereum address:" | awk '{print $$NF}'); \
 	if [ -z "$$ETH_RECIPIENT" ]; then \
 		ETH_RECIPIENT="0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"; \
 	fi; \
