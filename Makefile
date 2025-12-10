@@ -1047,3 +1047,14 @@ init-cli-config: ## Generate CLI config file
 	echo "starcoin-bridge-key-path: $(PWD)/bridge-node/server-config/bridge_client.key" >> $(CLI_CONFIG); \
 	echo "eth-key-path: $(PWD)/bridge-node/server-config/bridge_authority.key" >> $(CLI_CONFIG)
 	@echo "$(GREEN)✓ CLI config generated: $(CLI_CONFIG)$(NC)"
+
+# Manual claim on ETH for Starcoin->ETH transfers
+claim-on-eth: ## Manually claim tokens on ETH (usage: make claim-on-eth SEQ_NUM=1 TOKEN=ETH)
+	@echo "$(YELLOW)Manual ETH Claim$(NC)"
+	@if [ -z "$(SEQ_NUM)" ]; then \
+		echo "$(RED)✗ SEQ_NUM required. Usage: make claim-on-eth SEQ_NUM=1 TOKEN=ETH$(NC)"; \
+		exit 1; \
+	fi
+	@TOKEN=$${TOKEN:-ETH}; \
+	cd scripts && bash bridge_transfer.sh claim-on-eth 2 $(SEQ_NUM) $$TOKEN
+

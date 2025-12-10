@@ -47,6 +47,20 @@ DIRECTION=$1
 AMOUNT=$2
 TOKEN=""
 
+# Handle special claim-on-eth command
+if [ "$DIRECTION" = "claim-on-eth" ]; then
+    # Usage: bridge_transfer.sh claim-on-eth <source_chain> <seq_num> <token>
+    SOURCE_CHAIN=$2
+    SEQ_NUM=$3
+    TOKEN=${4:-ETH}
+    
+    if [ -z "$SEQ_NUM" ]; then
+        echo "Error: SEQ_NUM is required for claim-on-eth" >&2
+        echo "Usage: $0 claim-on-eth <source_chain> <seq_num> [token]" >&2
+        exit 1
+    fi
+fi
+
 if [ -z "$DIRECTION" ]; then
     echo "Error: DIRECTION is required (eth-to-stc or stc-to-eth)" >&2
     echo "Usage: $0 <DIRECTION> <AMOUNT> --token <TOKEN>" >&2
@@ -754,6 +768,25 @@ poll_bridge_status() {
 
 # Main execution
 main() {
+    # Handle special claim-on-eth command first
+    if [ "$DIRECTION" = "claim-on-eth" ]; then
+        echo -e "${BLUE}========================================${NC}"
+        echo -e "${BLUE}  Manual ETH Claim${NC}"
+        echo -e "${BLUE}========================================${NC}"
+        echo -e "${YELLOW}Source Chain: $SOURCE_CHAIN${NC}"
+        echo -e "${YELLOW}Sequence Number: $SEQ_NUM${NC}"
+        echo -e "${YELLOW}Token: $TOKEN${NC}"
+        echo ""
+        
+        if claim_on_eth "$SOURCE_CHAIN" "$SEQ_NUM" "$TOKEN"; then
+            echo -e "${GREEN}✓ Claim successful!${NC}"
+            exit 0
+        else
+            echo -e "${RED}✗ Claim failed${NC}"
+            exit 1
+        fi
+    fi
+    
     echo -e "${BLUE}========================================${NC}"
     echo -e "${BLUE}  Starcoin Bridge Transfer${NC}"
     echo -e "${BLUE}========================================${NC}"
