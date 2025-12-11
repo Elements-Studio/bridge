@@ -4,17 +4,16 @@
 use clap::*;
 use ethers::providers::Middleware;
 use ethers::types::Address as EthAddress;
+use ethers::utils::hex;
 use fastcrypto::encoding::{Encoding, Hex};
 use fastcrypto::traits::ToFromBytes;
-use shared_crypto::intent::Intent;
-use shared_crypto::intent::IntentMessage;
+use move_core_types::account_address::AccountAddress;
 use starcoin_bridge::client::bridge_authority_aggregator::BridgeAuthorityAggregator;
 use starcoin_bridge::crypto::{BridgeAuthorityPublicKey, BridgeAuthorityPublicKeyBytes};
 use starcoin_bridge::eth_transaction_builder::build_eth_transaction;
 use starcoin_bridge::metrics::BridgeMetrics;
 use starcoin_bridge::starcoin_bridge_client::StarcoinBridgeClient;
-use starcoin_bridge::starcoin_bridge_transaction_builder::build_starcoin_bridge_transaction;
-use starcoin_bridge::types::BridgeActionType;
+use starcoin_bridge::types::{BridgeAction, BridgeActionType};
 use starcoin_bridge::utils::{
     examine_key, generate_bridge_authority_key_and_write_to_file,
     generate_bridge_client_key_and_write_to_file, generate_bridge_node_config_and_write_to_file,
@@ -25,8 +24,6 @@ use starcoin_bridge_cli::{
     LoadedBridgeCliConfig, Network, SEPOLIA_BRIDGE_PROXY_ADDR,
 };
 use starcoin_bridge_config::Config;
-use starcoin_bridge_types::crypto::Signature;
-use starcoin_bridge_types::transaction::Transaction;
 use starcoin_bridge_vm_types::bridge::base_types::StarcoinAddress;
 use starcoin_bridge_vm_types::bridge::bridge::{
     BridgeChainId, MoveTypeCommitteeMember, MoveTypeCommitteeMemberRegistration,
@@ -88,10 +85,11 @@ async fn main() -> anyhow::Result<()> {
                 metrics.clone(),
             );
 
-            let (starcoin_bridge_key, starcoin_bridge_address, gas_object_ref) = config
-                .get_starcoin_bridge_account_info()
-                .await
-                .expect("Failed to get starcoin account info");
+            let starcoin_bridge_address =
+                AccountAddress::from_hex_literal(starcoin_bridge_client.bridge_address())
+                    .expect("decode failed");
+            let starcoin_bridge_key = config.get_starcoin_bridge_key();
+
             let bridge_summary = starcoin_bridge_client
                 .get_bridge_summary()
                 .await
@@ -128,42 +126,90 @@ async fn main() -> anyhow::Result<()> {
                     .await
                     .expect("Failed to request committee signatures");
                 if dry_run {
-                    println!("Dryrun succeeded.");
+                    println!("Dry run succeeded.");
                     return Ok(());
                 }
-                let bridge_arg = starcoin_bridge_client
-                    .get_mutable_bridge_object_arg_must_succeed()
-                    .await;
-                let rgp = starcoin_bridge_client
-                    .get_reference_gas_price_until_success()
-                    .await;
-                let id_token_map = starcoin_bridge_client.get_token_id_map().await.unwrap();
-                let tx = build_starcoin_bridge_transaction(
-                    starcoin_bridge_address,
-                    &gas_object_ref,
-                    certified_action,
-                    bridge_arg,
-                    &id_token_map,
-                    rgp,
-                )
-                .expect("Failed to build starcoin transaction");
-                let starcoin_bridge_sig = Signature::new_secure(
-                    &IntentMessage::new(Intent::starcoin_bridge_transaction(), tx.clone()),
-                    &starcoin_bridge_key,
-                );
-                let tx = Transaction::from_data(tx, vec![starcoin_bridge_sig]);
-                let resp = starcoin_bridge_client
-                    .execute_transaction_block_with_effects(tx)
+
+                // Extract emergency action info from certified_action
+                let (bridge_action, sigs) = certified_action.into_inner().into_data_and_sig();
+                let (source_chain, seq_num, action_type) = match bridge_action {
+                    BridgeAction::EmergencyAction(a) => (a.chain_id, a.nonce, a.action_type),
+                    _ => panic!("Expected EmergencyAction"),
+                };
+
+                // Get sequence number for the sender
+                let rpc_client = starcoin_bridge_client.json_rpc_client().rpc();
+                let sender_hex = starcoin_bridge_client.bridge_address();
+                let sequence_number = rpc_client
+                    .get_sequence_number(&sender_hex)
                     .await
-                    .expect("Failed to execute transaction block with effects");
-                if resp.status_ok().unwrap() {
-                    println!("Starcoin Transaction succeeded: {:?}", resp.digest);
-                } else {
-                    println!(
-                        "Starcoin Transaction failed: {:?}. Effects: {:?}",
-                        resp.digest, resp.effects
-                    );
+                    .expect("Failed to get sequence number");
+
+                // Get chain ID and block timestamp
+                let chain_id = rpc_client
+                    .get_chain_id()
+                    .await
+                    .expect("Failed to get chain ID");
+                let block_timestamp_ms = rpc_client
+                    .get_block_timestamp()
+                    .await
+                    .expect("Failed to get block timestamp");
+
+                // Get bridge module address
+                let bridge_module_address = {
+                    let addr_str = config
+                        .starcoin_bridge_proxy_address
+                        .trim_start_matches("0x");
+                    let bytes = hex::decode(addr_str).expect("Invalid bridge proxy address hex");
+                    if bytes.len() != 16 {
+                        panic!(
+                            "Invalid bridge proxy address length: expected 16 bytes, got {}",
+                            bytes.len()
+                        );
+                    }
+                    let mut arr = [0u8; 16];
+                    arr.copy_from_slice(&bytes);
+                    StarcoinAddress::new(arr)
+                };
+
+                // Extract signature bytes from committee signatures
+                let mut sig_bytes = vec![];
+                for (_, sig) in sigs.signatures {
+                    sig_bytes.push(sig.as_bytes().to_vec());
                 }
+                // For emergency_op_single, we need a single signature (concatenate all)
+                let signature = sig_bytes.concat();
+
+                // Build RawUserTransaction using starcoin_native
+                use starcoin_bridge::starcoin_bridge_transaction_builder::starcoin_native;
+                let raw_txn = starcoin_native::build_execute_emergency_op(
+                    bridge_module_address,
+                    starcoin_bridge_address,
+                    sequence_number,
+                    chain_id,
+                    block_timestamp_ms,
+                    source_chain as u8,
+                    seq_num,
+                    action_type as u8,
+                    signature,
+                )
+                .expect("Failed to build emergency op transaction");
+
+                let result = rpc_client
+                    .sign_and_submit_transaction(bridge_module_address, &raw_txn)
+                    .await
+                    .expect("Failed to submit transaction");
+
+                // Extract transaction hash from result
+                let txn_hash = result
+                    .get("transaction_hash")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("unknown");
+
+                println!(
+                    "Starcoin Transaction submitted successfully, Transaction hash: {}",
+                    txn_hash
+                );
                 return Ok(());
             }
 

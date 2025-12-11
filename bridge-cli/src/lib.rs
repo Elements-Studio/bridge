@@ -36,6 +36,7 @@ use starcoin_bridge_types::base_types::{ObjectRef, StarcoinAddress};
 use starcoin_bridge_types::bridge::BridgeChainId;
 use starcoin_bridge_types::crypto::StarcoinKeyPair;
 use starcoin_bridge_types::TypeTag;
+use starcoin_bridge_vm_types::bridge::base_types::{object_ref_from_address, ObjectID};
 use tracing::info;
 
 pub const SEPOLIA_BRIDGE_PROXY_ADDR: &str = "0xAE68F87938439afEEDd6552B0E83D2CbC2473623";
@@ -385,8 +386,10 @@ pub struct BridgeCliConfig {
     pub starcoin_bridge_rpc_url: String,
     // Rpc url for Eth fullnode, used for query stuff.
     pub eth_rpc_url: String,
-    // Proxy address for Bridge deployed on Starcoin (Move contract address)
+    // Proxy address for Bridge deployed on Starcoin (Move contract address, for Ed25519)
     pub starcoin_bridge_proxy_address: String,
+    // Proxy address for Bridge deployed on Starcoin (Move contract address, for Ed25519)
+    pub starcoin_bridge_proxy_private_key: String,
     // Proxy address for StarcoinBridge deployed on Eth
     pub eth_bridge_proxy_address: EthAddress,
     // Path of the file where private key is stored. The content could be any of the following:
@@ -407,8 +410,9 @@ pub struct LoadedBridgeCliConfig {
     pub starcoin_bridge_rpc_url: String,
     // Rpc url for Eth fullnode, used for query stuff.
     pub eth_rpc_url: String,
-    // Proxy address for Bridge deployed on Starcoin (Move contract address)
+    // Proxy address for Bridge deployed on Starcoin (Move contract address, Ed25519)
     pub starcoin_bridge_proxy_address: String,
+    pub starcoin_bridge_proxy_private_key: String,
     // Proxy address for StarcoinBridge deployed on Eth
     pub eth_bridge_proxy_address: EthAddress,
     // Proxy address for BridgeCommittee deployed on Eth
@@ -545,37 +549,48 @@ impl LoadedBridgeCliConfig {
         &self.eth_signer
     }
 
-    pub async fn get_starcoin_bridge_account_info(
-        self: &LoadedBridgeCliConfig,
-    ) -> anyhow::Result<(StarcoinKeyPair, StarcoinAddress, ObjectRef)> {
-        let pubkey = self.starcoin_bridge_key.public();
-        // Convert Vec<u8> to StarcoinAddress (AccountAddress = 16 bytes)
-        let starcoin_bridge_client_address =
-            StarcoinAddress::from_bytes(&pubkey[..16.min(pubkey.len())])
-                .unwrap_or(StarcoinAddress::ZERO);
-        let starcoin_bridge_sdk_client = StarcoinClientBuilder::default()
-            .url(&self.starcoin_bridge_rpc_url)
-            .build()?;
-        // Convert StarcoinAddress to [u8; 32]
-        let addr_bytes = starcoin_bridge_types::base_types::starcoin_bridge_address_to_bytes(
-            starcoin_bridge_client_address,
-        );
-        let gases = starcoin_bridge_sdk_client
-            .coin_read_api()
-            .get_coins(addr_bytes, None, None, None)
-            .await?
-            .data;
-        // TODO: is 5 Starcoin a good number?
-        let gas = gases
-            .into_iter()
-            .find(|coin| coin.balance >= 5_000_000_000)
-            .ok_or(anyhow!(
-                "Did not find gas object with enough balance for {}",
-                starcoin_bridge_client_address
-            ))?;
-        println!("Using Gas object: {:?}", gas.coin_object_id);
+    // pub async fn get_starcoin_bridge_account_info(
+    //     self: &LoadedBridgeCliConfig,
+    // ) -> anyhow::Result<(StarcoinKeyPair, StarcoinAddress, ObjectRef)> {
+    //     let pubkey = self.starcoin_bridge_key.public();
+    //     // Convert Vec<u8> to StarcoinAddress (AccountAddress = 16 bytes)
+    //     let starcoin_bridge_client_address =
+    //         StarcoinAddress::from_bytes(&pubkey[..16.min(pubkey.len())])
+    //             .unwrap_or(StarcoinAddress::ZERO);
+    //     let starcoin_bridge_sdk_client = StarcoinClientBuilder::default()
+    //         .url(&self.starcoin_bridge_rpc_url)
+    //         .build_async().await?;
+    //     // Convert StarcoinAddress to [u8; 32]
+    //     let addr_bytes = starcoin_bridge_types::base_types::starcoin_bridge_address_to_bytes(
+    //         starcoin_bridge_client_address,
+    //     );
+    //     let gases = starcoin_bridge_sdk_client
+    //         .coin_read_api()
+    //         .get_coins(addr_bytes, None, None, None)
+    //         .await?
+    //         .data;
+    //     // TODO: is 5 Starcoin a good number?
+    //     let gas = gases
+    //         .into_iter()
+    //         .find(|coin| coin.balance >= 5_000_000_000)
+    //         .ok_or(anyhow!(
+    //             "Did not find gas object with enough balance for {}",
+    //             starcoin_bridge_client_address
+    //         ))?;
+    //     println!("Using Gas object: {:?}", gas.coin_object_id);
+    //     // Clone StarcoinKeyPair
+    //     let starcoin_bridge_key_clone = self.get_starcoin_bridge_key();
+    //
+    //     Ok((
+    //         starcoin_bridge_key_clone,
+    //         starcoin_bridge_client_address,
+    //         gas.object_ref(),
+    //     ))
+    // }
+
+    pub fn get_starcoin_bridge_key(&self) -> StarcoinKeyPair {
         // Clone StarcoinKeyPair
-        let starcoin_bridge_key_clone = match &self.starcoin_bridge_key {
+        match &self.starcoin_bridge_key {
             StarcoinKeyPair::Secp256k1(kp) => {
                 use fastcrypto::traits::ToFromBytes;
                 StarcoinKeyPair::Secp256k1(
@@ -588,12 +603,7 @@ impl LoadedBridgeCliConfig {
                     fastcrypto::ed25519::Ed25519KeyPair::from_bytes(kp.as_bytes()).unwrap(),
                 )
             }
-        };
-        Ok((
-            starcoin_bridge_key_clone,
-            starcoin_bridge_client_address,
-            gas.object_ref(),
-        ))
+        }
     }
 }
 #[derive(Parser)]

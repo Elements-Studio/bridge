@@ -156,6 +156,18 @@ Use the transfer script for cross-chain operations:
 ./scripts/bridge_transfer.sh stc-to-eth 10 --token USDT
 ```
 
+### Execute system message 
+```bash 
+# Basic usage - pause bridge (auto getting sequence number)
+./scripts/execute_system_message.sh pause
+
+# Unpause Bridge
+./scripts/execute_system_message.sh unpause
+
+# Pause bridge with sequence number
+./scripts/execute_system_message.sh pause --seq-num 5
+```
+
 > **Note**: The `--token` parameter is **required**. For Starcoin→ETH, the bridge only approves on Starcoin. You need to manually claim on Ethereum.
 
 ### Manual Deployment (Step by Step)
