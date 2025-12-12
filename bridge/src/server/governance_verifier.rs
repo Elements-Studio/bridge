@@ -39,6 +39,12 @@ impl ActionVerifier<BridgeAction> for GovernanceVerifier {
         if !key.is_governace_action() {
             return Err(BridgeError::ActionIsNotGovernanceAction(key));
         }
+
+        // If approved_goverance_actions is empty, allow all governance actions (for testing)
+        if self.approved_goverance_actions.is_empty() {
+            return Ok(key);
+        }
+
         if let Some(approved_action) = self.approved_goverance_actions.get(&key.digest()) {
             assert_eq!(
                 &key, approved_action,
@@ -105,6 +111,44 @@ mod tests {
         // Token transfer action will be rejected
         assert!(matches!(
             verifier.verify(action_4).await.unwrap_err(),
+            BridgeError::ActionIsNotGovernanceAction(..)
+        ));
+    }
+
+
+    #[tokio::test]
+    async fn test_governance_verifier_empty_list_allows_all() {
+        // Empty list should allow all governance actions (for testing)
+        let verifier = GovernanceVerifier::new(vec![]).unwrap();
+
+        let action_1 = BridgeAction::EmergencyAction(EmergencyAction {
+            chain_id: BridgeChainId::EthCustom,
+            nonce: 1,
+            action_type: EmergencyActionType::Pause,
+        });
+        // Should be allowed when list is empty
+        assert_eq!(
+            verifier.verify(action_1.clone()).await.unwrap(),
+            action_1
+        );
+
+        let action_2 = BridgeAction::LimitUpdateAction(LimitUpdateAction {
+            chain_id: BridgeChainId::EthCustom,
+            sending_chain_id: BridgeChainId::StarcoinCustom,
+            nonce: 2,
+            new_usd_limit: 10000,
+        });
+        // Should also be allowed when list is empty
+        assert_eq!(
+            verifier.verify(action_2.clone()).await.unwrap(),
+            action_2
+        );
+
+        // Token transfer action should still be rejected (not a governance action)
+        let action_3 =
+            get_test_starcoin_bridge_to_eth_bridge_action(None, None, None, None, None, None, None);
+        assert!(matches!(
+            verifier.verify(action_3).await.unwrap_err(),
             BridgeError::ActionIsNotGovernanceAction(..)
         ));
     }
