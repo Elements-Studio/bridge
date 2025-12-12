@@ -412,7 +412,6 @@ pub struct LoadedBridgeCliConfig {
     pub eth_rpc_url: String,
     // Proxy address for Bridge deployed on Starcoin (Move contract address, Ed25519)
     pub starcoin_bridge_proxy_address: String,
-    pub starcoin_bridge_proxy_private_key: String,
     // Proxy address for StarcoinBridge deployed on Eth
     pub eth_bridge_proxy_address: EthAddress,
     // Proxy address for BridgeCommittee deployed on Eth
@@ -430,21 +429,12 @@ pub struct LoadedBridgeCliConfig {
 impl LoadedBridgeCliConfig {
     pub async fn load(cli_config: BridgeCliConfig) -> anyhow::Result<Self> {
         // Check if we should use starcoin_bridge_proxy_private_key to build the key
-        let starcoin_bridge_key = if !cli_config.starcoin_bridge_proxy_private_key.is_empty() {
-            // Build Ed25519 key pair from private key hex string
-            use fastcrypto::encoding::Hex;
-            use fastcrypto::traits::ToFromBytes;
-            let private_key_hex = cli_config.starcoin_bridge_proxy_private_key.trim_start_matches("0x");
-            let private_key_bytes = Hex::decode(private_key_hex)
-                .map_err(|e| anyhow!("Failed to decode starcoin_bridge_proxy_private_key: {:?}", e))?;
-            let ed25519_kp = fastcrypto::ed25519::Ed25519KeyPair::from_bytes(&private_key_bytes)
-                .map_err(|e| anyhow!("Failed to create Ed25519 key pair from private key: {:?}", e))?;
-            Some(StarcoinKeyPair::Ed25519(ed25519_kp))
-        } else if let Some(starcoin_bridge_key_path) = &cli_config.starcoin_bridge_key_path {
-            Some(read_key(starcoin_bridge_key_path, false)?)
-        } else {
-            None
-        };
+        let starcoin_bridge_key =
+            if let Some(starcoin_bridge_key_path) = &cli_config.starcoin_bridge_key_path {
+                Some(read_key(starcoin_bridge_key_path, false)?)
+            } else {
+                None
+            };
 
         if cli_config.eth_key_path.is_none() && starcoin_bridge_key.is_none() {
             return Err(anyhow!(
@@ -545,7 +535,6 @@ impl LoadedBridgeCliConfig {
             starcoin_bridge_rpc_url: cli_config.starcoin_bridge_rpc_url,
             eth_rpc_url: cli_config.eth_rpc_url,
             starcoin_bridge_proxy_address: cli_config.starcoin_bridge_proxy_address,
-            starcoin_bridge_proxy_private_key: cli_config.starcoin_bridge_proxy_private_key,
             eth_bridge_proxy_address: cli_config.eth_bridge_proxy_address,
             eth_bridge_committee_proxy_address,
             eth_bridge_limiter_proxy_address,
@@ -560,45 +549,6 @@ impl LoadedBridgeCliConfig {
     pub fn eth_signer(self: &LoadedBridgeCliConfig) -> &EthSigner {
         &self.eth_signer
     }
-
-    // pub async fn get_starcoin_bridge_account_info(
-    //     self: &LoadedBridgeCliConfig,
-    // ) -> anyhow::Result<(StarcoinKeyPair, StarcoinAddress, ObjectRef)> {
-    //     let pubkey = self.starcoin_bridge_key.public();
-    //     // Convert Vec<u8> to StarcoinAddress (AccountAddress = 16 bytes)
-    //     let starcoin_bridge_client_address =
-    //         StarcoinAddress::from_bytes(&pubkey[..16.min(pubkey.len())])
-    //             .unwrap_or(StarcoinAddress::ZERO);
-    //     let starcoin_bridge_sdk_client = StarcoinClientBuilder::default()
-    //         .url(&self.starcoin_bridge_rpc_url)
-    //         .build_async().await?;
-    //     // Convert StarcoinAddress to [u8; 32]
-    //     let addr_bytes = starcoin_bridge_types::base_types::starcoin_bridge_address_to_bytes(
-    //         starcoin_bridge_client_address,
-    //     );
-    //     let gases = starcoin_bridge_sdk_client
-    //         .coin_read_api()
-    //         .get_coins(addr_bytes, None, None, None)
-    //         .await?
-    //         .data;
-    //     // TODO: is 5 Starcoin a good number?
-    //     let gas = gases
-    //         .into_iter()
-    //         .find(|coin| coin.balance >= 5_000_000_000)
-    //         .ok_or(anyhow!(
-    //             "Did not find gas object with enough balance for {}",
-    //             starcoin_bridge_client_address
-    //         ))?;
-    //     println!("Using Gas object: {:?}", gas.coin_object_id);
-    //     // Clone StarcoinKeyPair
-    //     let starcoin_bridge_key_clone = self.get_starcoin_bridge_key();
-    //
-    //     Ok((
-    //         starcoin_bridge_key_clone,
-    //         starcoin_bridge_client_address,
-    //         gas.object_ref(),
-    //     ))
-    // }
 
     pub fn get_starcoin_bridge_key(&self) -> StarcoinKeyPair {
         // Clone StarcoinKeyPair
