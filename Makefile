@@ -469,8 +469,7 @@ start-starcoin-dev-node: ## Start Starcoin dev node with existing data (resume m
 
 stop-starcoin-dev-node: ## Stop Starcoin dev node processes
 	@echo "$(YELLOW)Stopping Starcoin dev node...$(NC)"
-	@pkill -f "starcoin.*dev.*console" 2>/dev/null || true
-	@pkill -f "starcoin.*-n dev" 2>/dev/null || true
+	@pkill -x "starcoin" 2>/dev/null || true
 	@echo "$(GREEN)✓ Starcoin node stopped$(NC)"
 
 stop-all: ## Stop all nodes (Starcoin, Anvil, Bridge server)
@@ -479,7 +478,7 @@ stop-all: ## Stop all nodes (Starcoin, Anvil, Bridge server)
 	@echo "$(YELLOW)╚════════════════════════════════════════╝$(NC)"
 	@echo ""
 	@echo "$(BLUE)[1/3] Stopping Bridge Server...$(NC)"
-	@pkill -9 -f "starcoin-bridge" 2>/dev/null && echo "$(GREEN)✓ Bridge server stopped$(NC)" || echo "$(YELLOW)⚠ Bridge server not running$(NC)"
+	@pkill -x "starcoin-bridge" 2>/dev/null && echo "$(GREEN)✓ Bridge server stopped$(NC)" || echo "$(YELLOW)⚠ Bridge server not running$(NC)"
 	@echo ""
 	@echo "$(BLUE)[2/3] Stopping Anvil (ETH node)...$(NC)"
 	@$(MAKE) stop-anvil 2>/dev/null || true

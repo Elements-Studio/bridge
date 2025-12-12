@@ -92,21 +92,21 @@ safe_kill() {
     local pattern="$1"
     local description="${2:-processes matching $1}"
     
-    if ! pgrep -f "$pattern" > /dev/null 2>&1; then
+    if ! pgrep "$pattern" > /dev/null 2>&1; then
         echo -e "  ${YELLOW}⚠ No $description running, skipping${NC}"
         return 0
     fi
     
     if [ "$FORCE_YES" = "1" ]; then
         echo -e "  ${YELLOW}Auto-killing:${NC} ${RED}$description${NC}"
-        pkill -9 -f "$pattern" 2>/dev/null || true
+        pkill -9 "$pattern" 2>/dev/null || true
         echo -e "  ${GREEN}✓ Killed${NC}"
     else
         echo -e "  ${YELLOW}⚠ About to kill:${NC} ${RED}$description${NC}"
         printf "  ${YELLOW}Continue? (y/N): ${NC}"
         read -r REPLY
         if [ "$REPLY" = "y" ] || [ "$REPLY" = "Y" ]; then
-            pkill -9 -f "$pattern" 2>/dev/null || true
+            pkill -9 "$pattern" 2>/dev/null || true
             echo -e "  ${GREEN}✓ Killed${NC}"
         else
             echo -e "  ${YELLOW}✗ Skipped${NC}"

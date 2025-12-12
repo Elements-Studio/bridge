@@ -125,7 +125,7 @@ reset_database() {
     
     # Stop indexer first to release database connections
     log_info "Stopping indexer to release database connections..."
-    pkill -f bridge-indexer-alt 2>/dev/null || true
+    pkill -x bridge-indexer-alt 2>/dev/null || true
     sleep 2
     
     # Terminate all connections to the database
@@ -186,7 +186,7 @@ start_indexer() {
     fi
     
     # Stop existing indexer if running
-    pkill -f bridge-indexer-alt 2>/dev/null || true
+    pkill -x bridge-indexer-alt 2>/dev/null || true
     sleep 1
     
     # Build the command arguments
@@ -237,7 +237,7 @@ start_indexer() {
 # Stop indexer
 stop_indexer() {
     log_info "Stopping indexer..."
-    if pkill -f bridge-indexer-alt 2>/dev/null; then
+    if pkill -x bridge-indexer-alt 2>/dev/null; then
         log_info "Indexer stopped"
     else
         log_warn "Indexer was not running"
