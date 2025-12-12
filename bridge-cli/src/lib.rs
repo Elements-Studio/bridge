@@ -429,17 +429,28 @@ pub struct LoadedBridgeCliConfig {
 
 impl LoadedBridgeCliConfig {
     pub async fn load(cli_config: BridgeCliConfig) -> anyhow::Result<Self> {
-        if cli_config.eth_key_path.is_none() && cli_config.starcoin_bridge_key_path.is_none() {
+        // Check if we should use starcoin_bridge_proxy_private_key to build the key
+        let starcoin_bridge_key = if !cli_config.starcoin_bridge_proxy_private_key.is_empty() {
+            // Build Ed25519 key pair from private key hex string
+            use fastcrypto::encoding::Hex;
+            use fastcrypto::traits::ToFromBytes;
+            let private_key_hex = cli_config.starcoin_bridge_proxy_private_key.trim_start_matches("0x");
+            let private_key_bytes = Hex::decode(private_key_hex)
+                .map_err(|e| anyhow!("Failed to decode starcoin_bridge_proxy_private_key: {:?}", e))?;
+            let ed25519_kp = fastcrypto::ed25519::Ed25519KeyPair::from_bytes(&private_key_bytes)
+                .map_err(|e| anyhow!("Failed to create Ed25519 key pair from private key: {:?}", e))?;
+            Some(StarcoinKeyPair::Ed25519(ed25519_kp))
+        } else if let Some(starcoin_bridge_key_path) = &cli_config.starcoin_bridge_key_path {
+            Some(read_key(starcoin_bridge_key_path, false)?)
+        } else {
+            None
+        };
+
+        if cli_config.eth_key_path.is_none() && starcoin_bridge_key.is_none() {
             return Err(anyhow!(
-                "At least one of `starcoin_bridge_key_path` or `eth_key_path` must be provided"
+                "At least one of `starcoin_bridge_key_path`, `eth_key_path`, or `starcoin_bridge_proxy_private_key` must be provided"
             ));
         }
-        let starcoin_bridge_key =
-            if let Some(starcoin_bridge_key_path) = &cli_config.starcoin_bridge_key_path {
-                Some(read_key(starcoin_bridge_key_path, false)?)
-            } else {
-                None
-            };
         let eth_key = if let Some(eth_key_path) = &cli_config.eth_key_path {
             let eth_key = read_key(eth_key_path, true)?;
             Some(eth_key)
@@ -534,6 +545,7 @@ impl LoadedBridgeCliConfig {
             starcoin_bridge_rpc_url: cli_config.starcoin_bridge_rpc_url,
             eth_rpc_url: cli_config.eth_rpc_url,
             starcoin_bridge_proxy_address: cli_config.starcoin_bridge_proxy_address,
+            starcoin_bridge_proxy_private_key: cli_config.starcoin_bridge_proxy_private_key,
             eth_bridge_proxy_address: cli_config.eth_bridge_proxy_address,
             eth_bridge_committee_proxy_address,
             eth_bridge_limiter_proxy_address,

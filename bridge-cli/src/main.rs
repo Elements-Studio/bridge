@@ -88,7 +88,6 @@ async fn main() -> anyhow::Result<()> {
             let starcoin_bridge_address =
                 AccountAddress::from_hex_literal(starcoin_bridge_client.bridge_address())
                     .expect("decode failed");
-            let starcoin_bridge_key = config.get_starcoin_bridge_key();
 
             let bridge_summary = starcoin_bridge_client
                 .get_bridge_summary()
@@ -195,20 +194,16 @@ async fn main() -> anyhow::Result<()> {
                 )
                 .expect("Failed to build emergency op transaction");
 
-                let result = rpc_client
-                    .sign_and_submit_transaction(bridge_module_address, &raw_txn)
+                let starcoin_bridge_key = config.get_starcoin_bridge_key();
+
+                let txn_result = rpc_client
+                    .sign_and_submit_transaction(&starcoin_bridge_key, raw_txn)
                     .await
                     .expect("Failed to submit transaction");
 
-                // Extract transaction hash from result
-                let txn_hash = result
-                    .get("transaction_hash")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("unknown");
-
                 println!(
-                    "Starcoin Transaction submitted successfully, Transaction hash: {}",
-                    txn_hash
+                    "Starcoin Transaction submitted successfully, transaction result: {}",
+                    txn_result
                 );
                 return Ok(());
             }
