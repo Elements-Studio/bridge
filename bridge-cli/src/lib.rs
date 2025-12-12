@@ -388,8 +388,6 @@ pub struct BridgeCliConfig {
     pub eth_rpc_url: String,
     // Proxy address for Bridge deployed on Starcoin (Move contract address, for Ed25519)
     pub starcoin_bridge_proxy_address: String,
-    // Proxy address for Bridge deployed on Starcoin (Move contract address, for Ed25519)
-    pub starcoin_bridge_proxy_private_key: String,
     // Proxy address for StarcoinBridge deployed on Eth
     pub eth_bridge_proxy_address: EthAddress,
     // Path of the file where private key is stored. The content could be any of the following:
