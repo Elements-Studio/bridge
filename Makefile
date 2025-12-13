@@ -5,7 +5,7 @@
 # Prerequisites: Foundry (anvil, forge, cast), Rust, Starcoin CLI, mpm
 # ============================================================
 
-.PHONY: help deploy-eth-network deploy-native deploy-docker start stop restart logs clean info test init-bridge-config deploy-sui register test-bridge stop-eth-network clean-eth-and-config setup-eth-and-config status logs-deployer start-starcoin-dev-node start-starcoin-dev-node-clean run-bridge-server build-starcoin-contracts deploy-starcoin-contracts stop-starcoin-dev-node build-bridge-cli view-bridge deposit-eth deposit-eth-test withdraw-to-eth withdraw-to-eth-test init-cli-config fund-starcoin-bridge-account stop-all bridge-transfer deposit-usdt deposit-usdt-test withdraw-usdt withdraw-usdt-test
+.PHONY: help deploy-eth-network deploy-native deploy-docker start stop restart logs clean info test init-bridge-config deploy-sui register test-bridge stop-eth-network clean-eth-and-config setup-eth-and-config status logs-deployer start-starcoin-dev-node start-starcoin-dev-node-clean run-bridge-server build-starcoin-contracts deploy-starcoin-contracts stop-starcoin-dev-node build-bridge-cli view-bridge deposit-eth deposit-eth-test withdraw-to-eth withdraw-to-eth-test init-cli-config fund-starcoin-bridge-account stop-all bridge-transfer deposit-usdt deposit-usdt-test withdraw-usdt withdraw-usdt-test test-starcoin-client-key test-starcoin-address
 
 # ============================================================
 # Colors for terminal output
@@ -246,9 +246,8 @@ setup-eth-and-config: ## Complete ETH setup (clean + deploy + generate config). 
 	# Generate Starcoin client key
 	@echo "$(YELLOW)Step 4/6: Generating Starcoin client key (Ed25519)...$(NC)"
 	@./target/debug/starcoin-bridge-cli create-bridge-client-key bridge-node/server-config/starcoin_client.key > /tmp/starcoin_key_output.txt 2>&1
-	@STARCOIN_CLIENT_ADDRESS=$$(grep "Starcoin address:" /tmp/starcoin_key_output.txt | awk '{print $$NF}'); \
-	echo "$(GREEN)✓ Starcoin client key generated$(NC)"; \
-	echo "   📍 Starcoin address: $$STARCOIN_CLIENT_ADDRESS"
+	@STARCOIN_CLIENT_ADDRESS=$$(grep "Corresponding Starcoin address" /tmp/starcoin_key_output.txt | awk '{print $$NF}'); \
+	echo "$(GREEN)✓ Starcoin client key generated, 📍 Starcoin address: $$STARCOIN_CLIENT_ADDRESS$(NC)";
 	@echo ""
 	# Update ETH deploy config and deploy
 	@echo "$(YELLOW)Step 5/6: Deploying ETH contracts (native forge)...$(NC)"
@@ -504,19 +503,27 @@ build-starcoin-contracts: ## Build Starcoin Move contracts using mpm
 		echo "$(RED)✗ Move contract directory not found: $(MOVE_CONTRACT_DIR)$(NC)"; \
 		exit 1; \
 	fi
-	# Auto-detect default account and update Move.toml Bridge address
-	@echo "$(YELLOW)Getting default account for Bridge address...$(NC)"
-	@DEFAULT_ACCOUNT=$$($(STARCOIN_PATH) -c $(STARCOIN_RPC) account list 2>/dev/null | grep -B 1 '"is_default": true' | grep '"address"' | head -1 | sed 's/.*"\(0x[a-fA-F0-9]*\)".*/\1/'); \
-	if [ -z "$$DEFAULT_ACCOUNT" ]; then \
-		DEFAULT_ACCOUNT=$$($(STARCOIN_PATH) -c $(STARCOIN_RPC) account list 2>/dev/null | grep '"address"' | head -1 | sed 's/.*"\(0x[a-fA-F0-9]*\)".*/\1/'); \
-	fi; \
-	if [ -z "$$DEFAULT_ACCOUNT" ]; then \
-		echo "$(RED)✗ No account found. Is Starcoin node running?$(NC)"; \
+	# Get Bridge address from starcoin_client.key instead of from node
+	@echo "$(YELLOW)Getting Bridge address from starcoin_client.key...$(NC)"
+	@if [ ! -f bridge-node/server-config/starcoin_client.key ]; then \
+		echo "$(RED)✗ starcoin_client.key not found. Please run 'make setup-eth-and-config' first$(NC)"; \
+		exit 1; \
+	fi
+	@if [ ! -f target/debug/starcoin-bridge-cli ]; then \
+		echo "$(YELLOW)Building starcoin-bridge-cli to extract address...$(NC)"; \
+		cargo build --bin starcoin-bridge-cli --quiet || { \
+			echo "$(RED)✗ Failed to build starcoin-bridge-cli$(NC)"; \
+			exit 1; \
+		}; \
+	fi
+	@BRIDGE_ADDRESS=$$(./target/debug/starcoin-bridge-cli examine-key bridge-node/server-config/starcoin_client.key 2>/dev/null | grep "Starcoin address:" | awk '{print $$NF}'); \
+	if [ -z "$$BRIDGE_ADDRESS" ]; then \
+		echo "$(RED)✗ Failed to extract Starcoin address from starcoin_client.key$(NC)"; \
 		exit 1; \
 	fi; \
-	echo "$(GREEN)✓ Bridge address: $$DEFAULT_ACCOUNT$(NC)"; \
+	echo "$(GREEN)✓ Bridge address: $$BRIDGE_ADDRESS$(NC)"; \
 	echo "$(YELLOW)Updating Move.toml...$(NC)"; \
-	sed -i.bak "s/^Bridge = \"0x[a-fA-F0-9]*\"/Bridge = \"$$DEFAULT_ACCOUNT\"/" $(MOVE_CONTRACT_DIR)/Move.toml; \
+	sed -i.bak "s/^Bridge = \"0x[a-fA-F0-9]*\"/Bridge = \"$$BRIDGE_ADDRESS\"/" $(MOVE_CONTRACT_DIR)/Move.toml; \
 	rm -f $(MOVE_CONTRACT_DIR)/Move.toml.bak; \
 	echo "$(GREEN)✓ Move.toml updated$(NC)"
 	@cd $(MOVE_CONTRACT_DIR) && $(MPM_PATH) release
@@ -525,7 +532,7 @@ build-starcoin-contracts: ## Build Starcoin Move contracts using mpm
 	@echo "$(YELLOW)Package location:$(NC)"
 	@ls -lh $(MOVE_CONTRACT_DIR)/release/*.blob
 
-deploy-starcoin-contracts: build-starcoin-contracts ## Deploy Move contracts + initialize committee (full automation)
+deploy-starcoin-contracts: ## Deploy Move contracts + initialize committee (full automation)
 	@echo ""
 	@echo "$(YELLOW)╔════════════════════════════════════════╗$(NC)"
 	@echo "$(YELLOW)║  Deploying Move Contracts              ║$(NC)"
@@ -542,33 +549,102 @@ deploy-starcoin-contracts: build-starcoin-contracts ## Deploy Move contracts + i
 	fi
 	@echo "$(GREEN)✓ Starcoin node is running$(NC)"
 	@echo ""
-	# Auto-detect default account for deployment and gas payment
-	@echo "$(YELLOW)Getting default account address...$(NC)"
-	@DEFAULT_ACCOUNT=$$($(STARCOIN_PATH) -c $(STARCOIN_RPC) account list 2>/dev/null | grep -B 1 '"is_default": true' | grep '"address"' | head -1 | sed 's/.*"\(0x[a-fA-F0-9]*\)".*/\1/'); \
-	if [ -z "$$DEFAULT_ACCOUNT" ]; then \
-		echo "$(RED)✗ No default account found$(NC)"; \
-		echo "$(YELLOW)Trying to get first account...$(NC)"; \
-		DEFAULT_ACCOUNT=$$($(STARCOIN_PATH) -c $(STARCOIN_RPC) account list 2>/dev/null | grep '"address"' | head -1 | sed 's/.*"\(0x[a-fA-F0-9]*\)".*/\1/'); \
-		if [ -z "$$DEFAULT_ACCOUNT" ]; then \
-			echo "$(RED)✗ No accounts found$(NC)"; \
+	# Step 1: Import starcoin_client.key and set as default account
+	@if [ ! -f bridge-node/server-config/starcoin_client.key ]; then \
+		echo "$(RED)✗ starcoin_client.key not found. Please run 'make setup-eth-and-config' first$(NC)"; \
+		exit 1; \
+	fi
+	@echo "$(YELLOW)Step 1/5: Importing starcoin_client.key to Starcoin dev network...$(NC)"
+	@STARCOIN_CLIENT_KEY_PATH="bridge-node/server-config/starcoin_client.key"; \
+	if [ ! -f "$$STARCOIN_CLIENT_KEY_PATH" ]; then \
+		echo "$(RED)✗ starcoin_client.key not found: $$STARCOIN_CLIENT_KEY_PATH$(NC)"; \
+		exit 1; \
+	fi; \
+	if [ ! -f ./extract_privatekey.py ]; then \
+		echo "$(RED)✗ extract_privatekey.py not found in current directory$(NC)"; \
+		exit 1; \
+	fi; \
+	if command -v python3 >/dev/null 2>&1; then \
+		PYTHON_CMD=python3; \
+	elif command -v python >/dev/null 2>&1; then \
+		PYTHON_CMD=python; \
+	else \
+		echo "$(RED)✗ Python not found. Cannot extract private key.$(NC)"; \
+		exit 1; \
+	fi; \
+	echo "$(BLUE)Extracting private key from $$STARCOIN_CLIENT_KEY_PATH...$(NC)"; \
+	PRIVATE_KEY_HEX=$$($$PYTHON_CMD extract_privatekey.py "$$STARCOIN_CLIENT_KEY_PATH" 2>/dev/null | tr -d '\n\r\t '); \
+	if [ -z "$$PRIVATE_KEY_HEX" ]; then \
+		echo "$(RED)✗ Failed to extract private key$(NC)"; \
+		$$PYTHON_CMD extract_privatekey.py "$$STARCOIN_CLIENT_KEY_PATH" 2>&1; \
+		exit 1; \
+	fi; \
+	HEX_LENGTH=$$(printf '%s' "$$PRIVATE_KEY_HEX" | wc -c); \
+	if [ $$HEX_LENGTH -ne 64 ]; then \
+		echo "$(RED)✗ Invalid private key length: $$HEX_LENGTH (expected 64)$(NC)"; \
+		exit 1; \
+	fi; \
+	echo "$(GREEN)✓ Private key extracted$(NC)"; \
+	echo "$(BLUE)Executing: $(STARCOIN_PATH) -c $(STARCOIN_RPC) account import -i $$PRIVATE_KEY_HEX$(NC)"; \
+	IMPORT_OUTPUT=$$($(STARCOIN_PATH) -c $(STARCOIN_RPC) account import -i "$$PRIVATE_KEY_HEX" 2>&1); \
+	IMPORT_EXIT_CODE=$$?; \
+	if [ $$IMPORT_EXIT_CODE -eq 0 ]; then \
+		echo "$(GREEN)✓ Account imported$(NC)"; \
+	elif echo "$$IMPORT_OUTPUT" | grep -qi "already exists\|Already exists\|already imported\|duplicate"; then \
+		echo "$(YELLOW)⚠ Account already exists (continuing...)$(NC)"; \
+	else \
+		echo "$(YELLOW)⚠ Account import result: $$IMPORT_OUTPUT$(NC)"; \
+		echo "$(YELLOW)⚠ Continuing anyway...$(NC)"; \
+	fi
+	@echo ""
+	# Step 2: Extract address and set as default account
+	@echo "$(YELLOW)Step 2/5: Setting imported account as default...$(NC)"
+	@if [ ! -f target/debug/starcoin-bridge-cli ]; then \
+			echo "$(YELLOW)Building starcoin-bridge-cli to extract address...$(NC)"; \
+			cargo build --bin starcoin-bridge-cli --quiet || { \
+				echo "$(RED)✗ Failed to build starcoin-bridge-cli$(NC)"; \
+				exit 1; \
+			}; \
+	fi
+	@STARCOIN_CLIENT_KEY_PATH="bridge-node/server-config/starcoin_client.key"; \
+		STARCOIN_CLIENT_ADDRESS=$$(./target/debug/starcoin-bridge-cli examine-key "$$STARCOIN_CLIENT_KEY_PATH" 2>/dev/null | grep "Starcoin address:" | awk '{print $$NF}'); \
+		if [ -z "$$STARCOIN_CLIENT_ADDRESS" ]; then \
+			echo "$(RED)✗ Failed to extract Starcoin address from key$(NC)"; \
 			exit 1; \
 		fi; \
-	fi; \
-	echo "$(GREEN)✓ Default account: $$DEFAULT_ACCOUNT$(NC)"; \
-	echo ""; \
-	echo "$(YELLOW)Initializing account on-chain...$(NC)"; \
-	echo "$(YELLOW)Getting test coins for deployment (this also initializes the account)...$(NC)"; \
-	echo "$(BLUE)Executing: $(STARCOIN_PATH) -c $(STARCOIN_RPC) dev get-coin -v 10000000$(NC)"; \
-	$(STARCOIN_PATH) -c $(STARCOIN_RPC) dev get-coin -v 10000000 2>&1 | grep -v "^[0-9].*INFO" && \
+		echo "$(GREEN)✓ Starcoin client address: $$STARCOIN_CLIENT_ADDRESS$(NC)"; \
+		echo "$(BLUE)Executing: $(STARCOIN_PATH) -c $(STARCOIN_RPC) account default $$STARCOIN_CLIENT_ADDRESS$(NC)"; \
+		if $(STARCOIN_PATH) -c $(STARCOIN_RPC) account default $$STARCOIN_CLIENT_ADDRESS 2>&1 | grep -v "^[0-9].*INFO" | grep -q "default\|Default"; then \
+			echo "$(GREEN)✓ Set as default account$(NC)"; \
+		else \
+			echo "$(YELLOW)⚠ Setting default account may have failed (continuing...)$(NC)"; \
+	fi
+	@echo ""
+	# Step 3: Get test coins for the imported account
+	@echo "$(YELLOW)Step 3/5: Getting test coins for the account...$(NC)"
+	@STARCOIN_CLIENT_KEY_PATH="bridge-node/server-config/starcoin_client.key"; \
+	STARCOIN_CLIENT_ADDRESS=$$(./target/debug/starcoin-bridge-cli examine-key "$$STARCOIN_CLIENT_KEY_PATH" 2>/dev/null | grep "Starcoin address:" | awk '{print $$NF}'); \
+	echo "$(BLUE)Executing: $(STARCOIN_PATH) -c $(STARCOIN_RPC) dev get-coin -v 10000000 $$STARCOIN_CLIENT_ADDRESS$(NC)"; \
+	$(STARCOIN_PATH) -c $(STARCOIN_RPC) dev get-coin -v 10000000 $$STARCOIN_CLIENT_ADDRESS 2>&1 | grep -v "^[0-9].*INFO" && \
 	echo "$(GREEN)✓ Got 1000 STC for gas$(NC)" || { \
-		echo "$(RED)✗ Failed to get coins for account $$DEFAULT_ACCOUNT$(NC)"; \
-		echo "$(YELLOW)Trying without specifying account...$(NC)"; \
+		echo "$(YELLOW)⚠ Failed to get coins for account $$STARCOIN_CLIENT_ADDRESS, trying without specifying account...$(NC)"; \
 		$(STARCOIN_PATH) -c $(STARCOIN_RPC) dev get-coin -v 10000000 2>&1 | grep -v "^[0-9].*INFO" && \
 		echo "$(GREEN)✓ Got coins$(NC)" || { \
 			echo "$(RED)✗ Failed to get coins$(NC)"; \
 			exit 1; \
 		}; \
-	}; \
+	}
+	@echo ""
+	# Step 4: Build contracts (this will use the address from starcoin_client.key)
+	@echo "$(YELLOW)Step 4/5: Building Move contracts...$(NC)"
+	@$(MAKE) build-starcoin-contracts
+
+	# Step 5: Get default account for deployment (should be the imported one)
+	@echo "$(YELLOW)Step 5/5: Preparing for deployment...$(NC)"
+	@STARCOIN_CLIENT_KEY_PATH="bridge-node/server-config/starcoin_client.key"; \
+	STARCOIN_CLIENT_ADDRESS=$$(./target/debug/starcoin-bridge-cli examine-key "$$STARCOIN_CLIENT_KEY_PATH" 2>/dev/null | grep "Starcoin address:" | awk '{print $$NF}'); \
+	DEFAULT_ACCOUNT=$$STARCOIN_CLIENT_ADDRESS; \
+	echo "$(GREEN)✓ Using account: $$DEFAULT_ACCOUNT$(NC)"; \
 	echo ""; \
 	echo "$(YELLOW)Unlocking account...$(NC)"; \
 	echo "" | $(STARCOIN_PATH) -c $(STARCOIN_RPC) account unlock $$DEFAULT_ACCOUNT -d 300 2>&1 | grep -v "^[0-9].*INFO" && \
@@ -1058,3 +1134,66 @@ claim-on-eth: ## Manually claim tokens on ETH (usage: make claim-on-eth SEQ_NUM=
 	@TOKEN=$${TOKEN:-ETH}; \
 	cd scripts && bash bridge_transfer.sh claim-on-eth 2 $(SEQ_NUM) $$TOKEN
 
+# ============================================================
+# Testing & Debugging
+# ============================================================
+test-starcoin-client-key: build-bridge-cli ## Test reading and extracting private key from starcoin_client.key
+	@echo "$(YELLOW)╔════════════════════════════════════════╗$(NC)"
+	@echo "$(YELLOW)║  Testing starcoin_client.key          ║$(NC)"
+	@echo "$(YELLOW)╚════════════════════════════════════════╝$(NC)"
+	@echo ""
+	@STARCOIN_CLIENT_KEY_PATH="bridge-node/server-config/starcoin_client.key"; \
+	if [ ! -f "$$STARCOIN_CLIENT_KEY_PATH" ]; then \
+		echo "$(RED)✗ starcoin_client.key not found: $$STARCOIN_CLIENT_KEY_PATH$(NC)"; \
+		echo "$(YELLOW)Please run 'make setup-eth-and-config' first to generate the key$(NC)"; \
+		exit 1; \
+	fi; \
+	echo "$(GREEN)✓ Key file found: $$STARCOIN_CLIENT_KEY_PATH$(NC)"; \
+	echo ""
+	@echo "$(YELLOW)Step 1: Examining key file with starcoin-bridge-cli...$(NC)"
+	@STARCOIN_CLIENT_KEY_PATH="bridge-node/server-config/starcoin_client.key"; \
+	./target/debug/starcoin-bridge-cli examine-key "$$STARCOIN_CLIENT_KEY_PATH" 2>&1 | tee /tmp/test_key_examine.txt; \
+	STARCOIN_ADDRESS=$$(grep "Starcoin address:" /tmp/test_key_examine.txt | awk '{print $$NF}'); \
+	PUBLIC_KEY=$$(grep "PublicKey:" /tmp/test_key_examine.txt | awk '{print $$NF}' | tr -d '"'); \
+	if [ -z "$$STARCOIN_ADDRESS" ]; then \
+		echo "$(RED)✗ Failed to extract Starcoin address$(NC)"; \
+		exit 1; \
+	fi; \
+	echo "$(GREEN)✓ Starcoin address: $$STARCOIN_ADDRESS$(NC)"; \
+	if [ -n "$$PUBLIC_KEY" ]; then \
+		echo "$(GREEN)✓ Public key: $$PUBLIC_KEY$(NC)"; \
+	fi; \
+	echo ""
+	@echo "$(YELLOW)Step 2: Extracting private key hex from base64 encoded file...$(NC)"
+	@STARCOIN_CLIENT_KEY_PATH="bridge-node/server-config/starcoin_client.key"; \
+	if [ ! -f ./extract_privatekey.py ]; then \
+		echo "$(RED)✗ extract_privatekey.py not found in current directory$(NC)"; \
+		exit 1; \
+	fi; \
+	if command -v python3 >/dev/null 2>&1; then \
+		PYTHON_CMD=python3; \
+	elif command -v python >/dev/null 2>&1; then \
+		PYTHON_CMD=python; \
+	else \
+		echo "$(RED)✗ Python not found. Cannot extract private key.$(NC)"; \
+		exit 1; \
+	fi; \
+	echo "$(BLUE)Using extract_privatekey.py to extract private key...$(NC)"; \
+	PRIVATE_KEY_HEX=$$($$PYTHON_CMD extract_privatekey.py "$$STARCOIN_CLIENT_KEY_PATH" 2>/dev/null | tr -d '\n\r\t '); \
+	if [ -z "$$PRIVATE_KEY_HEX" ]; then \
+		echo "$(RED)✗ Failed to extract private key$(NC)"; \
+		$$PYTHON_CMD extract_privatekey.py "$$STARCOIN_CLIENT_KEY_PATH" 2>&1; \
+		exit 1; \
+	fi; \
+	HEX_LENGTH=$$(printf '%s' "$$PRIVATE_KEY_HEX" | wc -c); \
+	if [ $$HEX_LENGTH -ne 64 ]; then \
+		echo "$(RED)✗ Invalid private key length: $$HEX_LENGTH (expected 64)$(NC)"; \
+		echo "$(YELLOW)Extracted: $$PRIVATE_KEY_HEX$(NC)"; \
+		exit 1; \
+	fi; \
+	echo "$(GREEN)✓ Private key hex extracted successfully (64 chars = 32 bytes)$(NC)"; \
+	echo "$(BLUE)Private key (hex): $$PRIVATE_KEY_HEX$(NC)";
+	@echo "$(GREEN) ✅ Test Complete!$(NC)"
+
+test-starcoin-address: ## Test extracting Starcoin address from starcoin_key_output.txt
+	@grep "Corresponding Starcoin address" /tmp/starcoin_key_output.txt | awk '{print $$NF}'
